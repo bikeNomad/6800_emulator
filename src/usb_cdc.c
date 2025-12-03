@@ -100,10 +100,18 @@ static void process_command(char *cmd) {
     } else if (strncmp(cmd, "write", 5) == 0) {
         // Write memory: write <addr> <data...>
         unsigned int addr;
-        if (sscanf(cmd + 5, "%x", &addr) == 1) {
-            char *data_str = strchr(cmd + 5, ' ');
-            if (data_str) {
-                data_str++;
+        char *addr_str = cmd + 5;
+        // Skip leading whitespace
+        while (*addr_str == ' ') addr_str++;
+        // Parse address
+        if (sscanf(addr_str, "%x", &addr) == 1) {
+            // Skip past the address hex digits
+            while (*addr_str && *addr_str != ' ') addr_str++;
+            // Now find the data bytes
+            char *data_str = addr_str;
+            while (*data_str == ' ') data_str++;  // Skip spaces
+
+            if (*data_str) {
                 while (*data_str) {
                     unsigned int value;
                     if (sscanf(data_str, "%x", &value) == 1) {

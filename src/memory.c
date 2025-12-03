@@ -116,12 +116,18 @@ uint8_t memory_read(uint16_t address) {
         }
 
         if (ram_offset < mem_config.ram_size) {
-            return ram_shadow[ram_offset];
+            uint8_t value = ram_shadow[ram_offset];
+            printf("DEBUG read: addr=$%04X ram_offset=$%04X value=$%02X\n",
+                   address, ram_offset, value);
+            fflush(stdout);
+            return value;
         }
     }
 
     // Unmapped - would go through physical bus
     // For now return 0xFF (floating bus)
+    printf("DEBUG read: addr=$%04X UNMAPPED, returning FF\n", address);
+    fflush(stdout);
     return 0xFF;
 }
 
@@ -129,6 +135,9 @@ uint8_t memory_read(uint16_t address) {
 // For testing: writes to RAM shadow instead of physical GPIO
 void memory_write(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
+
+    printf("DEBUG write: addr=$%04X val=$%02X type=%d\n", address, value, type);
+    fflush(stdout);
 
     // Write to RAM shadow (with mirroring)
     if (type == MEM_TYPE_RAM) {
@@ -139,9 +148,20 @@ void memory_write(uint16_t address, uint8_t value) {
             ram_offset = address - 0x1000;  // Map to 0000-00FF
         }
 
+        printf("DEBUG write RAM: ram_offset=$%04X ram_size=$%04X\n", ram_offset, mem_config.ram_size);
+        fflush(stdout);
+
         if (ram_offset < mem_config.ram_size) {
             ram_shadow[ram_offset] = value;
+            printf("DEBUG write: stored at ram_shadow[%04X]\n", ram_offset);
+            fflush(stdout);
+        } else {
+            printf("DEBUG write: REJECTED (offset >= size)\n");
+            fflush(stdout);
         }
+    } else {
+        printf("DEBUG write: NOT RAM (type=%d)\n", type);
+        fflush(stdout);
     }
 
     // ROM writes are ignored
