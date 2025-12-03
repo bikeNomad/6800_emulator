@@ -11,14 +11,21 @@
 // Instruction mnemonics
 static const char* mnemonics[256] = {
     [0x01] = "NOP",
+    [0x08] = "INX",
+    [0x09] = "DEX",
+    [0x0D] = "SEC",
+    [0x0F] = "CLV",
+    [0x11] = "CBA",
     [0x16] = "TAB",
     [0x17] = "TBA",
     [0x1B] = "ABA",
     [0x20] = "BRA",
+    [0x22] = "BHI",
     [0x24] = "BCC",
     [0x25] = "BCS",
     [0x26] = "BNE",
     [0x27] = "BEQ",
+    [0x2A] = "BPL",
     [0x30] = "TSX",
     [0x35] = "TXS",
     [0x36] = "PSHA",
@@ -28,25 +35,37 @@ static const char* mnemonics[256] = {
     [0x39] = "RTS",
     [0x3B] = "RTI",
     [0x3E] = "WAI",
+    [0x44] = "LSRA",
+    [0x48] = "ASLA",
     [0x4A] = "DECA",
     [0x4C] = "INCA",
+    [0x4D] = "TSTA",
+    [0x4F] = "CLRA",
+    [0x54] = "LSRB",
+    [0x58] = "ASLB",
     [0x5A] = "DECB",
     [0x5C] = "INCB",
+    [0x5D] = "TSTB",
     [0x6E] = "JMP (IND)",
+    [0x6F] = "CLR (IND)",
     [0x7E] = "JMP (EXT)",
     [0x80] = "SUBA (IMM)",
+    [0x81] = "CMPA (IMM)",
     [0x84] = "ANDA (IMM)",
     [0x86] = "LDAA (IMM)",
     [0x8A] = "ORAA (IMM)",
     [0x8B] = "ADDA (IMM)",
+    [0x8C] = "CPX (IMM)",
     [0x8D] = "BSR",
     [0x8E] = "LDS (IMM)",
     [0x90] = "SUBA (DIR)",
     [0x94] = "ANDA (DIR)",
     [0x96] = "LDAA (DIR)",
     [0x97] = "STAA (DIR)",
+    [0x99] = "ADCA (DIR)",
     [0x9A] = "ORAA (DIR)",
     [0x9B] = "ADDA (DIR)",
+    [0x9C] = "CPX (DIR)",
     [0xA0] = "SUBA (IND)",
     [0xA4] = "ANDA (IND)",
     [0xA6] = "LDAA (IND)",
@@ -62,7 +81,9 @@ static const char* mnemonics[256] = {
     [0xBB] = "ADDA (EXT)",
     [0xBD] = "JSR (EXT)",
     [0xC0] = "SUBB (IMM)",
+    [0xC1] = "CMPB (IMM)",
     [0xC4] = "ANDB (IMM)",
+    [0xC5] = "BITB (DIR)",
     [0xC6] = "LDAB (IMM)",
     [0xCA] = "ORAB (IMM)",
     [0xCB] = "ADDB (IMM)",
@@ -128,6 +149,36 @@ void instruction_execute(void) {
             // 2 cycles total (fetch + execute)
             break;
 
+        // INX - Increment Index Register X
+        case 0x08:
+            cpu.x++;
+            cpu_set_flag(CCR_Z, cpu.x == 0);
+            break;
+
+        // DEX - Decrement Index Register X
+        case 0x09:
+            cpu.x--;
+            cpu_set_flag(CCR_Z, cpu.x == 0);
+            break;
+
+        // CBA - Compare Accumulators (A with B)
+        case 0x11: {
+            uint16_t result = cpu.a - cpu.b;
+            cpu_update_nzv(result & 0xFF, cpu.a, cpu.b, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SEC - Set Carry Flag
+        case 0x0D:
+            cpu_set_flag(CCR_C, true);
+            break;
+
+        // CLV - Clear Overflow Flag
+        case 0x0F:
+            cpu_set_flag(CCR_V, false);
+            break;
+
         // TAB - Transfer A to B
         case 0x16:
             cpu.b = cpu.a;
@@ -154,6 +205,15 @@ void instruction_execute(void) {
         case 0x20: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
             cpu.pc += offset;
+            break;
+        }
+
+        // BHI - Branch if Higher (C=0 AND Z=0)
+        case 0x22: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (!cpu_get_flag(CCR_C) && !cpu_get_flag(CCR_Z)) {
+                cpu.pc += offset;
+            }
             break;
         }
 
@@ -188,6 +248,15 @@ void instruction_execute(void) {
         case 0x27: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
             if (cpu_get_flag(CCR_Z)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BPL - Branch if Plus (N=0)
+        case 0x2A: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (!cpu_get_flag(CCR_N)) {
                 cpu.pc += offset;
             }
             break;
@@ -248,6 +317,28 @@ void instruction_execute(void) {
             cpu_push(cpu.ccr);
             break;
 
+        // LSRA - Logical Shift Right A
+        case 0x44: {
+            uint8_t old_bit0 = cpu.a & 0x01;
+            cpu.a >>= 1;
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_set_flag(CCR_N, false);  // N always cleared for logical shift right
+            cpu_set_flag(CCR_Z, cpu.a == 0);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_C));  // V = N XOR C = 0 XOR C = C
+            break;
+        }
+
+        // ASLA - Arithmetic Shift Left A
+        case 0x48: {
+            uint8_t old_bit7 = (cpu.a & 0x80) >> 7;
+            cpu.a <<= 1;
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(cpu.a);
+            // V = N XOR C (overflow if sign changed incorrectly)
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
         // DECA - Decrement A
         case 0x4A:
             cpu.a--;
@@ -261,6 +352,43 @@ void instruction_execute(void) {
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, cpu.a == 0x80);
             break;
+
+        // TSTA - Test Accumulator A
+        case 0x4D:
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+
+        // CLRA - Clear Accumulator A
+        case 0x4F:
+            cpu.a = 0x00;
+            cpu_set_flag(CCR_N, false);
+            cpu_set_flag(CCR_Z, true);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, false);
+            break;
+
+        // LSRB - Logical Shift Right B
+        case 0x54: {
+            uint8_t old_bit0 = cpu.b & 0x01;
+            cpu.b >>= 1;
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_set_flag(CCR_N, false);  // N always cleared for logical shift right
+            cpu_set_flag(CCR_Z, cpu.b == 0);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_C));  // V = N XOR C = 0 XOR C = C
+            break;
+        }
+
+        // ASLB - Arithmetic Shift Left B
+        case 0x58: {
+            uint8_t old_bit7 = (cpu.b & 0x80) >> 7;
+            cpu.b <<= 1;
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(cpu.b);
+            // V = N XOR C (overflow if sign changed incorrectly)
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
 
         // DECB - Decrement B
         case 0x5A:
@@ -276,10 +404,27 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_V, cpu.b == 0x80);
             break;
 
+        // TSTB - Test Accumulator B
+        case 0x5D:
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+
         // JMP (Indexed)
         case 0x6E: {
             uint8_t offset = memory_read(cpu.pc++);
             cpu.pc = cpu.x + offset;
+            break;
+        }
+
+        // CLR - Clear Memory (Indexed)
+        case 0x6F: {
+            uint8_t offset = memory_read(cpu.pc++);
+            memory_write(cpu.x + offset, 0x00);
+            cpu_set_flag(CCR_N, false);
+            cpu_set_flag(CCR_Z, true);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, false);
             break;
         }
 
@@ -295,6 +440,15 @@ void instruction_execute(void) {
         case 0x80: {
             uint8_t operand = memory_read(cpu.pc++);
             sub_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CMPA - Compare A (Immediate)
+        case 0x81: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.a - operand;
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
             break;
         }
 
@@ -331,6 +485,22 @@ void instruction_execute(void) {
             break;
         }
 
+        // CPX - Compare X (Immediate)
+        case 0x8C: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t imm_val = (high << 8) | low;
+
+            // Perform subtraction for comparison
+            uint32_t result = cpu.x - imm_val;
+
+            // Update flags
+            cpu_set_flag(CCR_N, (result & 0x8000) != 0);
+            cpu_set_flag(CCR_Z, (result & 0xFFFF) == 0);
+            cpu_set_flag(CCR_V, ((cpu.x ^ imm_val) & (cpu.x ^ result) & 0x8000) != 0);
+            break;
+        }
+
         // BSR - Branch to Subroutine
         case 0x8D: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
@@ -364,6 +534,45 @@ void instruction_execute(void) {
             memory_write(addr, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCA - Add with Carry to A (Direct)
+        case 0x99: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.a + operand + carry;
+
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.a & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ADDA - Add to A (Direct)
+        case 0x9B: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            add_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CPX - Compare X (Direct)
+        case 0x9C: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t high = memory_read(addr);
+            uint8_t low = memory_read(addr + 1);
+            uint16_t mem_val = (high << 8) | low;
+
+            // Perform subtraction for comparison
+            uint32_t result = cpu.x - mem_val;
+
+            // Update flags
+            cpu_set_flag(CCR_N, (result & 0x8000) != 0);
+            cpu_set_flag(CCR_Z, (result & 0xFFFF) == 0);
+            cpu_set_flag(CCR_V, ((cpu.x ^ mem_val) & (cpu.x ^ result) & 0x8000) != 0);
             break;
         }
 
@@ -422,6 +631,34 @@ void instruction_execute(void) {
             uint16_t addr = (high << 8) | low;
             cpu_push16(cpu.pc);
             cpu.pc = addr;
+            break;
+        }
+
+        // CMPB - Compare B (Immediate)
+        case 0xC1: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // ANDB - Logical AND B (Immediate)
+        case 0xC4: {
+            uint8_t operand = memory_read(cpu.pc++);
+            cpu.b &= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITB - Bit Test B (Direct)
+        case 0xC5: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t mem_val = memory_read(addr);
+            uint8_t result = cpu.b & mem_val;
+            cpu_update_nz(result);
+            cpu_set_flag(CCR_V, false);
             break;
         }
 

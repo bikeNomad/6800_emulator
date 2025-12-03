@@ -8,6 +8,7 @@
 #include "ihex_parser.h"
 #include "interrupts.h"
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
 #include "tusb.h"
 #include <stdio.h>
 #include <string.h>
@@ -178,6 +179,12 @@ static void process_command(char *cmd) {
         interrupt_service_reset();
         usb_cdc_send("OK: CPU reset\r\n");
 
+    } else if (strcmp(cmd, "bootloader") == 0 || strcmp(cmd, "boot") == 0) {
+        // Enter bootloader mode
+        usb_cdc_send("Entering bootloader mode...\r\n");
+        sleep_ms(100);  // Give time for message to send
+        reset_usb_boot(0, 0);  // Reset into USB bootloader
+
     } else if (strcmp(cmd, "help") == 0) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
@@ -191,6 +198,7 @@ static void process_command(char *cmd) {
             "  run                 - Start CPU execution\r\n"
             "  halt                - Stop CPU execution\r\n"
             "  reset               - Reset CPU\r\n"
+            "  bootloader          - Enter bootloader mode\r\n"
             "  help                - Show this help\r\n"
         );
 

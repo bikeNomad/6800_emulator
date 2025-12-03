@@ -3,7 +3,9 @@
     "allow": [
       "WebSearch",
       "WebFetch(domain:k7mem.com)",
-      "WebFetch(domain:www.tutorialspoint.com)"
+      "WebFetch(domain:www.tutorialspoint.com)",
+      "Bash(chmod:*)",
+      "Bash(make:*)"
     ],
     "deny": [],
     "ask": []
