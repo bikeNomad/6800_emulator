@@ -40,8 +40,8 @@ extern "C" {
 #define CFG_TUD_VENDOR        0
 
 // CDC buffer sizes
-#define CFG_TUD_CDC_RX_BUFSIZE   256  // Larger for Intel HEX loading
-#define CFG_TUD_CDC_TX_BUFSIZE   256
+#define CFG_TUD_CDC_RX_BUFSIZE   512  // Larger for Intel HEX loading
+#define CFG_TUD_CDC_TX_BUFSIZE   1024 // Larger to handle multi-line output like HELP
 #define CFG_TUD_CDC_EP_BUFSIZE   64
 
 #ifdef __cplusplus

@@ -5,6 +5,9 @@ if(NOT DEFINED ENV{PICO_SDK_PATH})
     set(ENV{PICO_SDK_PATH} "/Users/ned/src/Micropython/micropython/lib/pico-sdk")
 endif()
 
+# Set board type to Pico 2 (RP2350) - MUST be before pico_sdk_import
+set(PICO_BOARD pico2)
+
 # Include the Pico SDK
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 

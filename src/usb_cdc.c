@@ -158,18 +158,21 @@ static void process_command(char *cmd) {
         usb_cdc_send("OK: CPU reset\r\n");
 
     } else if (strcmp(cmd, "HELP") == 0) {
-        usb_cdc_send("MC6800 Emulator Commands:\r\n");
-        usb_cdc_send("  LOAD              - Enter HEX load mode\r\n");
-        usb_cdc_send("  END               - Finish HEX load\r\n");
-        usb_cdc_send("  CONFIG ROM <b> <s> - Configure ROM region\r\n");
-        usb_cdc_send("  CONFIG RAM <b> <s> - Configure RAM region\r\n");
-        usb_cdc_send("  READ <addr> <len> - Read memory\r\n");
-        usb_cdc_send("  WRITE <addr> <data...> - Write memory\r\n");
-        usb_cdc_send("  STATUS            - Display CPU status\r\n");
-        usb_cdc_send("  RUN               - Start CPU execution\r\n");
-        usb_cdc_send("  HALT              - Stop CPU execution\r\n");
-        usb_cdc_send("  RESET             - Reset CPU\r\n");
-        usb_cdc_send("  HELP              - Show this help\r\n");
+        // Send as single string to avoid buffer overflow
+        usb_cdc_send(
+            "MC6800 Emulator Commands:\r\n"
+            "  LOAD              - Enter HEX load mode\r\n"
+            "  END               - Finish HEX load\r\n"
+            "  CONFIG ROM <b> <s> - Configure ROM region\r\n"
+            "  CONFIG RAM <b> <s> - Configure RAM region\r\n"
+            "  READ <addr> <len> - Read memory\r\n"
+            "  WRITE <addr> <data...> - Write memory\r\n"
+            "  STATUS            - Display CPU status\r\n"
+            "  RUN               - Start CPU execution\r\n"
+            "  HALT              - Stop CPU execution\r\n"
+            "  RESET             - Reset CPU\r\n"
+            "  HELP              - Show this help\r\n"
+        );
 
     } else {
         usb_cdc_send("ERROR: Unknown command. Type HELP for help.\r\n");
@@ -249,9 +252,26 @@ void usb_cdc_task(void) {
 
 // Send string to USB
 void usb_cdc_send(const char *str) {
-    if (tud_cdc_connected()) {
-        tud_cdc_write_str(str);
-        tud_cdc_write_flush();
+    if (!tud_cdc_connected()) {
+        return;
+    }
+
+    size_t len = strlen(str);
+    size_t sent = 0;
+
+    // Send in chunks, waiting for space if needed
+    while (sent < len) {
+        size_t available = tud_cdc_write_available();
+        if (available > 0) {
+            size_t to_send = (len - sent) < available ? (len - sent) : available;
+            uint32_t written = tud_cdc_write(str + sent, to_send);
+            sent += written;
+            tud_cdc_write_flush();
+        } else {
+            // Buffer full, let TinyUSB process and drain
+            tud_task();
+            sleep_us(100);
+        }
     }
 }
 
