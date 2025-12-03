@@ -32,6 +32,7 @@ typedef struct {
 void memory_init(void);
 
 // Configure memory regions (called from USB command)
+void memory_print_config(void);
 void memory_configure_rom(uint16_t base, uint16_t size);
 void memory_configure_ram(uint16_t base, uint16_t size);
 

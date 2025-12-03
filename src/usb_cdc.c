@@ -58,6 +58,10 @@ static void process_command(char *cmd) {
         in_hex_mode = false;
         hex_pos = 0;
 
+    } else if (strcmp(cmd, "config") == 0) {
+        // Display current memory configuration
+        memory_print_config();
+
     } else if (strncmp(cmd, "config rom", 10) == 0) {
         // Configure ROM region: config rom <base> <size>
         unsigned int base, size;
