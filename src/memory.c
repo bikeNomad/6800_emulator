@@ -12,7 +12,7 @@
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (1024 * 1024)  // 1MB offset (adjust based on program size)
 #define MAX_ROM_SIZE (32 * 1024)  // 32KB max ROM
-#define MAX_RAM_SIZE 1024  // 1KB max RAM
+#define MAX_RAM_SIZE (8 * 1024)  // 8KB max RAM (supports up to 0x1FFF)
 
 // Memory configuration
 static memory_config_t mem_config;
@@ -27,18 +27,19 @@ void memory_init(void) {
     memset(ram_shadow, 0, sizeof(ram_shadow));
     memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
 
-    // Default configuration (typical Williams pinball)
-    mem_config.rom_base = 0xE000;
-    mem_config.rom_size = 0x2000;  // 8KB
+    // Default configuration (Williams System 7 pinball)
+    mem_config.rom_base = 0xD000;
+    mem_config.rom_size = 0x3000;  // 12KB (D000-FFFF)
     mem_config.ram_base = 0x0000;
-    mem_config.ram_size = 0x0200;  // 512 bytes
+    mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
     mem_config.flash_offset = FLASH_TARGET_OFFSET;
     mem_config.flash_size = mem_config.rom_size;
-    mem_config.configured = false;
+    mem_config.configured = true;  // Use defaults
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n",
            mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
            mem_config.ram_base, mem_config.ram_base + mem_config.ram_size - 1);
+    printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
 }
 
 // Configure ROM region
@@ -105,9 +106,15 @@ uint8_t memory_read(uint16_t address) {
         return flash_ptr[rom_offset];
     }
 
-    // Read from RAM shadow
+    // Read from RAM shadow (with mirroring)
     if (type == MEM_TYPE_RAM) {
         uint16_t ram_offset = address - mem_config.ram_base;
+
+        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
+        if (address >= 0x1000 && address <= 0x10FF) {
+            ram_offset = address - 0x1000;  // Map to 0000-00FF
+        }
+
         if (ram_offset < mem_config.ram_size) {
             return ram_shadow[ram_offset];
         }
@@ -123,9 +130,15 @@ uint8_t memory_read(uint16_t address) {
 void memory_write(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
 
-    // Write to RAM shadow
+    // Write to RAM shadow (with mirroring)
     if (type == MEM_TYPE_RAM) {
         uint16_t ram_offset = address - mem_config.ram_base;
+
+        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
+        if (address >= 0x1000 && address <= 0x10FF) {
+            ram_offset = address - 0x1000;  // Map to 0000-00FF
+        }
+
         if (ram_offset < mem_config.ram_size) {
             ram_shadow[ram_offset] = value;
         }

@@ -73,3 +73,5 @@ PIO and DMA peripherals should be used to accelerate bus operations:
 - Any memory addresses outside of defined ROM and ROM ranges must be handled via the bus (for memory-mapped peripherals).
 - Every ROM or RAM access must also drive the address bus because there is watchdog circuitry examining bus activity.
 - I want to use a dev board for testing at first.
+- On system 7 games, the RAM space 0000-00FF is mirrored at 1000-10FF. And there could be RAM all the way up to 13FF.
+- There could be ROM down to D000
