@@ -60,7 +60,18 @@ static void process_command(char *cmd) {
 
     } else if (strcmp(cmd, "config") == 0) {
         // Display current memory configuration
-        memory_print_config();
+        uint16_t rom_base, rom_size, ram_base, ram_size;
+        memory_get_rom_config(&rom_base, &rom_size);
+        memory_get_ram_config(&ram_base, &ram_size);
+
+        usb_cdc_send("Memory Configuration:\r\n");
+        usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes, %dKB)\r\n",
+                       rom_base, rom_base + rom_size - 1,
+                       rom_size, rom_size / 1024);
+        usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes, %dKB)\r\n",
+                       ram_base, ram_base + ram_size - 1,
+                       ram_size, ram_size / 1024);
+        usb_cdc_send("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
 
     } else if (strncmp(cmd, "config rom", 10) == 0) {
         // Configure ROM region: config rom <base> <size>

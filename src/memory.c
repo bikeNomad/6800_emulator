@@ -42,20 +42,16 @@ void memory_init(void) {
     printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
 }
 
-// Print current memory configuration
-void memory_print_config(void) {
-    printf("Memory Configuration:\r\n");
-    printf("  ROM: $%04X-$%04X (%d bytes, %dKB)\r\n",
-           mem_config.rom_base,
-           mem_config.rom_base + mem_config.rom_size - 1,
-           mem_config.rom_size,
-           mem_config.rom_size / 1024);
-    printf("  RAM: $%04X-$%04X (%d bytes, %dKB)\r\n",
-           mem_config.ram_base,
-           mem_config.ram_base + mem_config.ram_size - 1,
-           mem_config.ram_size,
-           mem_config.ram_size / 1024);
-    printf("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
+// Get ROM configuration
+void memory_get_rom_config(uint16_t *base, uint16_t *size) {
+    *base = mem_config.rom_base;
+    *size = mem_config.rom_size;
+}
+
+// Get RAM configuration
+void memory_get_ram_config(uint16_t *base, uint16_t *size) {
+    *base = mem_config.ram_base;
+    *size = mem_config.ram_size;
 }
 
 // Configure ROM region
