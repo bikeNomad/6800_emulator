@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/Users/ned/src/6800_emulator/build/pioasm/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

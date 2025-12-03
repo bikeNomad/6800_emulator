@@ -1,5 +1,0 @@
-/Users/ned/src/6800_emulator/build/pioasm-install/pioasm/pioasm
-/Users/ned/src/6800_emulator/build/pioasm-install/pioasm/pioasmTargets.cmake
-/Users/ned/src/6800_emulator/build/pioasm-install/pioasm/pioasmTargets-release.cmake
-/Users/ned/src/6800_emulator/build/pioasm-install/pioasm/pioasmConfig.cmake
-/Users/ned/src/6800_emulator/build/pioasm-install/pioasm/pioasmConfigVersion.cmake

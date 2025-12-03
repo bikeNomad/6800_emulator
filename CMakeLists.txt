@@ -34,6 +34,7 @@ add_executable(mc6800_emulator
     src/instructions.c
     src/interrupts.c
     src/usb_cdc.c
+    src/usb_descriptors.c
     src/ihex_parser.c
     src/debug_spi.c
 )
@@ -41,14 +42,22 @@ add_executable(mc6800_emulator
 # Create the PIO header for clock generation
 pico_generate_pio_header(mc6800_emulator ${CMAKE_CURRENT_LIST_DIR}/src/clock.pio)
 
+# Add include directory for tusb_config.h
+target_include_directories(mc6800_emulator PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
 # Link libraries
 target_link_libraries(mc6800_emulator
     pico_stdlib
+    pico_unique_id
     hardware_pio
     hardware_dma
     hardware_spi
     hardware_flash
     hardware_sync
+    tinyusb_device
+    tinyusb_board
 )
 
 # Enable USB output, disable UART output

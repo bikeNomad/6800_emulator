@@ -8,18 +8,10 @@
 #include "ihex_parser.h"
 #include "interrupts.h"
 #include "pico/stdlib.h"
+#include "tusb.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
-
-// Stub implementations for TinyUSB functions (until proper USB is configured)
-static inline void tud_task(void) { }
-static inline bool tud_cdc_connected(void) { return false; }
-static inline uint32_t tud_cdc_available(void) { return 0; }
-static inline char tud_cdc_read_char(void) { return 0; }
-static inline uint32_t tud_cdc_write_char(char c) { (void)c; return 0; }
-static inline uint32_t tud_cdc_write_str(const char *str) { (void)str; return 0; }
-static inline uint32_t tud_cdc_write_flush(void) { return 0; }
 
 // Command buffer
 #define CMD_BUFFER_SIZE 4096
@@ -186,7 +178,9 @@ static void process_command(char *cmd) {
 
 // Initialize USB CDC
 void usb_cdc_init(void) {
-    // TinyUSB will be initialized by stdio_init_all() in main
+    // Initialize TinyUSB device stack
+    tusb_init();
+
     cmd_pos = 0;
     in_hex_mode = false;
     printf("USB CDC interface initialized\n");
@@ -269,4 +263,30 @@ void usb_cdc_printf(const char *fmt, ...) {
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
     usb_cdc_send(buffer);
+}
+
+//--------------------------------------------------------------------+
+// TinyUSB Device Callbacks
+//--------------------------------------------------------------------+
+
+// Invoked when device is mounted
+void tud_mount_cb(void) {
+    printf("USB mounted\n");
+}
+
+// Invoked when device is unmounted
+void tud_umount_cb(void) {
+    printf("USB unmounted\n");
+}
+
+// Invoked when CDC line state changes (DTR/RTS)
+void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+    (void)itf;
+    (void)rts;
+
+    if (dtr) {
+        printf("USB CDC connected\n");
+    } else {
+        printf("USB CDC disconnected\n");
+    }
 }
