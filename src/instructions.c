@@ -13,20 +13,34 @@ static const char* mnemonics[256] = {
     [0x01] = "NOP",
     [0x08] = "INX",
     [0x09] = "DEX",
+    [0x0A] = "CLV",
+    [0x0B] = "SEV",
+    [0x0C] = "CLC",
     [0x0D] = "SEC",
-    [0x0F] = "CLV",
+    [0x0E] = "CLI",
+    [0x0F] = "SEI",
     [0x11] = "CBA",
     [0x16] = "TAB",
     [0x17] = "TBA",
     [0x1B] = "ABA",
     [0x20] = "BRA",
     [0x22] = "BHI",
+    [0x23] = "BLS",
     [0x24] = "BCC",
     [0x25] = "BCS",
     [0x26] = "BNE",
     [0x27] = "BEQ",
+    [0x28] = "BVC",
+    [0x29] = "BVS",
     [0x2A] = "BPL",
+    [0x2B] = "BMI",
+    [0x2C] = "BGE",
+    [0x2D] = "BLT",
+    [0x2E] = "BGT",
+    [0x2F] = "BLE",
     [0x30] = "TSX",
+    [0x31] = "INS",
+    [0x34] = "DES",
     [0x35] = "TXS",
     [0x36] = "PSHA",
     [0x37] = "PSHB",
@@ -161,6 +175,36 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_Z, cpu.x == 0);
             break;
 
+        // CLV - Clear Overflow Flag
+        case 0x0A:
+            cpu_set_flag(CCR_V, false);
+            break;
+
+        // SEV - Set Overflow Flag
+        case 0x0B:
+            cpu_set_flag(CCR_V, true);
+            break;
+
+        // CLC - Clear Carry Flag
+        case 0x0C:
+            cpu_set_flag(CCR_C, false);
+            break;
+
+        // SEC - Set Carry Flag
+        case 0x0D:
+            cpu_set_flag(CCR_C, true);
+            break;
+
+        // CLI - Clear Interrupt Mask
+        case 0x0E:
+            cpu_set_flag(CCR_I, false);
+            break;
+
+        // SEI - Set Interrupt Mask
+        case 0x0F:
+            cpu_set_flag(CCR_I, true);
+            break;
+
         // CBA - Compare Accumulators (A with B)
         case 0x11: {
             uint16_t result = cpu.a - cpu.b;
@@ -168,16 +212,6 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_C, result > 0xFF);
             break;
         }
-
-        // SEC - Set Carry Flag
-        case 0x0D:
-            cpu_set_flag(CCR_C, true);
-            break;
-
-        // CLV - Clear Overflow Flag
-        case 0x0F:
-            cpu_set_flag(CCR_V, false);
-            break;
 
         // TAB - Transfer A to B
         case 0x16:
@@ -212,6 +246,15 @@ void instruction_execute(void) {
         case 0x22: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
             if (!cpu_get_flag(CCR_C) && !cpu_get_flag(CCR_Z)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BLS - Branch if Lower or Same (C=1 OR Z=1)
+        case 0x23: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (cpu_get_flag(CCR_C) || cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
             }
             break;
@@ -253,6 +296,24 @@ void instruction_execute(void) {
             break;
         }
 
+        // BVC - Branch if Overflow Clear (V=0)
+        case 0x28: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (!cpu_get_flag(CCR_V)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BVS - Branch if Overflow Set (V=1)
+        case 0x29: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (cpu_get_flag(CCR_V)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
         // BPL - Branch if Plus (N=0)
         case 0x2A: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
@@ -262,9 +323,64 @@ void instruction_execute(void) {
             break;
         }
 
+        // BMI - Branch if Minus (N=1)
+        case 0x2B: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (cpu_get_flag(CCR_N)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BGE - Branch if Greater or Equal (N XOR V = 0)
+        case 0x2C: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (cpu_get_flag(CCR_N) == cpu_get_flag(CCR_V)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BLT - Branch if Less Than (N XOR V = 1)
+        case 0x2D: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (cpu_get_flag(CCR_N) != cpu_get_flag(CCR_V)) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BGT - Branch if Greater Than (Z=0 AND (N XOR V)=0)
+        case 0x2E: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (!cpu_get_flag(CCR_Z) && (cpu_get_flag(CCR_N) == cpu_get_flag(CCR_V))) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
+        // BLE - Branch if Less or Equal (Z=1 OR (N XOR V)=1)
+        case 0x2F: {
+            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            if (cpu_get_flag(CCR_Z) || (cpu_get_flag(CCR_N) != cpu_get_flag(CCR_V))) {
+                cpu.pc += offset;
+            }
+            break;
+        }
+
         // TSX - Transfer Stack Pointer to X
         case 0x30:
             cpu.x = cpu.sp + 1;
+            break;
+
+        // INS - Increment Stack Pointer
+        case 0x31:
+            cpu.sp++;
+            break;
+
+        // DES - Decrement Stack Pointer
+        case 0x34:
+            cpu.sp--;
             break;
 
         // TXS - Transfer X to Stack Pointer
