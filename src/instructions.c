@@ -55,13 +55,17 @@ static const char* mnemonics[256] = {
     [0x4C] = "INCA",
     [0x4D] = "TSTA",
     [0x4F] = "CLRA",
+    [0x53] = "COMB",
     [0x54] = "LSRB",
     [0x58] = "ASLB",
+    [0x59] = "ROLB",
     [0x5A] = "DECB",
     [0x5C] = "INCB",
     [0x5D] = "TSTB",
+    [0x5F] = "CLRB",
     [0x6E] = "JMP (IND)",
     [0x6F] = "CLR (IND)",
+    [0x7A] = "DEC (EXT)",
     [0x7E] = "JMP (EXT)",
     [0x80] = "SUBA (IMM)",
     [0x81] = "CMPA (IMM)",
@@ -156,11 +160,24 @@ void instruction_execute(void) {
     // Fetch opcode
     uint8_t opcode = memory_read(cpu.pc++);
 
+    // Increment instruction counter
+    cpu.instruction_count++;
+
     // Decode and execute based on opcode
     switch (opcode) {
         // NOP - No Operation
         case 0x01:
             // 2 cycles total (fetch + execute)
+            break;
+
+        // TAP - Transfer A to Processor Status (CCR)
+        case 0x06:
+            cpu.ccr = (cpu.a & 0x3F) | CCR_FIXED;  // Only lower 6 bits, preserve bits 7-6
+            break;
+
+        // TPA - Transfer Processor Status (CCR) to A
+        case 0x07:
+            cpu.a = cpu.ccr;
             break;
 
         // INX - Increment Index Register X
@@ -204,6 +221,32 @@ void instruction_execute(void) {
         case 0x0F:
             cpu_set_flag(CCR_I, true);
             break;
+
+        // DAA - Decimal Adjust Accumulator A
+        case 0x19: {
+            uint8_t correction = 0;
+            uint8_t lower_nibble = cpu.a & 0x0F;
+            uint8_t upper_nibble = (cpu.a >> 4) & 0x0F;
+
+            // Check lower nibble
+            if (cpu_get_flag(CCR_H) || lower_nibble > 9) {
+                correction += 0x06;
+            }
+
+            // Check upper nibble
+            if (cpu_get_flag(CCR_C) || upper_nibble > 9 || (upper_nibble > 8 && lower_nibble > 9)) {
+                correction += 0x60;
+            }
+
+            // Apply correction
+            uint16_t result = cpu.a + correction;
+            cpu.a = result & 0xFF;
+
+            // Update flags
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_C, result > 0xFF || cpu_get_flag(CCR_C));
+            break;
+        }
 
         // CBA - Compare Accumulators (A with B)
         case 0x11: {
@@ -433,6 +476,23 @@ void instruction_execute(void) {
             cpu_push(cpu.ccr);
             break;
 
+        // NEGA - Negate A (two's complement)
+        case 0x40: {
+            cpu.a = (~cpu.a) + 1;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, cpu.a == 0x80);
+            cpu_set_flag(CCR_C, cpu.a != 0);
+            break;
+        }
+
+        // COMA - Complement A (one's complement)
+        case 0x43:
+            cpu.a = ~cpu.a;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, true);
+            break;
+
         // LSRA - Logical Shift Right A
         case 0x44: {
             uint8_t old_bit0 = cpu.a & 0x01;
@@ -444,6 +504,28 @@ void instruction_execute(void) {
             break;
         }
 
+        // RORA - Rotate Right A through Carry
+        case 0x46: {
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
+            uint8_t old_bit0 = cpu.a & 0x01;
+            cpu.a = (cpu.a >> 1) | old_carry;
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ASRA - Arithmetic Shift Right A
+        case 0x47: {
+            uint8_t old_bit0 = cpu.a & 0x01;
+            uint8_t sign_bit = cpu.a & 0x80;
+            cpu.a = (cpu.a >> 1) | sign_bit;
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
         // ASLA - Arithmetic Shift Left A
         case 0x48: {
             uint8_t old_bit7 = (cpu.a & 0x80) >> 7;
@@ -451,6 +533,17 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(cpu.a);
             // V = N XOR C (overflow if sign changed incorrectly)
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ROLA - Rotate Left A through Carry
+        case 0x49: {
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
+            uint8_t old_bit7 = (cpu.a & 0x80) >> 7;
+            cpu.a = (cpu.a << 1) | old_carry;
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
             break;
         }
@@ -484,6 +577,23 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_C, false);
             break;
 
+        // NEGB - Negate B (two's complement)
+        case 0x50: {
+            cpu.b = (~cpu.b) + 1;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, cpu.b == 0x80);
+            cpu_set_flag(CCR_C, cpu.b != 0);
+            break;
+        }
+
+        // COMB - Complement B (one's complement)
+        case 0x53:
+            cpu.b = ~cpu.b;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, true);
+            break;
+
         // LSRB - Logical Shift Right B
         case 0x54: {
             uint8_t old_bit0 = cpu.b & 0x01;
@@ -495,6 +605,28 @@ void instruction_execute(void) {
             break;
         }
 
+        // RORB - Rotate Right B through Carry
+        case 0x56: {
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
+            uint8_t old_bit0 = cpu.b & 0x01;
+            cpu.b = (cpu.b >> 1) | old_carry;
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ASRB - Arithmetic Shift Right B
+        case 0x57: {
+            uint8_t old_bit0 = cpu.b & 0x01;
+            uint8_t sign_bit = cpu.b & 0x80;
+            cpu.b = (cpu.b >> 1) | sign_bit;
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
         // ASLB - Arithmetic Shift Left B
         case 0x58: {
             uint8_t old_bit7 = (cpu.b & 0x80) >> 7;
@@ -502,6 +634,17 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(cpu.b);
             // V = N XOR C (overflow if sign changed incorrectly)
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ROLB - Rotate Left B
+        case 0x59: {
+            uint8_t old_bit7 = (cpu.b & 0x80) >> 7;
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            cpu.b = (cpu.b << 1) | old_carry;
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
             break;
         }
@@ -526,6 +669,149 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_V, false);
             break;
 
+        // CLRB - Clear Accumulator B
+        case 0x5F:
+            cpu.b = 0x00;
+            cpu_set_flag(CCR_N, false);
+            cpu_set_flag(CCR_Z, true);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, false);
+            break;
+
+        // NEG - Negate Memory (Indexed)
+        case 0x60: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            value = (~value) + 1;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, value == 0x80);
+            cpu_set_flag(CCR_C, value != 0);
+            break;
+        }
+
+        // COM - Complement Memory (Indexed)
+        case 0x63: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            value = ~value;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, true);
+            break;
+        }
+
+        // LSR - Logical Shift Right (Indexed)
+        case 0x64: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            uint8_t old_bit0 = value & 0x01;
+            value >>= 1;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_set_flag(CCR_N, false);
+            cpu_set_flag(CCR_Z, value == 0);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ROR - Rotate Right (Indexed)
+        case 0x66: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
+            uint8_t old_bit0 = value & 0x01;
+            value = (value >> 1) | old_carry;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ASR - Arithmetic Shift Right (Indexed)
+        case 0x67: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            uint8_t old_bit0 = value & 0x01;
+            uint8_t sign_bit = value & 0x80;
+            value = (value >> 1) | sign_bit;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ASL - Arithmetic Shift Left (Indexed)
+        case 0x68: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            uint8_t old_bit7 = (value & 0x80) >> 7;
+            value <<= 1;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ROL - Rotate Left (Indexed)
+        case 0x69: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
+            uint8_t old_bit7 = (value & 0x80) >> 7;
+            value = (value << 1) | old_carry;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // DEC - Decrement Memory (Indexed)
+        case 0x6A: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            value--;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, value == 0x7F);
+            break;
+        }
+
+        // INC - Increment Memory (Indexed)
+        case 0x6C: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            value++;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, value == 0x80);
+            break;
+        }
+
+        // TST - Test Memory (Indexed)
+        case 0x6D: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t value = memory_read(addr);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // JMP (Indexed)
         case 0x6E: {
             uint8_t offset = memory_read(cpu.pc++);
@@ -544,11 +830,168 @@ void instruction_execute(void) {
             break;
         }
 
+        // NEG - Negate Memory (Extended)
+        case 0x70: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            value = (~value) + 1;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, value == 0x80);
+            cpu_set_flag(CCR_C, value != 0);
+            break;
+        }
+
+        // COM - Complement Memory (Extended)
+        case 0x73: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            value = ~value;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, true);
+            break;
+        }
+
+        // LSR - Logical Shift Right (Extended)
+        case 0x74: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            uint8_t old_bit0 = value & 0x01;
+            value >>= 1;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_set_flag(CCR_N, false);
+            cpu_set_flag(CCR_Z, value == 0);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ROR - Rotate Right (Extended)
+        case 0x76: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
+            uint8_t old_bit0 = value & 0x01;
+            value = (value >> 1) | old_carry;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ASR - Arithmetic Shift Right (Extended)
+        case 0x77: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            uint8_t old_bit0 = value & 0x01;
+            uint8_t sign_bit = value & 0x80;
+            value = (value >> 1) | sign_bit;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit0 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ASL - Arithmetic Shift Left (Extended)
+        case 0x78: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            uint8_t old_bit7 = (value & 0x80) >> 7;
+            value <<= 1;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // ROL - Rotate Left (Extended)
+        case 0x79: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
+            uint8_t old_bit7 = (value & 0x80) >> 7;
+            value = (value << 1) | old_carry;
+            memory_write(addr, value);
+            cpu_set_flag(CCR_C, old_bit7 != 0);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            break;
+        }
+
+        // DEC - Decrement Memory (Extended)
+        case 0x7A: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            value--;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, value == 0x7F);  // V set if value was 0x80 (overflow from negative to positive)
+            break;
+        }
+
+        // INC - Increment Memory (Extended)
+        case 0x7C: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            value++;
+            memory_write(addr, value);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, value == 0x80);
+            break;
+        }
+
+        // TST - Test Memory (Extended)
+        case 0x7D: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t value = memory_read(addr);
+            cpu_update_nz(value);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // JMP (Extended)
         case 0x7E: {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             cpu.pc = (high << 8) | low;
+            break;
+        }
+
+        // CLR - Clear Memory (Extended)
+        case 0x7F: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            memory_write(addr, 0x00);
+            cpu_set_flag(CCR_N, false);
+            cpu_set_flag(CCR_Z, true);
+            cpu_set_flag(CCR_V, false);
+            cpu_set_flag(CCR_C, false);
             break;
         }
 
@@ -568,6 +1011,16 @@ void instruction_execute(void) {
             break;
         }
 
+        // SBCA - Subtract with Carry A (Immediate)
+        case 0x82: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
         // ANDA (Immediate)
         case 0x84: {
             uint8_t operand = memory_read(cpu.pc++);
@@ -582,6 +1035,26 @@ void instruction_execute(void) {
             cpu.a = memory_read(cpu.pc++);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // EORA - Exclusive OR A (Immediate)
+        case 0x88: {
+            uint8_t operand = memory_read(cpu.pc++);
+            cpu.a ^= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCA - Add with Carry A (Immediate)
+        case 0x89: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.a + operand + (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.a & 0x0F) + (operand & 0x0F) + (cpu_get_flag(CCR_C) ? 1 : 0)) > 0x0F);
+            cpu.a = result & 0xFF;
             break;
         }
 
@@ -635,6 +1108,55 @@ void instruction_execute(void) {
             break;
         }
 
+        // SUBA (Direct)
+        case 0x90: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            sub_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CMPA (Direct)
+        case 0x91: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.a - operand;
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCA (Direct)
+        case 0x92: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ANDA (Direct)
+        case 0x94: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            cpu.a &= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITA (Direct)
+        case 0x95: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint8_t result = cpu.a & operand;
+            cpu_update_nz(result);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // LDAA (Direct)
         case 0x96: {
             uint8_t addr = memory_read(cpu.pc++);
@@ -653,6 +1175,16 @@ void instruction_execute(void) {
             break;
         }
 
+        // EORA (Direct)
+        case 0x98: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            cpu.a ^= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // ADCA - Add with Carry to A (Direct)
         case 0x99: {
             uint8_t addr = memory_read(cpu.pc++);
@@ -664,6 +1196,16 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_C, result > 0xFF);
             cpu_set_flag(CCR_H, ((cpu.a & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
             cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ORAA (Direct)
+        case 0x9A: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            cpu.a |= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
             break;
         }
 
@@ -692,6 +1234,89 @@ void instruction_execute(void) {
             break;
         }
 
+        // JSR - Jump to Subroutine (Direct)
+        case 0x9D: {
+            uint8_t addr = memory_read(cpu.pc++);
+            cpu_push16(cpu.pc);
+            cpu.pc = addr;
+            break;
+        }
+
+        // LDX - Load X (Direct)
+        case 0x9E: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t high = memory_read(addr);
+            uint8_t low = memory_read(addr + 1);
+            cpu.x = (high << 8) | low;
+            cpu_update_nz(high);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // STX - Store X (Direct)
+        case 0x9F: {
+            uint8_t addr = memory_read(cpu.pc++);
+            memory_write(addr, (cpu.x >> 8) & 0xFF);
+            memory_write(addr + 1, cpu.x & 0xFF);
+            cpu_update_nz((cpu.x >> 8) & 0xFF);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // SUBA (Indexed)
+        case 0xA0: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            sub_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CMPA (Indexed)
+        case 0xA1: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.a - operand;
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCA (Indexed)
+        case 0xA2: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ANDA (Indexed)
+        case 0xA4: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            cpu.a &= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITA (Indexed)
+        case 0xA5: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint8_t result = cpu.a & operand;
+            cpu_update_nz(result);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // LDAA (Indexed)
         case 0xA6: {
             uint8_t offset = memory_read(cpu.pc++);
@@ -710,11 +1335,152 @@ void instruction_execute(void) {
             break;
         }
 
+        // EORA (Indexed)
+        case 0xA8: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            cpu.a ^= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCA (Indexed)
+        case 0xA9: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.a + operand + carry;
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.a & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ORAA (Indexed)
+        case 0xAA: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            cpu.a |= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADDA (Indexed)
+        case 0xAB: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            add_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CPX (Indexed)
+        case 0xAC: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t high = memory_read(addr);
+            uint8_t low = memory_read(addr + 1);
+            uint16_t mem_val = (high << 8) | low;
+            uint32_t result = cpu.x - mem_val;
+            cpu_set_flag(CCR_N, (result & 0x8000) != 0);
+            cpu_set_flag(CCR_Z, (result & 0xFFFF) == 0);
+            cpu_set_flag(CCR_V, ((cpu.x ^ mem_val) & (cpu.x ^ result) & 0x8000) != 0);
+            break;
+        }
+
         // JSR (Indexed)
         case 0xAD: {
             uint8_t offset = memory_read(cpu.pc++);
             cpu_push16(cpu.pc);
             cpu.pc = cpu.x + offset;
+            break;
+        }
+
+        // LDX (Indexed)
+        case 0xAE: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t high = memory_read(addr);
+            uint8_t low = memory_read(addr + 1);
+            cpu.x = (high << 8) | low;
+            cpu_update_nz(high);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // STX (Indexed)
+        case 0xAF: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            memory_write(addr, (cpu.x >> 8) & 0xFF);
+            memory_write(addr + 1, cpu.x & 0xFF);
+            cpu_update_nz((cpu.x >> 8) & 0xFF);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // SUBA (Extended)
+        case 0xB0: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            sub_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CMPA (Extended)
+        case 0xB1: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.a - operand;
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCA (Extended)
+        case 0xB2: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ANDA (Extended)
+        case 0xB4: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            cpu.a &= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITA (Extended)
+        case 0xB5: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint8_t result = cpu.a & operand;
+            cpu_update_nz(result);
+            cpu_set_flag(CCR_V, false);
             break;
         }
 
@@ -740,6 +1506,70 @@ void instruction_execute(void) {
             break;
         }
 
+        // EORA (Extended)
+        case 0xB8: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            cpu.a ^= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCA (Extended)
+        case 0xB9: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.a + operand + carry;
+            cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.a & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
+        // ORAA (Extended)
+        case 0xBA: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            cpu.a |= operand;
+            cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADDA (Extended)
+        case 0xBB: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            add_with_carry(&cpu.a, operand);
+            break;
+        }
+
+        // CPX (Extended)
+        case 0xBC: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t mem_high = memory_read(addr);
+            uint8_t mem_low = memory_read(addr + 1);
+            uint16_t mem_val = (mem_high << 8) | mem_low;
+            uint32_t result = cpu.x - mem_val;
+            cpu_set_flag(CCR_N, (result & 0x8000) != 0);
+            cpu_set_flag(CCR_Z, (result & 0xFFFF) == 0);
+            cpu_set_flag(CCR_V, ((cpu.x ^ mem_val) & (cpu.x ^ result) & 0x8000) != 0);
+            break;
+        }
+
         // JSR (Extended)
         case 0xBD: {
             uint8_t high = memory_read(cpu.pc++);
@@ -750,12 +1580,57 @@ void instruction_execute(void) {
             break;
         }
 
+        // LDX (Extended)
+        case 0xBE: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t x_high = memory_read(addr);
+            uint8_t x_low = memory_read(addr + 1);
+            cpu.x = (x_high << 8) | x_low;
+            cpu_update_nz(x_high);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // STX (Extended)
+        case 0xBF: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            memory_write(addr, (cpu.x >> 8) & 0xFF);
+            memory_write(addr + 1, cpu.x & 0xFF);
+            cpu_update_nz((cpu.x >> 8) & 0xFF);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // SUBB (Immediate)
+        case 0xC0: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
         // CMPB - Compare B (Immediate)
         case 0xC1: {
             uint8_t operand = memory_read(cpu.pc++);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCB (Immediate)
+        case 0xC2: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
             break;
         }
 
@@ -786,12 +1661,105 @@ void instruction_execute(void) {
             break;
         }
 
+        // EORB (Immediate)
+        case 0xC8: {
+            uint8_t operand = memory_read(cpu.pc++);
+            cpu.b ^= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCB (Immediate)
+        case 0xC9: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.b + operand + carry;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ORAB (Immediate)
+        case 0xCA: {
+            uint8_t operand = memory_read(cpu.pc++);
+            cpu.b |= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADDB (Immediate)
+        case 0xCB: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint16_t result = cpu.b + operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F)) > 0x0F);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
         // LDX (Immediate) - 16-bit load
         case 0xCE: {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             cpu.x = (high << 8) | low;
             cpu_update_nz(high);  // Only test high byte
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // SUBB (Direct)
+        case 0xD0: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // CMPB (Direct)
+        case 0xD1: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCB (Direct)
+        case 0xD2: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ANDB (Direct)
+        case 0xD4: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            cpu.b &= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITB (Direct)
+        case 0xD5: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint8_t result = cpu.b & operand;
+            cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
             break;
         }
@@ -811,6 +1779,51 @@ void instruction_execute(void) {
             memory_write(addr, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // EORB (Direct)
+        case 0xD8: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            cpu.b ^= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCB (Direct)
+        case 0xD9: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.b + operand + carry;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ORAB (Direct)
+        case 0xDA: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            cpu.b |= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADDB (Direct)
+        case 0xDB: {
+            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b + operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F)) > 0x0F);
+            cpu.b = result & 0xFF;
             break;
         }
 
@@ -835,6 +1848,62 @@ void instruction_execute(void) {
             break;
         }
 
+        // SUBB (Indexed)
+        case 0xE0: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // CMPB (Indexed)
+        case 0xE1: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCB (Indexed)
+        case 0xE2: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ANDB - Logical AND B (Indexed)
+        case 0xE4: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(cpu.x + offset);
+            cpu.b &= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITB (Indexed)
+        case 0xE5: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint8_t result = cpu.b & operand;
+            cpu_update_nz(result);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // LDAB (Indexed)
         case 0xE6: {
             uint8_t offset = memory_read(cpu.pc++);
@@ -850,6 +1919,54 @@ void instruction_execute(void) {
             memory_write(cpu.x + offset, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // EORB (Indexed)
+        case 0xE8: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            cpu.b ^= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCB (Indexed)
+        case 0xE9: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.b + operand + carry;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ORAB - Logical OR B (Indexed)
+        case 0xEA: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t operand = memory_read(cpu.x + offset);
+            cpu.b |= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADDB (Indexed)
+        case 0xEB: {
+            uint8_t offset = memory_read(cpu.pc++);
+            uint16_t addr = cpu.x + offset;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b + operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F)) > 0x0F);
+            cpu.b = result & 0xFF;
             break;
         }
 
@@ -876,6 +1993,68 @@ void instruction_execute(void) {
             break;
         }
 
+        // SUBB (Extended)
+        case 0xF0: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // CMPB (Extended)
+        case 0xF1: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            break;
+        }
+
+        // SBCB (Extended)
+        case 0xF2: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ANDB (Extended)
+        case 0xF4: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            cpu.b &= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITB (Extended)
+        case 0xF5: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint8_t result = cpu.b & operand;
+            cpu_update_nz(result);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
         // LDAB (Extended)
         case 0xF6: {
             uint8_t high = memory_read(cpu.pc++);
@@ -895,6 +2074,59 @@ void instruction_execute(void) {
             memory_write(addr, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // EORB (Extended)
+        case 0xF8: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            cpu.b ^= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADCB (Extended)
+        case 0xF9: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
+            uint16_t result = cpu.b + operand + carry;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F) + carry) > 0x0F);
+            cpu.b = result & 0xFF;
+            break;
+        }
+
+        // ORAB (Extended)
+        case 0xFA: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            cpu.b |= operand;
+            cpu_update_nz(cpu.b);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // ADDB (Extended)
+        case 0xFB: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            uint16_t addr = (high << 8) | low;
+            uint8_t operand = memory_read(addr);
+            uint16_t result = cpu.b + operand;
+            cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F)) > 0x0F);
+            cpu.b = result & 0xFF;
             break;
         }
 

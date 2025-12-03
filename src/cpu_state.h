@@ -30,6 +30,7 @@ typedef struct {
     bool running;     // CPU running state (set by USB RUN command)
     bool irq_pending; // IRQ request pending
     bool nmi_pending; // NMI request pending
+    uint64_t instruction_count; // Total instructions executed since reset
 } cpu_state_t;
 
 // Global CPU state (defined in cpu_state.c)

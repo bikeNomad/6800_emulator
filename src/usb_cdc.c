@@ -163,6 +163,7 @@ static void process_command(char *cmd) {
                        cpu_get_flag(CCR_C) ? 'C' : '-');
         usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
         usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
+        usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)cpu.instruction_count);
 
     } else if (strcmp(cmd, "run") == 0) {
         // Start CPU execution

@@ -22,6 +22,7 @@ void cpu_init(void) {
     cpu.running = false;
     cpu.irq_pending = false;
     cpu.nmi_pending = false;
+    cpu.instruction_count = 0;
 
     printf("CPU initialized: PC=$%04X SP=$%04X CCR=$%02X\n",
            cpu.pc, cpu.sp, cpu.ccr);

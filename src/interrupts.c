@@ -72,6 +72,7 @@ void interrupt_service_reset(void) {
     cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
     cpu.halted = true;   // Start halted, waiting for 'run' command
     cpu.running = false;
+    cpu.instruction_count = 0;  // Reset instruction counter
 
     // Load PC from reset vector
     uint8_t pch = memory_read(VECTOR_RESET);
