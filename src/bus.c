@@ -21,10 +21,17 @@ void bus_init(void) {
     }
 
     // Configure address bus (board-specific number of lines)
-    for (int i = GPIO_ADDR_BASE; i < GPIO_ADDR_BASE + ADDR_LINES; i++) {
-        gpio_init(i);
-        gpio_set_dir(i, GPIO_OUT);
-        gpio_put(i, 0);
+    // Skip GPIO 16-17 if they're used for UART
+    int addr_line = 0;
+    for (int gpio = GPIO_ADDR_BASE; addr_line < ADDR_LINES; gpio++) {
+        // Skip UART pins (16-17)
+        if (gpio == 16 || gpio == 17) {
+            continue;
+        }
+        gpio_init(gpio);
+        gpio_set_dir(gpio, GPIO_OUT);
+        gpio_put(gpio, 0);
+        addr_line++;
     }
 
     // Configure control signals
@@ -74,9 +81,12 @@ uint8_t bus_read_cycle(uint16_t address) {
     // Mask address to configured address lines
     address &= ADDR_MASK;
 
-    // Drive address bus
-    for (int i = 0; i < ADDR_LINES; i++) {
-        gpio_put(GPIO_ADDR_BASE + i, (address >> i) & 1);
+    // Drive address bus (skip GPIO 16-17 used for UART)
+    int addr_line = 0;
+    for (int gpio = GPIO_ADDR_BASE; addr_line < ADDR_LINES; gpio++) {
+        if (gpio == 16 || gpio == 17) continue;
+        gpio_put(gpio, (address >> addr_line) & 1);
+        addr_line++;
     }
 
     // Assert VMA and R/W (read = 1)
@@ -112,9 +122,12 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     // Mask address to configured address lines
     address &= ADDR_MASK;
 
-    // Drive address bus
-    for (int i = 0; i < ADDR_LINES; i++) {
-        gpio_put(GPIO_ADDR_BASE + i, (address >> i) & 1);
+    // Drive address bus (skip GPIO 16-17 used for UART)
+    int addr_line = 0;
+    for (int gpio = GPIO_ADDR_BASE; addr_line < ADDR_LINES; gpio++) {
+        if (gpio == 16 || gpio == 17) continue;
+        gpio_put(gpio, (address >> addr_line) & 1);
+        addr_line++;
     }
 
     // Drive data bus

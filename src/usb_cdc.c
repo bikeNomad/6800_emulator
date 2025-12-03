@@ -36,14 +36,12 @@ static void process_command(char *cmd) {
         return;
     }
 
-    printf("Command: %s\n", cmd);
-
     // Parse command
     if (strncmp(cmd, "load", 4) == 0) {
         // Enter HEX load mode
         in_hex_mode = true;
         hex_pos = 0;
-        usb_cdc_send("Ready to receive Intel HEX data. Send 'end' to finish.\r\n");
+        usb_cdc_send("Ready to receive Intel HEX data. Paste file now...\r\n");
 
     } else if (strncmp(cmd, "end", 3) == 0) {
         // Exit HEX load mode and process data
@@ -161,8 +159,7 @@ static void process_command(char *cmd) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
             "MC6800 Emulator Commands:\r\n"
-            "  load                - Enter HEX load mode\r\n"
-            "  end                 - Finish HEX load\r\n"
+            "  load                - Load Intel HEX (auto-detects EOF)\r\n"
             "  config rom <b> <s>  - Configure ROM region\r\n"
             "  config ram <b> <s>  - Configure RAM region\r\n"
             "  read <addr> <len>   - Read memory\r\n"
@@ -194,35 +191,49 @@ void usb_cdc_task(void) {
     // Process TinyUSB events
     tud_task();
 
-    // Check if data available
-    if (tud_cdc_available()) {
+    // Process available characters in batches to prevent buffer overflow
+    // Call tud_task() periodically to keep USB stack responsive
+    uint32_t chars_processed = 0;
+    const uint32_t BATCH_SIZE = 64; // Process in small batches
+
+    while (tud_cdc_available() && chars_processed < 512) {
         // Read data
         char c = tud_cdc_read_char();
-
-        // Echo character (except for HEX mode)
-        if (!in_hex_mode) {
-            tud_cdc_write_char(c);
-            tud_cdc_write_flush();
-        }
+        chars_processed++;
 
         // Handle character
         if (in_hex_mode) {
-            // In HEX mode, accumulate data until END command
+            // In HEX mode, accumulate data until END command or EOF record
+            // No echo to avoid slowing down paste operations
             if (hex_pos < HEX_BUFFER_SIZE - 1) {
                 hex_buffer[hex_pos++] = c;
             }
 
-            // Check for 'end' command at start of line
-            if (c == '\n' && hex_pos >= 4) {
-                if (strncmp(&hex_buffer[hex_pos - 4], "end", 3) == 0) {
+            // Check for end of line (both CR and LF)
+            if (c == '\n' || c == '\r') {
+                // Check for 'end' command
+                if (hex_pos >= 4 && strncmp(&hex_buffer[hex_pos - 4], "end", 3) == 0) {
                     // Remove 'end' from buffer and process
                     hex_pos -= 4;
                     process_command("end");
                 }
+                // Check for Intel HEX EOF record (:00000001FF)
+                else if (hex_pos >= 12 && strncmp(&hex_buffer[hex_pos - 12], ":00000001FF", 11) == 0) {
+                    // Found EOF record - auto-exit hex mode and process
+                    usb_cdc_send("EOF record detected, processing HEX data...\r\n");
+                    hex_buffer[hex_pos] = '\0';
+                    if (ihex_load_data(hex_buffer, hex_pos)) {
+                        usb_cdc_send("OK: EPROM loaded successfully\r\n");
+                    } else {
+                        usb_cdc_send("ERROR: Failed to load EPROM\r\n");
+                    }
+                    in_hex_mode = false;
+                    hex_pos = 0;
+                }
             }
 
         } else {
-            // Normal command mode
+            // Normal command mode - echo as we go
             if (c == '\r' || c == '\n') {
                 // End of line - process command
                 tud_cdc_write_str("\r\n");
@@ -244,8 +255,15 @@ void usb_cdc_task(void) {
                 // Printable character
                 if (cmd_pos < CMD_BUFFER_SIZE - 1) {
                     cmd_buffer[cmd_pos++] = c;
+                    // Echo character
+                    tud_cdc_write_char(c);
                 }
             }
+        }
+
+        // Periodically call tud_task() to keep USB responsive
+        if ((chars_processed % BATCH_SIZE) == 0) {
+            tud_task();
         }
     }
 }

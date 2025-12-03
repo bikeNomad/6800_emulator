@@ -17,12 +17,13 @@
 
 // Board-specific configurations
 #if BOARD_TYPE == BOARD_PICO2
-  // Raspberry Pi Pico 2 - Limited GPIO (26 pins)
-  // Address bus reduced to 13 bits (8KB address space)
+  // Raspberry Pi Pico 2 W - Limited GPIO (26 pins)
+  // Address bus reduced to 11 bits (2KB address space)
+  // GPIO 16-17 reserved for UART debug (conflicts with address bus)
 
-  #define BOARD_NAME "Raspberry Pi Pico 2"
-  #define ADDR_LINES 13
-  #define ADDR_MASK 0x1FFF  // 8KB address space
+  #define BOARD_NAME "Raspberry Pi Pico 2 W"
+  #define ADDR_LINES 11
+  #define ADDR_MASK 0x07FF  // 2KB address space
 
   // Control signal pins (adjusted for fewer GPIOs)
   #define GPIO_VMA 21

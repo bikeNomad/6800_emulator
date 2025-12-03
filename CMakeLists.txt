@@ -5,8 +5,8 @@ if(NOT DEFINED ENV{PICO_SDK_PATH})
     set(ENV{PICO_SDK_PATH} "/Users/ned/src/Micropython/micropython/lib/pico-sdk")
 endif()
 
-# Set board type to Pico 2 (RP2350) - MUST be before pico_sdk_import
-set(PICO_BOARD pico2)
+# Set board type to Pico 2 W (RP2350 with WiFi) - MUST be before pico_sdk_import
+set(PICO_BOARD pico2_w)
 
 # Include the Pico SDK
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
@@ -54,6 +54,7 @@ target_include_directories(mc6800_emulator PRIVATE
 target_link_libraries(mc6800_emulator
     pico_stdlib
     pico_unique_id
+    pico_multicore
     hardware_pio
     hardware_dma
     hardware_spi
@@ -63,16 +64,20 @@ target_link_libraries(mc6800_emulator
     tinyusb_board
 )
 
-# Enable USB output, disable UART output
+# Enable UART on GPIO 16 (TX) and GPIO 17 (RX) for debug output
+# This reduces address bus from 13 to 11 bits (2KB address space)
+# but allows us to debug issues
 pico_enable_stdio_usb(mc6800_emulator 0)
 pico_enable_stdio_uart(mc6800_emulator 1)
 
 # Create map/bin/hex/uf2 file etc.
 pico_add_extra_outputs(mc6800_emulator)
 
-# Add compile definitions for board type
+# Add compile definitions for board type and UART pins
 target_compile_definitions(mc6800_emulator PRIVATE
     BOARD_TYPE=${BOARD_TYPE}
+    PICO_DEFAULT_UART_TX_PIN=16
+    PICO_DEFAULT_UART_RX_PIN=17
 )
 
 # Add compile options for optimization and warnings

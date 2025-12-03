@@ -94,29 +94,36 @@ memory_type_t memory_get_type(uint16_t address) {
 }
 
 // Read byte from address via bus
-// CRITICAL: Must go through physical bus for watchdog
+// For testing: reads from flash/RAM instead of physical GPIO
 uint8_t memory_read(uint16_t address) {
-    // Perform bus read cycle
-    uint8_t value = bus_read_cycle(address);
-
-    // Update shadow copy for diagnostics
     memory_type_t type = memory_get_type(address);
+
+    // Read from ROM (flash)
+    if (type == MEM_TYPE_ROM) {
+        uint16_t rom_offset = address - mem_config.rom_base;
+        const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
+        return flash_ptr[rom_offset];
+    }
+
+    // Read from RAM shadow
     if (type == MEM_TYPE_RAM) {
         uint16_t ram_offset = address - mem_config.ram_base;
         if (ram_offset < mem_config.ram_size) {
-            ram_shadow[ram_offset] = value;
+            return ram_shadow[ram_offset];
         }
     }
 
-    return value;
+    // Unmapped - would go through physical bus
+    // For now return 0xFF (floating bus)
+    return 0xFF;
 }
 
 // Write byte to address via bus
-// CRITICAL: Must go through physical bus for watchdog
+// For testing: writes to RAM shadow instead of physical GPIO
 void memory_write(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
 
-    // Update shadow copy
+    // Write to RAM shadow
     if (type == MEM_TYPE_RAM) {
         uint16_t ram_offset = address - mem_config.ram_base;
         if (ram_offset < mem_config.ram_size) {
@@ -124,8 +131,8 @@ void memory_write(uint16_t address, uint8_t value) {
         }
     }
 
-    // Perform bus write cycle (even for ROM attempts - they'll just be ignored by hardware)
-    bus_write_cycle(address, value);
+    // ROM writes are ignored
+    // Unmapped writes are ignored
 }
 
 // Load Intel HEX data into ROM load buffer

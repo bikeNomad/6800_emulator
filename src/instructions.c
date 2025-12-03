@@ -13,6 +13,7 @@ static const char* mnemonics[256] = {
     [0x01] = "NOP",
     [0x16] = "TAB",
     [0x17] = "TBA",
+    [0x1B] = "ABA",
     [0x20] = "BRA",
     [0x24] = "BCC",
     [0x25] = "BCS",
@@ -39,6 +40,7 @@ static const char* mnemonics[256] = {
     [0x8A] = "ORAA (IMM)",
     [0x8B] = "ADDA (IMM)",
     [0x8D] = "BSR",
+    [0x8E] = "LDS (IMM)",
     [0x90] = "SUBA (DIR)",
     [0x94] = "ANDA (DIR)",
     [0x96] = "LDAA (DIR)",
@@ -137,6 +139,16 @@ void instruction_execute(void) {
             cpu.a = cpu.b;
             cpu_update_nz(cpu.a);
             break;
+
+        // ABA - Add B to A
+        case 0x1B: {
+            uint16_t result = cpu.a + cpu.b;
+            cpu_update_nzv(result & 0xFF, cpu.a, cpu.b, false);
+            cpu_set_flag(CCR_C, result > 0xFF);  // Set carry if overflow
+            cpu_set_flag(CCR_H, ((cpu.a & 0x0F) + (cpu.b & 0x0F)) > 0x0F);  // Half carry
+            cpu.a = result & 0xFF;
+            break;
+        }
 
         // BRA - Branch Always
         case 0x20: {
@@ -324,6 +336,16 @@ void instruction_execute(void) {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
             cpu_push16(cpu.pc);
             cpu.pc += offset;
+            break;
+        }
+
+        // LDS - Load Stack Pointer (Immediate)
+        case 0x8E: {
+            uint8_t high = memory_read(cpu.pc++);
+            uint8_t low = memory_read(cpu.pc++);
+            cpu.sp = (high << 8) | low;
+            cpu_update_nz(high);  // Update flags based on high byte
+            cpu_set_flag(CCR_V, false);  // Clear overflow
             break;
         }
 

@@ -70,7 +70,8 @@ void interrupt_service_reset(void) {
     cpu.x = 0x0000;
     cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
     cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
-    cpu.halted = false;
+    cpu.halted = true;   // Start halted, waiting for 'run' command
+    cpu.running = false;
 
     // Load PC from reset vector
     uint8_t pch = memory_read(VECTOR_RESET);
