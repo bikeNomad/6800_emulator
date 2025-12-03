@@ -1,0 +1,7 @@
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/pioasm.dir
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/edit_cache.dir
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/rebuild_cache.dir
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/list_install_components.dir
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/install.dir
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/install/local.dir
+/Users/ned/src/6800_emulator/build/pioasm/CMakeFiles/install/strip.dir

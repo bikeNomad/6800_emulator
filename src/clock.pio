@@ -1,0 +1,40 @@
+; PIO program to generate E clock for MC6800 emulator
+; Target frequency: 3.579545 MHz / 4 = 0.894886 MHz
+; Period: 1.117µs (approximately 560ns high, 560ns low)
+;
+; System clock is typically 125 MHz
+; Divide ratio: 125 MHz / 0.894886 MHz ≈ 139.7
+; Use PIO divider for fine tuning
+
+.program eclock
+
+.wrap_target
+    set pins, 1 [31]    ; E clock high, delay 32 cycles
+    set pins, 0 [31]    ; E clock low, delay 32 cycles
+.wrap
+
+% c-sdk {
+static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    // Configure pin as PIO output
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    // Get default configuration
+    pio_sm_config c = eclock_program_get_default_config(offset);
+
+    // Configure SET pins
+    sm_config_set_set_pins(&c, pin, 1);
+
+    // Configure clock divider
+    // System clock: 125 MHz
+    // Target: 0.894886 MHz with 64 PIO cycles per period (32 high + 32 low)
+    // Required PIO clock: 0.894886 MHz * 64 = 57.27 MHz
+    // Divider: 125 MHz / 57.27 MHz ≈ 2.18
+    // Using divider of 2.18 (integer part 2, fractional part 46/256)
+    sm_config_set_clkdiv_int_frac(&c, 2, 46);
+
+    // Initialize and start state machine
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
