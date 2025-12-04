@@ -222,6 +222,15 @@ void instruction_execute(void) {
             cpu_set_flag(CCR_I, true);
             break;
 
+        // SBA - Subtract B from A
+        case 0x10: {
+            uint16_t result = cpu.a - cpu.b;
+            cpu_update_nzv(result & 0xFF, cpu.a, cpu.b, true);
+            cpu_set_flag(CCR_C, result > 0xFF);
+            cpu.a = result & 0xFF;
+            break;
+        }
+
         // DAA - Decimal Adjust Accumulator A
         case 0x19: {
             uint8_t correction = 0;
@@ -474,6 +483,22 @@ void instruction_execute(void) {
             cpu_push(cpu.a);
             cpu_push(cpu.b);
             cpu_push(cpu.ccr);
+            break;
+
+        // SWI - Software Interrupt
+        case 0x3F:
+            // Push registers onto stack
+            cpu_push16(cpu.pc);
+            cpu_push16(cpu.x);
+            cpu_push(cpu.a);
+            cpu_push(cpu.b);
+            cpu_push(cpu.ccr);
+            // Set interrupt mask
+            cpu_set_flag(CCR_I, true);
+            // Load PC from SWI vector (0xFFFA-0xFFFB)
+            uint8_t pch = memory_read(0xFFFA);
+            uint8_t pcl = memory_read(0xFFFB);
+            cpu.pc = (pch << 8) | pcl;
             break;
 
         // NEGA - Negate A (two's complement)
@@ -1026,6 +1051,15 @@ void instruction_execute(void) {
             uint8_t operand = memory_read(cpu.pc++);
             cpu.a &= operand;
             cpu_update_nz(cpu.a);
+            cpu_set_flag(CCR_V, false);
+            break;
+        }
+
+        // BITA - Bit Test A (Immediate)
+        case 0x85: {
+            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t result = cpu.a & operand;
+            cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
             break;
         }
