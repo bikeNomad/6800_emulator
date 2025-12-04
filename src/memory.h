@@ -12,9 +12,10 @@
 
 // Memory region types
 typedef enum {
-    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address
-    MEM_TYPE_ROM,       // ROM (EPROM) - read only
-    MEM_TYPE_RAM        // RAM - read/write
+    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
+    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
+    MEM_TYPE_RAM,       // RAM - read/write from shadow
+    MEM_TYPE_PIA        // PIA (peripheral) - routes to physical bus
 } memory_type_t;
 
 // Memory configuration
@@ -25,6 +26,9 @@ typedef struct {
     uint16_t rom_size;      // Size of ROM region
     uint16_t ram_base;      // Base address of RAM (e.g., $0000)
     uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
+    uint16_t pia_base;      // Base address of PIA region (e.g., $2100)
+    uint16_t pia_size;      // Size of PIA region (typically 128 bytes)
+    bool pia_enabled;       // Enable physical bus for PIA accesses
     bool configured;        // Configuration complete
 } memory_config_t;
 
@@ -34,6 +38,7 @@ void memory_init(void);
 // Configure memory regions (called from USB command)
 void memory_configure_rom(uint16_t base, uint16_t size);
 void memory_configure_ram(uint16_t base, uint16_t size);
+void memory_configure_pia(uint16_t base, uint16_t size, bool enabled);
 
 // Get configuration values
 void memory_get_rom_config(uint16_t *base, uint16_t *size);

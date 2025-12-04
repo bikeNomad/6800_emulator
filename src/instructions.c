@@ -84,6 +84,8 @@ static const char* mnemonics[256] = {
     [0x9A] = "ORAA (DIR)",
     [0x9B] = "ADDA (DIR)",
     [0x9C] = "CPX (DIR)",
+    [0x9E] = "LDS (DIR)",
+    [0x9F] = "STS (DIR)",
     [0xA0] = "SUBA (IND)",
     [0xA4] = "ANDA (IND)",
     [0xA6] = "LDAA (IND)",
@@ -91,6 +93,8 @@ static const char* mnemonics[256] = {
     [0xAA] = "ORAA (IND)",
     [0xAB] = "ADDA (IND)",
     [0xAD] = "JSR (IND)",
+    [0xAE] = "LDS (IND)",
+    [0xAF] = "STS (IND)",
     [0xB0] = "SUBA (EXT)",
     [0xB4] = "ANDA (EXT)",
     [0xB6] = "LDAA (EXT)",
@@ -98,6 +102,8 @@ static const char* mnemonics[256] = {
     [0xBA] = "ORAA (EXT)",
     [0xBB] = "ADDA (EXT)",
     [0xBD] = "JSR (EXT)",
+    [0xBE] = "LDS (EXT)",
+    [0xBF] = "STS (EXT)",
     [0xC0] = "SUBB (IMM)",
     [0xC1] = "CMPB (IMM)",
     [0xC4] = "ANDB (IMM)",
@@ -1276,23 +1282,23 @@ void instruction_execute(void) {
             break;
         }
 
-        // LDX - Load X (Direct)
+        // LDS - Load Stack Pointer (Direct)
         case 0x9E: {
             uint8_t addr = memory_read(cpu.pc++);
             uint8_t high = memory_read(addr);
             uint8_t low = memory_read(addr + 1);
-            cpu.x = (high << 8) | low;
+            cpu.sp = (high << 8) | low;
             cpu_update_nz(high);
             cpu_set_flag(CCR_V, false);
             break;
         }
 
-        // STX - Store X (Direct)
+        // STS - Store Stack Pointer (Direct)
         case 0x9F: {
             uint8_t addr = memory_read(cpu.pc++);
-            memory_write(addr, (cpu.x >> 8) & 0xFF);
-            memory_write(addr + 1, cpu.x & 0xFF);
-            cpu_update_nz((cpu.x >> 8) & 0xFF);
+            memory_write(addr, (cpu.sp >> 8) & 0xFF);
+            memory_write(addr + 1, cpu.sp & 0xFF);
+            cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
             break;
         }
@@ -1436,25 +1442,25 @@ void instruction_execute(void) {
             break;
         }
 
-        // LDX (Indexed)
+        // LDS - Load Stack Pointer (Indexed)
         case 0xAE: {
             uint8_t offset = memory_read(cpu.pc++);
             uint16_t addr = cpu.x + offset;
             uint8_t high = memory_read(addr);
             uint8_t low = memory_read(addr + 1);
-            cpu.x = (high << 8) | low;
+            cpu.sp = (high << 8) | low;
             cpu_update_nz(high);
             cpu_set_flag(CCR_V, false);
             break;
         }
 
-        // STX (Indexed)
+        // STS - Store Stack Pointer (Indexed)
         case 0xAF: {
             uint8_t offset = memory_read(cpu.pc++);
             uint16_t addr = cpu.x + offset;
-            memory_write(addr, (cpu.x >> 8) & 0xFF);
-            memory_write(addr + 1, cpu.x & 0xFF);
-            cpu_update_nz((cpu.x >> 8) & 0xFF);
+            memory_write(addr, (cpu.sp >> 8) & 0xFF);
+            memory_write(addr + 1, cpu.sp & 0xFF);
+            cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
             break;
         }
@@ -1614,27 +1620,27 @@ void instruction_execute(void) {
             break;
         }
 
-        // LDX (Extended)
+        // LDS - Load Stack Pointer (Extended)
         case 0xBE: {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t x_high = memory_read(addr);
-            uint8_t x_low = memory_read(addr + 1);
-            cpu.x = (x_high << 8) | x_low;
-            cpu_update_nz(x_high);
+            uint8_t sp_high = memory_read(addr);
+            uint8_t sp_low = memory_read(addr + 1);
+            cpu.sp = (sp_high << 8) | sp_low;
+            cpu_update_nz(sp_high);
             cpu_set_flag(CCR_V, false);
             break;
         }
 
-        // STX (Extended)
+        // STS - Store Stack Pointer (Extended)
         case 0xBF: {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            memory_write(addr, (cpu.x >> 8) & 0xFF);
-            memory_write(addr + 1, cpu.x & 0xFF);
-            cpu_update_nz((cpu.x >> 8) & 0xFF);
+            memory_write(addr, (cpu.sp >> 8) & 0xFF);
+            memory_write(addr + 1, cpu.sp & 0xFF);
+            cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
             break;
         }

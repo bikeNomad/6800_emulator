@@ -94,6 +94,19 @@ static void process_command(char *cmd) {
             usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
         }
 
+    } else if (strncmp(cmd, "config pia", 10) == 0) {
+        // Configure PIA region: config pia <base> <size> <on|off>
+        unsigned int base, size;
+        char enable_str[4];
+        if (sscanf(cmd + 10, "%x %x %3s", &base, &size, enable_str) == 3) {
+            bool enabled = (strcmp(enable_str, "on") == 0);
+            memory_configure_pia(base, size, enabled);
+            usb_cdc_printf("OK: PIA configured at $%04X, size $%04X, %s\r\n",
+                          base, size, enabled ? "physical bus ON" : "OFF");
+        } else {
+            usb_cdc_send("ERROR: Usage: config pia <base_hex> <size_hex> <on|off>\r\n");
+        }
+
     } else if (strncmp(cmd, "read", 4) == 0) {
         // Read memory: read <addr> <len>
         unsigned int addr, len;
@@ -190,17 +203,19 @@ static void process_command(char *cmd) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
             "MC6800 Emulator Commands:\r\n"
-            "  load                - Load Intel HEX (auto-detects EOF)\r\n"
-            "  config rom <b> <s>  - Configure ROM region\r\n"
-            "  config ram <b> <s>  - Configure RAM region\r\n"
-            "  read <addr> <len>   - Read memory\r\n"
-            "  write <addr> <data> - Write memory\r\n"
-            "  status              - Display CPU status\r\n"
-            "  run                 - Start CPU execution\r\n"
-            "  halt                - Stop CPU execution\r\n"
-            "  reset               - Reset CPU\r\n"
-            "  bootloader          - Enter bootloader mode\r\n"
-            "  help                - Show this help\r\n"
+            "  load                      - Load Intel HEX (auto-detects EOF)\r\n"
+            "  config                    - Show memory configuration\r\n"
+            "  config rom <b> <s>        - Configure ROM region\r\n"
+            "  config ram <b> <s>        - Configure RAM region\r\n"
+            "  config pia <b> <s> <on|off> - Configure PIA physical bus\r\n"
+            "  read <addr> <len>         - Read memory\r\n"
+            "  write <addr> <data>       - Write memory\r\n"
+            "  status                    - Display CPU status\r\n"
+            "  run                       - Start CPU execution\r\n"
+            "  halt                      - Stop CPU execution\r\n"
+            "  reset                     - Reset CPU\r\n"
+            "  bootloader                - Enter bootloader mode\r\n"
+            "  help                      - Show this help\r\n"
         );
 
     } else {

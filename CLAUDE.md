@@ -41,7 +41,8 @@ make
 
 2. **Hardware Interface Layer (GPIO/PIO)**
    - **Data Bus**: 8 bi-directional data lines + R/W output for level translator control
-   - **Address Bus**: 16 output lines + VMA (valid memory address) strobe
+   - **Address Bus**: UP TO 16 output lines + VMA (valid memory address) strobe
+     - But: we can save pins by only using address lines A0, A1, and A10-A14 
    - **E Clock**: 3.579545/4 MHz clock output for synchronization
    - **Control Inputs**: /IRQ, /NMI, /RESET (vector the PC to specific addresses)
 
@@ -64,14 +65,12 @@ make
 
 ### Performance Optimization
 
-PIO and DMA peripherals should be used to accelerate bus operations:
-- E clock generation
-- Address line driving with VMA and R/W outputs
-- Data bus reading/writing operations
+- PIO can generate the E clock
 - The RP2350 has the ability to read all the GPIO pin states at once. This could be used instead of DMA and PIO.
-- To clarify: the emulator must execute cycle-accurately. So if a MC6800 instruction takes 4 cycles, the emulator must perform the same 4 cycles and finish before the 5th E clock.
-- Any memory addresses outside of defined ROM and ROM ranges must be handled via the bus (for memory-mapped peripherals).
-- Every ROM or RAM access must also drive the address bus because there is watchdog circuitry examining bus activity.
+- The emulator must execute cycle-accurately. So if a MC6800 instruction takes 4 cycles, the emulator must perform the same 4 cycles and finish before the 5th E clock.
+- Any memory addresses outside of defined RAM and ROM ranges must be handled via the bus (for memory-mapped peripherals).
+- It is not necessary to drive the bus for ROM and RAM accesses but it must be cycle accurate anyway.
 - I want to use a dev board for testing at first.
 - On system 7 games, the RAM space 0000-00FF is mirrored at 1000-10FF. And there could be RAM all the way up to 13FF.
 - There could be ROM down to D000
+- We don't have any physical hardware other than the PIAs to worry about. They use only A10-A14 for address decoding and A0 and A1 for register select. We are emulating all the ROM and RAM.

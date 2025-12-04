@@ -32,6 +32,9 @@ void memory_init(void) {
     mem_config.rom_size = 0x3000;  // 12KB (D000-FFFF)
     mem_config.ram_base = 0x0000;
     mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
+    mem_config.pia_base = 0x2100;  // Williams System 7 PIA base
+    mem_config.pia_size = 0x0080;  // 128 bytes (2100-217F)
+    mem_config.pia_enabled = false;  // Disabled by default for emulation testing
     mem_config.flash_offset = FLASH_TARGET_OFFSET;
     mem_config.flash_size = mem_config.rom_size;
     mem_config.configured = true;  // Use defaults
@@ -40,6 +43,9 @@ void memory_init(void) {
            mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
            mem_config.ram_base, mem_config.ram_base + mem_config.ram_size - 1);
     printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
+    printf("  PIA region: $%04X-$%04X (%s)\n",
+           mem_config.pia_base, mem_config.pia_base + mem_config.pia_size - 1,
+           mem_config.pia_enabled ? "physical bus" : "disabled");
 }
 
 // Get ROM configuration
@@ -88,6 +94,17 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
            base, base + size - 1, size);
 }
 
+// Configure PIA region and enable physical bus
+void memory_configure_pia(uint16_t base, uint16_t size, bool enabled) {
+    mem_config.pia_base = base;
+    mem_config.pia_size = size;
+    mem_config.pia_enabled = enabled;
+
+    printf("PIA configured: $%04X-$%04X (%s)\n",
+           base, base + size - 1,
+           enabled ? "physical bus enabled" : "disabled");
+}
+
 // Get memory type for address
 memory_type_t memory_get_type(uint16_t address) {
     // Check ROM range
@@ -102,12 +119,18 @@ memory_type_t memory_get_type(uint16_t address) {
         return MEM_TYPE_RAM;
     }
 
+    // Check PIA range (if enabled)
+    if (mem_config.pia_enabled &&
+        address >= mem_config.pia_base &&
+        address < mem_config.pia_base + mem_config.pia_size) {
+        return MEM_TYPE_PIA;
+    }
+
     // Unmapped (peripheral) address
     return MEM_TYPE_UNMAPPED;
 }
 
 // Read byte from address via bus
-// For testing: reads from flash/RAM instead of physical GPIO
 uint8_t memory_read(uint16_t address) {
     memory_type_t type = memory_get_type(address);
 
@@ -132,13 +155,20 @@ uint8_t memory_read(uint16_t address) {
         }
     }
 
-    // Unmapped - would go through physical bus
-    // For now return 0xFF (floating bus)
+    // Read from PIA via physical bus
+    if (type == MEM_TYPE_PIA) {
+        return bus_read_cycle(address);
+    }
+
+    // Unmapped - go through physical bus (may be other peripherals)
+    // For testing without physical hardware, return 0xFF (floating bus)
+    if (mem_config.pia_enabled) {
+        return bus_read_cycle(address);
+    }
     return 0xFF;
 }
 
 // Write byte to address via bus
-// For testing: writes to RAM shadow instead of physical GPIO
 void memory_write(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
 
@@ -154,10 +184,24 @@ void memory_write(uint16_t address, uint8_t value) {
         if (ram_offset < mem_config.ram_size) {
             ram_shadow[ram_offset] = value;
         }
+        return;
+    }
+
+    // Write to PIA via physical bus
+    if (type == MEM_TYPE_PIA) {
+        bus_write_cycle(address, value);
+        return;
     }
 
     // ROM writes are ignored
-    // Unmapped writes are ignored
+    if (type == MEM_TYPE_ROM) {
+        return;
+    }
+
+    // Unmapped writes - go through physical bus if enabled
+    if (mem_config.pia_enabled) {
+        bus_write_cycle(address, value);
+    }
 }
 
 // Load Intel HEX data into ROM load buffer

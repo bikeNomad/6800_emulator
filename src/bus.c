@@ -11,6 +11,11 @@
 // GPIO masks
 #define DATA_MASK    0x000000FF  // GPIO 0-7
 
+// Address bus GPIO mapping constants
+// A0-A1 (bits 0-1) → GPIO 8-9
+// A10-A14 (bits 10-14) → GPIO 10-14
+#define ADDR_GPIO_MASK  0x7F00  // GPIO 8-14 mask (0b0111_1111_0000_0000)
+
 // Initialize bus interface
 void bus_init(void) {
     // Configure data bus (GPIO 0-7) as inputs initially
@@ -20,18 +25,11 @@ void bus_init(void) {
         gpio_pull_up(i);  // Weak pull-ups for floating data bus
     }
 
-    // Configure address bus (board-specific number of lines)
-    // Skip GPIO 16-17 if they're used for UART
-    int addr_line = 0;
-    for (int gpio = GPIO_ADDR_BASE; addr_line < ADDR_LINES; gpio++) {
-        // Skip UART pins (16-17)
-        if (gpio == 16 || gpio == 17) {
-            continue;
-        }
-        gpio_init(gpio);
-        gpio_set_dir(gpio, GPIO_OUT);
-        gpio_put(gpio, 0);
-        addr_line++;
+    // Configure address bus (7 pins: GPIO 8-14 for A0,A1,A10-A14)
+    for (int i = 8; i <= 14; i++) {
+        gpio_init(i);
+        gpio_set_dir(i, GPIO_OUT);
+        gpio_put(i, 0);
     }
 
     // Configure control signals
@@ -58,9 +56,9 @@ void bus_init(void) {
 
     printf("Bus interface initialized for %s\n", BOARD_NAME);
     printf("  Data:  GPIO %d-%d\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
-    printf("  Addr:  GPIO %d-%d (%d bits, %dKB space)\n",
-           GPIO_ADDR_BASE, GPIO_ADDR_BASE + ADDR_LINES - 1,
-           ADDR_LINES, (1 << ADDR_LINES) / 1024);
+    printf("  Addr:  GPIO 8-14 -> MC6800 A{0,1,10-14} (%d lines, %d addresses)\n",
+           ADDR_LINES, ADDR_SPACE_SIZE);
+    printf("  Addr mask: 0x%04X (non-contiguous address space)\n", ADDR_MASK);
     printf("  VMA:   GPIO %d\n", GPIO_VMA);
     printf("  R/W:   GPIO %d\n", GPIO_RW);
     printf("  /IRQ:  GPIO %d\n", GPIO_IRQ);
@@ -78,16 +76,14 @@ uint8_t bus_read_cycle(uint16_t address) {
         gpio_set_dir(i, GPIO_IN);
     }
 
-    // Mask address to configured address lines
+    // Mask address to configured bits
     address &= ADDR_MASK;
 
-    // Drive address bus (skip GPIO 16-17 used for UART)
-    int addr_line = 0;
-    for (int gpio = GPIO_ADDR_BASE; addr_line < ADDR_LINES; gpio++) {
-        if (gpio == 16 || gpio == 17) continue;
-        gpio_put(gpio, (address >> addr_line) & 1);
-        addr_line++;
-    }
+    // Drive address bus using mask and shift (much faster than bit-by-bit)
+    // A0-A1 (bits 0-1) → GPIO 8-9: shift left by 8
+    // A10-A14 (bits 10-14) → GPIO 10-14: already aligned!
+    uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
+    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
 
     // Assert VMA and R/W (read = 1)
     gpio_put(GPIO_VMA, 1);
@@ -119,16 +115,14 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
         gpio_set_dir(i, GPIO_OUT);
     }
 
-    // Mask address to configured address lines
+    // Mask address to configured bits
     address &= ADDR_MASK;
 
-    // Drive address bus (skip GPIO 16-17 used for UART)
-    int addr_line = 0;
-    for (int gpio = GPIO_ADDR_BASE; addr_line < ADDR_LINES; gpio++) {
-        if (gpio == 16 || gpio == 17) continue;
-        gpio_put(gpio, (address >> addr_line) & 1);
-        addr_line++;
-    }
+    // Drive address bus using mask and shift (much faster than bit-by-bit)
+    // A0-A1 (bits 0-1) → GPIO 8-9: shift left by 8
+    // A10-A14 (bits 10-14) → GPIO 10-14: already aligned!
+    uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
+    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
 
     // Drive data bus
     for (int i = 0; i < 8; i++) {
