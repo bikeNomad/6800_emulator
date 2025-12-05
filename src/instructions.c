@@ -1233,6 +1233,7 @@ void instruction_execute(void) {
         case 0x97: {
             uint8_t addr = memory_read(cpu.pc++);
             memory_write(addr, cpu.a);
+            eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1321,6 +1322,7 @@ void instruction_execute(void) {
             uint8_t addr = memory_read(cpu.pc++);
             memory_write(addr, (cpu.sp >> 8) & 0xFF);
             memory_write(addr + 1, cpu.sp & 0xFF);
+            eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1856,6 +1858,7 @@ void instruction_execute(void) {
         case 0xD7: {
             uint8_t addr = memory_read(cpu.pc++);
             memory_write(addr, cpu.b);
+            eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1922,6 +1925,7 @@ void instruction_execute(void) {
             uint8_t addr = memory_read(cpu.pc++);
             memory_write(addr, cpu.x >> 8);
             memory_write(addr + 1, cpu.x & 0xFF);
+            eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz(cpu.x >> 8);
             cpu_set_flag(CCR_V, false);
             break;
