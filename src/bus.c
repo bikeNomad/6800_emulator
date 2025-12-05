@@ -85,9 +85,8 @@ uint8_t bus_read_cycle(uint16_t address) {
     uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
     gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
 
-    // Assert VMA and R/W (read = 1)
-    gpio_put(GPIO_VMA, 1);
-    gpio_put(GPIO_RW, 1);
+    // Assert VMA and R/W (read = 1) in one operation
+    gpio_put_masked(0x00600000, (1u << GPIO_VMA) | (1u << GPIO_RW));
 
     // Wait for E clock high (data valid time)
     eclock_wait_high();
@@ -99,8 +98,8 @@ uint8_t bus_read_cycle(uint16_t address) {
     // Wait for E clock low (end of cycle)
     eclock_wait_low();
 
-    // De-assert VMA
-    gpio_put(GPIO_VMA, 0);
+    // De-assert VMA (R/W stays high)
+    gpio_put_masked(0x00200000, 0);
 
     return data;
 }
@@ -124,14 +123,10 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
     gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
 
-    // Drive data bus
-    for (int i = 0; i < 8; i++) {
-        gpio_put(GPIO_DATA_BASE + i, (data >> i) & 1);
-    }
-
-    // Assert VMA and set R/W (write = 0)
-    gpio_put(GPIO_VMA, 1);
-    gpio_put(GPIO_RW, 0);
+    // Drive data bus, VMA, and R/W in one operation
+    // Data: GPIO 0-7, VMA: GPIO 21 (set), R/W: GPIO 22 (clear for write)
+    uint32_t data_ctrl = data | (1u << GPIO_VMA);  // VMA=1, R/W=0
+    gpio_put_masked(0x006000FF, data_ctrl);
 
     // Wait for E clock high (data latches)
     eclock_wait_high();
@@ -139,9 +134,8 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     // Wait for E clock low (end of cycle)
     eclock_wait_low();
 
-    // De-assert VMA and return R/W to read
-    gpio_put(GPIO_VMA, 0);
-    gpio_put(GPIO_RW, 1);
+    // De-assert VMA and return R/W to read in one operation
+    gpio_put_masked(0x00600000, 1u << GPIO_RW);  // VMA=0, R/W=1
 
     // Set data bus back to input mode
     for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {
