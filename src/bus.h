@@ -10,8 +10,85 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "board_config.h"
+#include "hardware/gpio.h"
 
 // GPIO pin assignments are defined in board_config.h
+
+// ============================================================================
+// Board-Specific Address to GPIO Mapping Functions
+// ============================================================================
+// These functions handle the conversion of MC6800 address bus to GPIO pins.
+// Different boards have different GPIO layouts due to pin constraints.
+// ============================================================================
+
+#if defined(BOARD_PICO2)
+// ----------------------------------------------------------------------------
+// Raspberry Pi Pico 2 W - Non-contiguous mapping (7 address lines)
+// A0-A1 → GPIO 8-9, A10-A14 → GPIO 10-14
+// This saves GPIO pins since only PIAs are on physical bus
+// ----------------------------------------------------------------------------
+
+static inline uint32_t addr_to_gpio_mask(uint16_t address) {
+    // Apply address mask (only bits 0,1,10-14 used)
+    address &= ADDR_MASK;  // 0x7C03
+
+    // Map non-contiguous address bits to contiguous GPIO pins:
+    // A0-A1 (bits 0-1) → GPIO 8-9 (shift left by 8)
+    // A10-A14 (bits 10-14) → GPIO 10-14 (already aligned at bit 10)
+    uint32_t gpio_value = ((address & 0x0003) << 8) |  // A0-A1 → GPIO 8-9
+                          (address & 0x7C00);           // A10-A14 → GPIO 10-14
+    return gpio_value;
+}
+
+static inline void drive_address_bus(uint16_t address) {
+    uint32_t gpio_value = addr_to_gpio_mask(address);
+    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);  // 0x7F00 (GPIO 8-14)
+}
+
+#elif defined(BOARD_WAVESHARE)
+// ----------------------------------------------------------------------------
+// Waveshare RP2350B-Plus-W - Full 16-bit address bus (16 address lines)
+// A0-A15 → GPIO 8-23 (contiguous mapping)
+// ----------------------------------------------------------------------------
+
+static inline uint32_t addr_to_gpio_mask(uint16_t address) {
+    // Apply address mask (all 16 bits used)
+    address &= ADDR_MASK;  // 0xFFFF
+
+    // Map contiguous address bits to GPIO pins:
+    // A0-A15 (bits 0-15) → GPIO 8-23 (shift left by 8)
+    uint32_t gpio_value = (uint32_t)address << 8;
+    return gpio_value;
+}
+
+static inline void drive_address_bus(uint16_t address) {
+    uint32_t gpio_value = addr_to_gpio_mask(address);
+    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);  // 0xFFFF00 (GPIO 8-23)
+}
+
+#else
+#error "Unknown board type - must define BOARD_PICO2 or BOARD_WAVESHARE"
+#endif
+
+// ----------------------------------------------------------------------------
+// Control Signal Helpers (board-independent)
+// ----------------------------------------------------------------------------
+
+static inline void drive_control_read(void) {
+    // VMA=1, R/W=1 (read)
+    gpio_put_masked(0x00600000, (1u << GPIO_VMA) | (1u << GPIO_RW));
+}
+
+static inline void drive_control_write(uint8_t data) {
+    // Data + VMA=1, R/W=0 (write)
+    uint32_t data_ctrl = data | (1u << GPIO_VMA) | (0u << GPIO_RW);
+    gpio_put_masked(0x006000FF, data_ctrl);
+}
+
+static inline void deassert_vma(void) {
+    // VMA=0, R/W=1 (inactive)
+    gpio_put_masked(0x00600000, (0u << GPIO_VMA) | (1u << GPIO_RW));
+}
 
 // Initialize bus interface (configure GPIO)
 void bus_init(void);

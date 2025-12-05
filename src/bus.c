@@ -11,10 +11,7 @@
 // GPIO masks
 #define DATA_MASK    0x000000FF  // GPIO 0-7
 
-// Address bus GPIO mapping constants
-// A0-A1 (bits 0-1) → GPIO 8-9
-// A10-A14 (bits 10-14) → GPIO 10-14
-#define ADDR_GPIO_MASK  0x7F00  // GPIO 8-14 mask (0b0111_1111_0000_0000)
+// Address bus GPIO mapping is board-specific (see board_config.h for ADDR_GPIO_MASK)
 
 // Initialize bus interface
 void bus_init(void) {
@@ -76,17 +73,11 @@ uint8_t bus_read_cycle(uint16_t address) {
         gpio_set_dir(i, GPIO_IN);
     }
 
-    // Mask address to configured bits
-    address &= ADDR_MASK;
+    // Drive address bus using board-specific mapping
+    drive_address_bus(address);
 
-    // Drive address bus using mask and shift (much faster than bit-by-bit)
-    // A0-A1 (bits 0-1) → GPIO 8-9: shift left by 8
-    // A10-A14 (bits 10-14) → GPIO 10-14: already aligned!
-    uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
-    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
-
-    // Assert VMA and R/W (read = 1) in one operation
-    gpio_put_masked(0x00600000, (1u << GPIO_VMA) | (1u << GPIO_RW));
+    // Assert VMA and R/W (read = 1)
+    drive_control_read();
 
     // Wait for E clock high (data valid time)
     eclock_wait_high();
@@ -99,7 +90,7 @@ uint8_t bus_read_cycle(uint16_t address) {
     eclock_wait_low();
 
     // De-assert VMA (R/W stays high)
-    gpio_put_masked(0x00200000, 0);
+    deassert_vma();
 
     return data;
 }
@@ -114,19 +105,11 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
         gpio_set_dir(i, GPIO_OUT);
     }
 
-    // Mask address to configured bits
-    address &= ADDR_MASK;
+    // Drive address bus using board-specific mapping
+    drive_address_bus(address);
 
-    // Drive address bus using mask and shift (much faster than bit-by-bit)
-    // A0-A1 (bits 0-1) → GPIO 8-9: shift left by 8
-    // A10-A14 (bits 10-14) → GPIO 10-14: already aligned!
-    uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
-    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
-
-    // Drive data bus, VMA, and R/W in one operation
-    // Data: GPIO 0-7, VMA: GPIO 21 (set), R/W: GPIO 22 (clear for write)
-    uint32_t data_ctrl = data | (1u << GPIO_VMA);  // VMA=1, R/W=0
-    gpio_put_masked(0x006000FF, data_ctrl);
+    // Drive data bus, VMA, and R/W
+    drive_control_write(data);
 
     // Wait for E clock high (data latches)
     eclock_wait_high();
@@ -134,8 +117,8 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     // Wait for E clock low (end of cycle)
     eclock_wait_low();
 
-    // De-assert VMA and return R/W to read in one operation
-    gpio_put_masked(0x00600000, 1u << GPIO_RW);  // VMA=0, R/W=1
+    // De-assert VMA and return R/W to read
+    deassert_vma();
 
     // Set data bus back to input mode
     for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {

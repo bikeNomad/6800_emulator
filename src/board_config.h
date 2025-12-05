@@ -25,6 +25,7 @@
   #define ADDR_LINES 7
   #define ADDR_MASK 0x7C03  // Bits 0,1,10-14: 0b0111_1100_0000_0011
   #define ADDR_SPACE_SIZE 128  // 2^7 = 128 addresses
+  #define ADDR_GPIO_MASK 0x7F00  // GPIO 8-14 for address bus
 
   // Control signal pins (adjusted for fewer GPIOs)
   #define GPIO_VMA 21
@@ -41,6 +42,7 @@
   #define BOARD_NAME "Waveshare RP2350B-Plus-W"
   #define ADDR_LINES 16
   #define ADDR_MASK 0xFFFF  // 64KB address space
+  #define ADDR_GPIO_MASK 0xFFFF00  // GPIO 8-23 for address bus
 
   // Control signal pins
   #define GPIO_VMA 24
