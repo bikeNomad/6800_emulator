@@ -6,6 +6,7 @@
 #include "instructions.h"
 #include "cpu_state.h"
 #include "memory.h"
+#include "clock.h"
 #include <stdio.h>
 
 // Instruction mnemonics
@@ -712,8 +713,10 @@ void instruction_execute(void) {
         // NEG - Negate Memory (Indexed)
         case 0x60: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             value = (~value) + 1;
             memory_write(addr, value);
             cpu_update_nz(value);
@@ -725,8 +728,10 @@ void instruction_execute(void) {
         // COM - Complement Memory (Indexed)
         case 0x63: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             value = ~value;
             memory_write(addr, value);
             cpu_update_nz(value);
@@ -738,8 +743,10 @@ void instruction_execute(void) {
         // LSR - Logical Shift Right (Indexed)
         case 0x64: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit0 = value & 0x01;
             value >>= 1;
             memory_write(addr, value);
@@ -753,8 +760,10 @@ void instruction_execute(void) {
         // ROR - Rotate Right (Indexed)
         case 0x66: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = value & 0x01;
             value = (value >> 1) | old_carry;
@@ -768,8 +777,10 @@ void instruction_execute(void) {
         // ASR - Arithmetic Shift Right (Indexed)
         case 0x67: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit0 = value & 0x01;
             uint8_t sign_bit = value & 0x80;
             value = (value >> 1) | sign_bit;
@@ -783,8 +794,10 @@ void instruction_execute(void) {
         // ASL - Arithmetic Shift Left (Indexed)
         case 0x68: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value <<= 1;
             memory_write(addr, value);
@@ -797,8 +810,10 @@ void instruction_execute(void) {
         // ROL - Rotate Left (Indexed)
         case 0x69: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value = (value << 1) | old_carry;
@@ -812,8 +827,10 @@ void instruction_execute(void) {
         // DEC - Decrement Memory (Indexed)
         case 0x6A: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             value--;
             memory_write(addr, value);
             cpu_update_nz(value);
@@ -824,8 +841,10 @@ void instruction_execute(void) {
         // INC - Increment Memory (Indexed)
         case 0x6C: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: modify operation
             value++;
             memory_write(addr, value);
             cpu_update_nz(value);
@@ -836,8 +855,10 @@ void instruction_execute(void) {
         // TST - Test Memory (Indexed)
         case 0x6D: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: test operation
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
             break;
@@ -846,6 +867,7 @@ void instruction_execute(void) {
         // JMP (Indexed)
         case 0x6E: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             cpu.pc = cpu.x + offset;
             break;
         }
@@ -853,6 +875,7 @@ void instruction_execute(void) {
         // CLR - Clear Memory (Indexed)
         case 0x6F: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(4);  // Internal: address calculation
             memory_write(cpu.x + offset, 0x00);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
@@ -1306,6 +1329,7 @@ void instruction_execute(void) {
         // SUBA (Indexed)
         case 0xA0: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             sub_with_carry(&cpu.a, operand);
@@ -1315,6 +1339,7 @@ void instruction_execute(void) {
         // CMPA (Indexed)
         case 0xA1: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint16_t result = cpu.a - operand;
@@ -1326,6 +1351,7 @@ void instruction_execute(void) {
         // SBCA (Indexed)
         case 0xA2: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
@@ -1338,6 +1364,7 @@ void instruction_execute(void) {
         // ANDA (Indexed)
         case 0xA4: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             cpu.a &= operand;
@@ -1349,6 +1376,7 @@ void instruction_execute(void) {
         // BITA (Indexed)
         case 0xA5: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint8_t result = cpu.a & operand;
@@ -1360,6 +1388,7 @@ void instruction_execute(void) {
         // LDAA (Indexed)
         case 0xA6: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             cpu.a = memory_read(cpu.x + offset);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1369,6 +1398,7 @@ void instruction_execute(void) {
         // STAA (Indexed)
         case 0xA7: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(3);  // Internal: address calculation
             memory_write(cpu.x + offset, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1378,6 +1408,7 @@ void instruction_execute(void) {
         // EORA (Indexed)
         case 0xA8: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             cpu.a ^= operand;
@@ -1389,6 +1420,7 @@ void instruction_execute(void) {
         // ADCA (Indexed)
         case 0xA9: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
@@ -1403,6 +1435,7 @@ void instruction_execute(void) {
         // ORAA (Indexed)
         case 0xAA: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             cpu.a |= operand;
@@ -1414,6 +1447,7 @@ void instruction_execute(void) {
         // ADDA (Indexed)
         case 0xAB: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             add_with_carry(&cpu.a, operand);
@@ -1423,6 +1457,7 @@ void instruction_execute(void) {
         // CPX (Indexed)
         case 0xAC: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t high = memory_read(addr);
             uint8_t low = memory_read(addr + 1);
@@ -1437,7 +1472,9 @@ void instruction_execute(void) {
         // JSR (Indexed)
         case 0xAD: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(1);  // Internal: address calculation
             cpu_push16(cpu.pc);
+            eclock_consume_cycles(3);  // Internal: jump setup
             cpu.pc = cpu.x + offset;
             break;
         }
@@ -1445,6 +1482,7 @@ void instruction_execute(void) {
         // LDS - Load Stack Pointer (Indexed)
         case 0xAE: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t high = memory_read(addr);
             uint8_t low = memory_read(addr + 1);
@@ -1457,6 +1495,7 @@ void instruction_execute(void) {
         // STS - Store Stack Pointer (Indexed)
         case 0xAF: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             memory_write(addr, (cpu.sp >> 8) & 0xFF);
             memory_write(addr + 1, cpu.sp & 0xFF);
@@ -1891,6 +1930,7 @@ void instruction_execute(void) {
         // SUBB (Indexed)
         case 0xE0: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint16_t result = cpu.b - operand;
@@ -1903,6 +1943,7 @@ void instruction_execute(void) {
         // CMPB (Indexed)
         case 0xE1: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint16_t result = cpu.b - operand;
@@ -1914,6 +1955,7 @@ void instruction_execute(void) {
         // SBCB (Indexed)
         case 0xE2: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
@@ -1926,6 +1968,7 @@ void instruction_execute(void) {
         // ANDB - Logical AND B (Indexed)
         case 0xE4: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint8_t operand = memory_read(cpu.x + offset);
             cpu.b &= operand;
             cpu_update_nz(cpu.b);
@@ -1936,6 +1979,7 @@ void instruction_execute(void) {
         // BITB (Indexed)
         case 0xE5: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint8_t result = cpu.b & operand;
@@ -1947,6 +1991,7 @@ void instruction_execute(void) {
         // LDAB (Indexed)
         case 0xE6: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             cpu.b = memory_read(cpu.x + offset);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1956,6 +2001,7 @@ void instruction_execute(void) {
         // STAB (Indexed)
         case 0xE7: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(3);  // Internal: address calculation
             memory_write(cpu.x + offset, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1965,6 +2011,7 @@ void instruction_execute(void) {
         // EORB (Indexed)
         case 0xE8: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             cpu.b ^= operand;
@@ -1976,6 +2023,7 @@ void instruction_execute(void) {
         // ADCB (Indexed)
         case 0xE9: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
@@ -1990,6 +2038,7 @@ void instruction_execute(void) {
         // ORAB - Logical OR B (Indexed)
         case 0xEA: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint8_t operand = memory_read(cpu.x + offset);
             cpu.b |= operand;
             cpu_update_nz(cpu.b);
@@ -2000,6 +2049,7 @@ void instruction_execute(void) {
         // ADDB (Indexed)
         case 0xEB: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read(addr);
             uint16_t result = cpu.b + operand;
@@ -2013,6 +2063,7 @@ void instruction_execute(void) {
         // LDX (Indexed)
         case 0xEE: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t high = memory_read(addr);
             uint8_t low = memory_read(addr + 1);
@@ -2025,6 +2076,7 @@ void instruction_execute(void) {
         // STX (Indexed)
         case 0xEF: {
             uint8_t offset = memory_read(cpu.pc++);
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             memory_write(addr, cpu.x >> 8);
             memory_write(addr + 1, cpu.x & 0xFF);

@@ -27,6 +27,9 @@ void eclock_wait_high(void);
 // Wait for E clock falling edge
 void eclock_wait_low(void);
 
+// Consume N internal cycles (for address calculation, etc.)
+void eclock_consume_cycles(uint8_t cycles);
+
 // Get cycle count (for timing validation)
 uint32_t eclock_get_count(void);
 
