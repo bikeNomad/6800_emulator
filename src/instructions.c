@@ -299,6 +299,7 @@ void instruction_execute(void) {
         // BRA - Branch Always
         case 0x20: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             cpu.pc += offset;
             break;
         }
@@ -306,6 +307,7 @@ void instruction_execute(void) {
         // BHI - Branch if Higher (C=0 AND Z=0)
         case 0x22: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_C) && !cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
             }
@@ -315,6 +317,7 @@ void instruction_execute(void) {
         // BLS - Branch if Lower or Same (C=1 OR Z=1)
         case 0x23: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_C) || cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
             }
@@ -324,6 +327,7 @@ void instruction_execute(void) {
         // BCC - Branch if Carry Clear
         case 0x24: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_C)) {
                 cpu.pc += offset;
             }
@@ -333,6 +337,7 @@ void instruction_execute(void) {
         // BCS - Branch if Carry Set
         case 0x25: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_C)) {
                 cpu.pc += offset;
             }
@@ -342,6 +347,7 @@ void instruction_execute(void) {
         // BNE - Branch if Not Equal (Z=0)
         case 0x26: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
             }
@@ -351,6 +357,7 @@ void instruction_execute(void) {
         // BEQ - Branch if Equal (Z=1)
         case 0x27: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
             }
@@ -360,6 +367,7 @@ void instruction_execute(void) {
         // BVC - Branch if Overflow Clear (V=0)
         case 0x28: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
             }
@@ -369,6 +377,7 @@ void instruction_execute(void) {
         // BVS - Branch if Overflow Set (V=1)
         case 0x29: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
             }
@@ -378,6 +387,7 @@ void instruction_execute(void) {
         // BPL - Branch if Plus (N=0)
         case 0x2A: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_N)) {
                 cpu.pc += offset;
             }
@@ -387,6 +397,7 @@ void instruction_execute(void) {
         // BMI - Branch if Minus (N=1)
         case 0x2B: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_N)) {
                 cpu.pc += offset;
             }
@@ -396,6 +407,7 @@ void instruction_execute(void) {
         // BGE - Branch if Greater or Equal (N XOR V = 0)
         case 0x2C: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_N) == cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
             }
@@ -405,6 +417,7 @@ void instruction_execute(void) {
         // BLT - Branch if Less Than (N XOR V = 1)
         case 0x2D: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_N) != cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
             }
@@ -414,6 +427,7 @@ void instruction_execute(void) {
         // BGT - Branch if Greater Than (Z=0 AND (N XOR V)=0)
         case 0x2E: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_Z) && (cpu_get_flag(CCR_N) == cpu_get_flag(CCR_V))) {
                 cpu.pc += offset;
             }
@@ -423,6 +437,7 @@ void instruction_execute(void) {
         // BLE - Branch if Less or Equal (Z=1 OR (N XOR V)=1)
         case 0x2F: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_Z) || (cpu_get_flag(CCR_N) != cpu_get_flag(CCR_V))) {
                 cpu.pc += offset;
             }
@@ -1173,7 +1188,9 @@ void instruction_execute(void) {
         // BSR - Branch to Subroutine
         case 0x8D: {
             int8_t offset = (int8_t)memory_read(cpu.pc++);
+            eclock_consume_cycles(1);  // Internal: address calculation
             cpu_push16(cpu.pc);
+            eclock_consume_cycles(3);  // Internal: branch setup
             cpu.pc += offset;
             break;
         }
