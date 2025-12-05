@@ -175,15 +175,18 @@ void instruction_execute(void) {
         // NOP - No Operation
         case 0x01:
             // 2 cycles total (fetch + execute)
+            eclock_consume_cycles(1);  // Internal: NOP execution
             break;
 
         // TAP - Transfer A to Processor Status (CCR)
         case 0x06:
+            eclock_consume_cycles(1);  // Internal: register transfer
             cpu.ccr = (cpu.a & 0x3F) | CCR_FIXED;  // Only lower 6 bits, preserve bits 7-6
             break;
 
         // TPA - Transfer Processor Status (CCR) to A
         case 0x07:
+            eclock_consume_cycles(1);  // Internal: register transfer
             cpu.a = cpu.ccr;
             break;
 
@@ -203,36 +206,43 @@ void instruction_execute(void) {
 
         // CLV - Clear Overflow Flag
         case 0x0A:
+            eclock_consume_cycles(1);  // Internal: flag operation
             cpu_set_flag(CCR_V, false);
             break;
 
         // SEV - Set Overflow Flag
         case 0x0B:
+            eclock_consume_cycles(1);  // Internal: flag operation
             cpu_set_flag(CCR_V, true);
             break;
 
         // CLC - Clear Carry Flag
         case 0x0C:
+            eclock_consume_cycles(1);  // Internal: flag operation
             cpu_set_flag(CCR_C, false);
             break;
 
         // SEC - Set Carry Flag
         case 0x0D:
+            eclock_consume_cycles(1);  // Internal: flag operation
             cpu_set_flag(CCR_C, true);
             break;
 
         // CLI - Clear Interrupt Mask
         case 0x0E:
+            eclock_consume_cycles(1);  // Internal: flag operation
             cpu_set_flag(CCR_I, false);
             break;
 
         // SEI - Set Interrupt Mask
         case 0x0F:
+            eclock_consume_cycles(1);  // Internal: flag operation
             cpu_set_flag(CCR_I, true);
             break;
 
         // SBA - Subtract B from A
         case 0x10: {
+            eclock_consume_cycles(1);  // Internal: 8-bit arithmetic
             uint16_t result = cpu.a - cpu.b;
             cpu_update_nzv(result & 0xFF, cpu.a, cpu.b, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -242,6 +252,7 @@ void instruction_execute(void) {
 
         // DAA - Decimal Adjust Accumulator A
         case 0x19: {
+            eclock_consume_cycles(1);  // Internal: decimal adjust
             uint8_t correction = 0;
             uint8_t lower_nibble = cpu.a & 0x0F;
             uint8_t upper_nibble = (cpu.a >> 4) & 0x0F;
@@ -268,6 +279,7 @@ void instruction_execute(void) {
 
         // CBA - Compare Accumulators (A with B)
         case 0x11: {
+            eclock_consume_cycles(1);  // Internal: 8-bit comparison
             uint16_t result = cpu.a - cpu.b;
             cpu_update_nzv(result & 0xFF, cpu.a, cpu.b, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -276,18 +288,21 @@ void instruction_execute(void) {
 
         // TAB - Transfer A to B
         case 0x16:
+            eclock_consume_cycles(1);  // Internal: register transfer
             cpu.b = cpu.a;
             cpu_update_nz(cpu.b);
             break;
 
         // TBA - Transfer B to A
         case 0x17:
+            eclock_consume_cycles(1);  // Internal: register transfer
             cpu.a = cpu.b;
             cpu_update_nz(cpu.a);
             break;
 
         // ABA - Add B to A
         case 0x1B: {
+            eclock_consume_cycles(1);  // Internal: 8-bit arithmetic
             uint16_t result = cpu.a + cpu.b;
             cpu_update_nzv(result & 0xFF, cpu.a, cpu.b, false);
             cpu_set_flag(CCR_C, result > 0xFF);  // Set carry if overflow
@@ -542,6 +557,7 @@ void instruction_execute(void) {
 
         // NEGA - Negate A (two's complement)
         case 0x40: {
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             cpu.a = (~cpu.a) + 1;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, cpu.a == 0x80);
@@ -551,6 +567,7 @@ void instruction_execute(void) {
 
         // COMA - Complement A (one's complement)
         case 0x43:
+            eclock_consume_cycles(1);  // Internal: logical operation
             cpu.a = ~cpu.a;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -559,6 +576,7 @@ void instruction_execute(void) {
 
         // LSRA - Logical Shift Right A
         case 0x44: {
+            eclock_consume_cycles(1);  // Internal: shift operation
             uint8_t old_bit0 = cpu.a & 0x01;
             cpu.a >>= 1;
             cpu_set_flag(CCR_C, old_bit0 != 0);
@@ -570,6 +588,7 @@ void instruction_execute(void) {
 
         // RORA - Rotate Right A through Carry
         case 0x46: {
+            eclock_consume_cycles(1);  // Internal: rotate operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = cpu.a & 0x01;
             cpu.a = (cpu.a >> 1) | old_carry;
@@ -581,6 +600,7 @@ void instruction_execute(void) {
 
         // ASRA - Arithmetic Shift Right A
         case 0x47: {
+            eclock_consume_cycles(1);  // Internal: shift operation
             uint8_t old_bit0 = cpu.a & 0x01;
             uint8_t sign_bit = cpu.a & 0x80;
             cpu.a = (cpu.a >> 1) | sign_bit;
@@ -592,6 +612,7 @@ void instruction_execute(void) {
 
         // ASLA - Arithmetic Shift Left A
         case 0x48: {
+            eclock_consume_cycles(1);  // Internal: shift operation
             uint8_t old_bit7 = (cpu.a & 0x80) >> 7;
             cpu.a <<= 1;
             cpu_set_flag(CCR_C, old_bit7 != 0);
@@ -603,6 +624,7 @@ void instruction_execute(void) {
 
         // ROLA - Rotate Left A through Carry
         case 0x49: {
+            eclock_consume_cycles(1);  // Internal: rotate operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
             uint8_t old_bit7 = (cpu.a & 0x80) >> 7;
             cpu.a = (cpu.a << 1) | old_carry;
@@ -614,6 +636,7 @@ void instruction_execute(void) {
 
         // DECA - Decrement A
         case 0x4A:
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             cpu.a--;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, cpu.a == 0x7F);
@@ -621,6 +644,7 @@ void instruction_execute(void) {
 
         // INCA - Increment A
         case 0x4C:
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             cpu.a++;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, cpu.a == 0x80);
@@ -628,12 +652,14 @@ void instruction_execute(void) {
 
         // TSTA - Test Accumulator A
         case 0x4D:
+            eclock_consume_cycles(1);  // Internal: test operation
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
 
         // CLRA - Clear Accumulator A
         case 0x4F:
+            eclock_consume_cycles(1);  // Internal: clear operation
             cpu.a = 0x00;
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
@@ -643,6 +669,7 @@ void instruction_execute(void) {
 
         // NEGB - Negate B (two's complement)
         case 0x50: {
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             cpu.b = (~cpu.b) + 1;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, cpu.b == 0x80);
@@ -652,6 +679,7 @@ void instruction_execute(void) {
 
         // COMB - Complement B (one's complement)
         case 0x53:
+            eclock_consume_cycles(1);  // Internal: logical operation
             cpu.b = ~cpu.b;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -660,6 +688,7 @@ void instruction_execute(void) {
 
         // LSRB - Logical Shift Right B
         case 0x54: {
+            eclock_consume_cycles(1);  // Internal: shift operation
             uint8_t old_bit0 = cpu.b & 0x01;
             cpu.b >>= 1;
             cpu_set_flag(CCR_C, old_bit0 != 0);
@@ -671,6 +700,7 @@ void instruction_execute(void) {
 
         // RORB - Rotate Right B through Carry
         case 0x56: {
+            eclock_consume_cycles(1);  // Internal: rotate operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = cpu.b & 0x01;
             cpu.b = (cpu.b >> 1) | old_carry;
@@ -682,6 +712,7 @@ void instruction_execute(void) {
 
         // ASRB - Arithmetic Shift Right B
         case 0x57: {
+            eclock_consume_cycles(1);  // Internal: shift operation
             uint8_t old_bit0 = cpu.b & 0x01;
             uint8_t sign_bit = cpu.b & 0x80;
             cpu.b = (cpu.b >> 1) | sign_bit;
@@ -693,6 +724,7 @@ void instruction_execute(void) {
 
         // ASLB - Arithmetic Shift Left B
         case 0x58: {
+            eclock_consume_cycles(1);  // Internal: shift operation
             uint8_t old_bit7 = (cpu.b & 0x80) >> 7;
             cpu.b <<= 1;
             cpu_set_flag(CCR_C, old_bit7 != 0);
@@ -704,6 +736,7 @@ void instruction_execute(void) {
 
         // ROLB - Rotate Left B
         case 0x59: {
+            eclock_consume_cycles(1);  // Internal: rotate operation
             uint8_t old_bit7 = (cpu.b & 0x80) >> 7;
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 1 : 0;
             cpu.b = (cpu.b << 1) | old_carry;
@@ -715,6 +748,7 @@ void instruction_execute(void) {
 
         // DECB - Decrement B
         case 0x5A:
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             cpu.b--;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, cpu.b == 0x7F);
@@ -722,6 +756,7 @@ void instruction_execute(void) {
 
         // INCB - Increment B
         case 0x5C:
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             cpu.b++;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, cpu.b == 0x80);
@@ -729,12 +764,14 @@ void instruction_execute(void) {
 
         // TSTB - Test Accumulator B
         case 0x5D:
+            eclock_consume_cycles(1);  // Internal: test operation
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
 
         // CLRB - Clear Accumulator B
         case 0x5F:
+            eclock_consume_cycles(1);  // Internal: clear operation
             cpu.b = 0x00;
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
@@ -1029,6 +1066,7 @@ void instruction_execute(void) {
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
             uint8_t value = memory_read(addr);
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             value--;
             memory_write(addr, value);
             cpu_update_nz(value);

@@ -145,7 +145,7 @@ uint8_t memory_read(uint16_t address) {
         const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
         uint8_t data = flash_ptr[rom_offset];
 
-        eclock_wait_low();  // End of cycle
+        // bus_sync already counted the cycle
         return data;
     }
 
@@ -167,7 +167,7 @@ uint8_t memory_read(uint16_t address) {
             data = ram_shadow[ram_offset];
         }
 
-        eclock_wait_low();  // End of cycle
+        // bus_sync already counted the cycle
         return data;
     }
 
@@ -185,7 +185,7 @@ uint8_t memory_read(uint16_t address) {
     // Unmapped and no physical bus - still consume a cycle for accuracy
     bus_sync();
     eclock_wait_high();
-    eclock_wait_low();
+    // bus_sync already counted the cycle
     return 0xFF;
 }
 
@@ -210,7 +210,7 @@ void memory_write(uint16_t address, uint8_t value) {
             ram_shadow[ram_offset] = value;
         }
 
-        eclock_wait_low();  // End of cycle
+        // bus_sync already counted the cycle
         return;
     }
 
@@ -224,7 +224,7 @@ void memory_write(uint16_t address, uint8_t value) {
     if (type == MEM_TYPE_ROM) {
         bus_sync();
         eclock_wait_high();
-        eclock_wait_low();
+        // bus_sync already counted the cycle
         return;
     }
 
@@ -235,7 +235,7 @@ void memory_write(uint16_t address, uint8_t value) {
         // Consume a cycle even if write is ignored
         bus_sync();
         eclock_wait_high();
-        eclock_wait_low();
+        // bus_sync already counted the cycle
     }
 }
 

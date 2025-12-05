@@ -60,23 +60,16 @@ void eclock_wait_high(void) {
 
 // Wait for E clock falling edge
 void eclock_wait_low(void) {
-    // If currently high, wait for fall
-    if (last_e_state) {
-        while (gpio_get(GPIO_ECLOCK)) {
-            tight_loop_contents();
-        }
-        cycle_count++;
-    }
-    // Now wait for low
+    // Wait until E is high (if not already)
     while (!gpio_get(GPIO_ECLOCK)) {
         tight_loop_contents();
     }
-    // Then wait for the falling edge
+    // Now wait for the falling edge
     while (gpio_get(GPIO_ECLOCK)) {
         tight_loop_contents();
     }
     last_e_state = false;
-    cycle_count++;
+    cycle_count++;  // Increment once per complete cycle
 }
 
 // Consume N internal cycles (wait for N complete E clock cycles)

@@ -110,7 +110,7 @@ void cycle_test_instruction(uint8_t opcode) {
 
     // Print result
     if (mnemonic && strcmp(mnemonic, "???") != 0) {
-        printf("$%02X %-8s : %lu cycles\n", opcode, mnemonic, (unsigned long)cycles_used + 1);
+        printf("$%02X %-8s : %lu cycles\n", opcode, mnemonic, (unsigned long)cycles_used);
     }
 
     // Restore CPU state
