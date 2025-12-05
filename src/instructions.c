@@ -1581,6 +1581,7 @@ void instruction_execute(void) {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
+            eclock_consume_cycles(1);  // Internal
             memory_write(addr, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1656,7 +1657,9 @@ void instruction_execute(void) {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
+            eclock_consume_cycles(1);  // Internal: jump setup
             cpu_push16(cpu.pc);
+            eclock_consume_cycles(3);  // Internal: jump setup
             cpu.pc = addr;
             break;
         }
@@ -1679,6 +1682,7 @@ void instruction_execute(void) {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
+            eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write(addr, (cpu.sp >> 8) & 0xFF);
             memory_write(addr + 1, cpu.sp & 0xFF);
             cpu_update_nz((cpu.sp >> 8) & 0xFF);
@@ -2167,6 +2171,7 @@ void instruction_execute(void) {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
+            eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write(addr, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2244,6 +2249,7 @@ void instruction_execute(void) {
             uint8_t high = memory_read(cpu.pc++);
             uint8_t low = memory_read(cpu.pc++);
             uint16_t addr = (high << 8) | low;
+            eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write(addr, cpu.x >> 8);
             memory_write(addr + 1, cpu.x & 0xFF);
             cpu_update_nz(cpu.x >> 8);
