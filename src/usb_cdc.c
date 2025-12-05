@@ -95,19 +95,6 @@ static void process_command(char *cmd) {
             usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
         }
 
-    } else if (strncmp(cmd, "config pia", 10) == 0) {
-        // Configure PIA region: config pia <base> <size> <on|off>
-        unsigned int base, size;
-        char enable_str[4];
-        if (sscanf(cmd + 10, "%x %x %3s", &base, &size, enable_str) == 3) {
-            bool enabled = (strcmp(enable_str, "on") == 0);
-            memory_configure_pia(base, size, enabled);
-            usb_cdc_printf("OK: PIA configured at $%04X, size $%04X, %s\r\n",
-                          base, size, enabled ? "physical bus ON" : "OFF");
-        } else {
-            usb_cdc_send("ERROR: Usage: config pia <base_hex> <size_hex> <on|off>\r\n");
-        }
-
     } else if (strcmp(cmd, "cmos save") == 0) {
         // Manually save CMOS to flash
         if (memory_save_cmos()) {
@@ -238,7 +225,6 @@ static void process_command(char *cmd) {
             "  config                    - Show memory configuration\r\n"
             "  config rom <b> <s>        - Configure ROM region\r\n"
             "  config ram <b> <s>        - Configure RAM region\r\n"
-            "  config pia <b> <s> <on|off> - Configure PIA physical bus\r\n"
             "  cmos save                 - Manually save CMOS to flash\r\n"
             "  cmos dump                 - Display CMOS RAM contents\r\n"
             "  read <addr> <len>         - Read memory\r\n"
