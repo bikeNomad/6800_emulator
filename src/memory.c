@@ -4,6 +4,7 @@
 
 #include "memory.h"
 #include "bus.h"
+#include "clock.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include <stdio.h>
@@ -134,15 +135,26 @@ memory_type_t memory_get_type(uint16_t address) {
 uint8_t memory_read(uint16_t address) {
     memory_type_t type = memory_get_type(address);
 
-    // Read from ROM (flash)
+    // Read from ROM (flash) - cycle-accurate
     if (type == MEM_TYPE_ROM) {
+        // Wait for E clock cycle (even though not using physical bus)
+        bus_sync();
+        eclock_wait_high();  // Data valid time
+
         uint16_t rom_offset = address - mem_config.rom_base;
         const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
-        return flash_ptr[rom_offset];
+        uint8_t data = flash_ptr[rom_offset];
+
+        eclock_wait_low();  // End of cycle
+        return data;
     }
 
-    // Read from RAM shadow (with mirroring)
+    // Read from RAM shadow (with mirroring) - cycle-accurate
     if (type == MEM_TYPE_RAM) {
+        // Wait for E clock cycle (even though not using physical bus)
+        bus_sync();
+        eclock_wait_high();  // Data valid time
+
         uint16_t ram_offset = address - mem_config.ram_base;
 
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
@@ -150,12 +162,16 @@ uint8_t memory_read(uint16_t address) {
             ram_offset = address - 0x1000;  // Map to 0000-00FF
         }
 
+        uint8_t data = 0xFF;
         if (ram_offset < mem_config.ram_size) {
-            return ram_shadow[ram_offset];
+            data = ram_shadow[ram_offset];
         }
+
+        eclock_wait_low();  // End of cycle
+        return data;
     }
 
-    // Read from PIA via physical bus
+    // Read from PIA via physical bus (already cycle-accurate)
     if (type == MEM_TYPE_PIA) {
         return bus_read_cycle(address);
     }
@@ -165,6 +181,11 @@ uint8_t memory_read(uint16_t address) {
     if (mem_config.pia_enabled) {
         return bus_read_cycle(address);
     }
+
+    // Unmapped and no physical bus - still consume a cycle for accuracy
+    bus_sync();
+    eclock_wait_high();
+    eclock_wait_low();
     return 0xFF;
 }
 
@@ -172,8 +193,12 @@ uint8_t memory_read(uint16_t address) {
 void memory_write(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
 
-    // Write to RAM shadow (with mirroring)
+    // Write to RAM shadow (with mirroring) - cycle-accurate
     if (type == MEM_TYPE_RAM) {
+        // Wait for E clock cycle (even though not using physical bus)
+        bus_sync();
+        eclock_wait_high();  // Data latch time
+
         uint16_t ram_offset = address - mem_config.ram_base;
 
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
@@ -184,23 +209,33 @@ void memory_write(uint16_t address, uint8_t value) {
         if (ram_offset < mem_config.ram_size) {
             ram_shadow[ram_offset] = value;
         }
+
+        eclock_wait_low();  // End of cycle
         return;
     }
 
-    // Write to PIA via physical bus
+    // Write to PIA via physical bus (already cycle-accurate)
     if (type == MEM_TYPE_PIA) {
         bus_write_cycle(address, value);
         return;
     }
 
-    // ROM writes are ignored
+    // ROM writes are ignored but still consume a cycle
     if (type == MEM_TYPE_ROM) {
+        bus_sync();
+        eclock_wait_high();
+        eclock_wait_low();
         return;
     }
 
     // Unmapped writes - go through physical bus if enabled
     if (mem_config.pia_enabled) {
         bus_write_cycle(address, value);
+    } else {
+        // Consume a cycle even if write is ignored
+        bus_sync();
+        eclock_wait_high();
+        eclock_wait_low();
     }
 }
 
