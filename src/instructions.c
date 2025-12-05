@@ -189,12 +189,14 @@ void instruction_execute(void) {
 
         // INX - Increment Index Register X
         case 0x08:
+            eclock_consume_cycles(3);  // Internal: 16-bit increment
             cpu.x++;
             cpu_set_flag(CCR_Z, cpu.x == 0);
             break;
 
         // DEX - Decrement Index Register X
         case 0x09:
+            eclock_consume_cycles(3);  // Internal: 16-bit decrement
             cpu.x--;
             cpu_set_flag(CCR_Z, cpu.x == 0);
             break;
@@ -429,51 +431,63 @@ void instruction_execute(void) {
 
         // TSX - Transfer Stack Pointer to X
         case 0x30:
+            eclock_consume_cycles(3);  // Internal: transfer operation
             cpu.x = cpu.sp + 1;
             break;
 
         // INS - Increment Stack Pointer
         case 0x31:
+            eclock_consume_cycles(3);  // Internal: stack pointer operation
             cpu.sp++;
             break;
 
         // DES - Decrement Stack Pointer
         case 0x34:
+            eclock_consume_cycles(3);  // Internal: stack pointer operation
             cpu.sp--;
             break;
 
         // TXS - Transfer X to Stack Pointer
         case 0x35:
+            eclock_consume_cycles(3);  // Internal: transfer operation
             cpu.sp = cpu.x - 1;
             break;
 
         // PSHA - Push A onto stack
         case 0x36:
+            eclock_consume_cycles(1);  // Internal: setup
             cpu_push(cpu.a);
+            eclock_consume_cycles(1);  // Internal: cleanup
             break;
 
         // PSHB - Push B onto stack
         case 0x37:
+            eclock_consume_cycles(1);  // Internal: setup
             cpu_push(cpu.b);
+            eclock_consume_cycles(1);  // Internal: cleanup
             break;
 
         // PULA - Pull A from stack
         case 0x32:
+            eclock_consume_cycles(2);  // Internal: setup
             cpu.a = cpu_pull();
             break;
 
         // PULB - Pull B from stack
         case 0x33:
+            eclock_consume_cycles(2);  // Internal: setup
             cpu.b = cpu_pull();
             break;
 
         // RTS - Return from Subroutine
         case 0x39:
+            eclock_consume_cycles(2);  // Internal: setup
             cpu.pc = cpu_pull16();
             break;
 
         // RTI - Return from Interrupt
         case 0x3B:
+            eclock_consume_cycles(2);  // Internal: setup
             cpu.ccr = cpu_pull();
             cpu.b = cpu_pull();
             cpu.a = cpu_pull();
@@ -483,6 +497,7 @@ void instruction_execute(void) {
 
         // WAI - Wait for Interrupt
         case 0x3E:
+            eclock_consume_cycles(1);  // Internal: setup
             cpu.halted = true;
             // Push registers
             cpu_push16(cpu.pc);
@@ -494,12 +509,14 @@ void instruction_execute(void) {
 
         // SWI - Software Interrupt
         case 0x3F:
+            eclock_consume_cycles(1);  // Internal: setup
             // Push registers onto stack
             cpu_push16(cpu.pc);
             cpu_push16(cpu.x);
             cpu_push(cpu.a);
             cpu_push(cpu.b);
             cpu_push(cpu.ccr);
+            eclock_consume_cycles(1);  // Internal: setup
             // Set interrupt mask
             cpu_set_flag(CCR_I, true);
             // Load PC from SWI vector (0xFFFA-0xFFFB)
