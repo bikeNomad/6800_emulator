@@ -79,6 +79,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
     BOARD_TYPE=${BOARD_TYPE}
     PICO_DEFAULT_UART_TX_PIN=16
     PICO_DEFAULT_UART_RX_PIN=17
+    DEBUG_INTERRUPTS=1  # Set to 0 to disable interrupt debug output
 )
 
 # Add compile options for optimization and warnings

@@ -20,10 +20,10 @@ void interrupts_init(void) {
     last_nmi_state = bus_read_nmi();
     last_reset_state = bus_read_reset();
 
-    printf("Interrupt handling initialized\n");
-    printf("  IRQ vector: $%04X\n", VECTOR_IRQ);
-    printf("  NMI vector: $%04X\n", VECTOR_NMI);
-    printf("  RST vector: $%04X\n", VECTOR_RESET);
+    DEBUG_INT_PRINTF("Interrupt handling initialized\n");
+    DEBUG_INT_PRINTF("  IRQ vector: $%04X\n", VECTOR_IRQ);
+    DEBUG_INT_PRINTF("  NMI vector: $%04X\n", VECTOR_NMI);
+    DEBUG_INT_PRINTF("  RST vector: $%04X\n", VECTOR_RESET);
 }
 
 // Check for pending interrupts
@@ -62,7 +62,7 @@ void interrupt_check(void) {
 
 // Service RESET interrupt
 void interrupt_service_reset(void) {
-    printf("\n*** RESET ***\n");
+    DEBUG_INT_PRINTF("\n*** RESET ***\n");
 
     // Reset CPU state
     cpu.a = 0;
@@ -79,12 +79,12 @@ void interrupt_service_reset(void) {
     uint8_t pcl = memory_read(VECTOR_RESET + 1);
     cpu.pc = (pch << 8) | pcl;
 
-    printf("Reset vector: $%04X\n", cpu.pc);
+    DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
 }
 
 // Service NMI interrupt
 void interrupt_service_nmi(void) {
-    printf("*** NMI at PC=$%04X ***\n", cpu.pc);
+    DEBUG_INT_PRINTF("*** NMI at PC=$%04X ***\n", cpu.pc);
 
     // Push registers onto stack (12 cycles total)
     cpu_push16(cpu.pc);    // Push PC
@@ -101,12 +101,12 @@ void interrupt_service_nmi(void) {
     uint8_t pcl = memory_read(VECTOR_NMI + 1);
     cpu.pc = (pch << 8) | pcl;
 
-    printf("NMI vector: $%04X\n", cpu.pc);
+    DEBUG_INT_PRINTF("NMI vector: $%04X\n", cpu.pc);
 }
 
 // Service IRQ interrupt
 void interrupt_service_irq(void) {
-    printf("*** IRQ at PC=$%04X ***\n", cpu.pc);
+    DEBUG_INT_PRINTF("*** IRQ at PC=$%04X ***\n", cpu.pc);
 
     // Push registers onto stack (12 cycles total)
     cpu_push16(cpu.pc);    // Push PC
@@ -123,5 +123,5 @@ void interrupt_service_irq(void) {
     uint8_t pcl = memory_read(VECTOR_IRQ + 1);
     cpu.pc = (pch << 8) | pcl;
 
-    printf("IRQ vector: $%04X\n", cpu.pc);
+    DEBUG_INT_PRINTF("IRQ vector: $%04X\n", cpu.pc);
 }

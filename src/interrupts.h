@@ -8,6 +8,18 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
+
+// Debug output control (set via CMakeLists.txt)
+#ifndef DEBUG_INTERRUPTS
+  #define DEBUG_INTERRUPTS 0
+#endif
+
+#if DEBUG_INTERRUPTS
+  #define DEBUG_INT_PRINTF(...) printf(__VA_ARGS__)
+#else
+  #define DEBUG_INT_PRINTF(...) ((void)0)
+#endif
 
 // MC6800 interrupt vector addresses
 #define VECTOR_RESET  0xFFFE  // Reset vector (highest priority)
