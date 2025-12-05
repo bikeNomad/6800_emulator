@@ -10,6 +10,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// Address translation for missing A15 decode
+#define ADDR_MASK_A15 0x7FFF  // Mask off A15
+
 // Memory region types
 typedef enum {
     MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
@@ -30,6 +33,10 @@ typedef struct {
     uint16_t pia_size;      // Size of PIA region (typically 128 bytes)
     bool pia_enabled;       // Enable physical bus for PIA accesses
     bool configured;        // Configuration complete
+    uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
+    uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
+    uint32_t cmos_flash_offset;  // Offset in flash for CMOS storage
+    bool cmos_dirty;        // CMOS has unsaved changes
 } memory_config_t;
 
 // Initialize memory subsystem
@@ -64,5 +71,20 @@ const uint8_t* memory_get_rom_shadow(void);
 
 // Get RAM data for diagnostics (direct access to shadow copy)
 const uint8_t* memory_get_ram_shadow(void);
+
+// Load Intel HEX data into CMOS shadow copy
+bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t length);
+
+// Save CMOS RAM to flash
+bool memory_save_cmos(void);
+
+// Initialize CMOS from flash on startup
+void memory_init_cmos_from_flash(void);
+
+// Check if CMOS needs auto-save (call periodically from main loop)
+void memory_check_cmos_autosave(void);
+
+// Get CMOS data for diagnostics (direct access to shadow copy)
+const uint8_t* memory_get_cmos_shadow(void);
 
 #endif // MEMORY_H

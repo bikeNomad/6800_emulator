@@ -7,6 +7,7 @@
 #include "clock.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
+#include "pico/time.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -15,22 +16,31 @@
 #define MAX_ROM_SIZE (32 * 1024)  // 32KB max ROM
 #define MAX_RAM_SIZE (8 * 1024)  // 8KB max RAM (supports up to 0x1FFF)
 
+// CMOS RAM persistent storage configuration
+#define CMOS_FLASH_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)  // 0x108000
+#define CMOS_SIZE 256
+#define CMOS_BASE 0x0100
+#define CMOS_AUTOSAVE_DELAY_MS 30000  // 30 seconds
+
 // Memory configuration
 static memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE];
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
+static uint8_t cmos_load_buffer[FLASH_SECTOR_SIZE];  // Buffer for CMOS flash operations
+static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
 
 // Initialize memory subsystem
 void memory_init(void) {
     memset(&mem_config, 0, sizeof(mem_config));
     memset(ram_shadow, 0, sizeof(ram_shadow));
     memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
+    memset(cmos_load_buffer, 0xFF, sizeof(cmos_load_buffer));
 
-    // Default configuration (Williams System 7 pinball)
-    mem_config.rom_base = 0xD000;
-    mem_config.rom_size = 0x3000;  // 12KB (D000-FFFF)
+    // Default configuration (A15 not decoded)
+    mem_config.rom_base = 0x5000;
+    mem_config.rom_size = 0x3000;  // 12KB (5000-7FFF)
     mem_config.ram_base = 0x0000;
     mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
     mem_config.pia_base = 0x2100;  // Williams System 7 PIA base
@@ -38,15 +48,28 @@ void memory_init(void) {
     mem_config.pia_enabled = false;  // Disabled by default for emulation testing
     mem_config.flash_offset = FLASH_TARGET_OFFSET;
     mem_config.flash_size = mem_config.rom_size;
+    mem_config.cmos_base = CMOS_BASE;
+    mem_config.cmos_size = CMOS_SIZE;
+    mem_config.cmos_flash_offset = CMOS_FLASH_OFFSET;
+    mem_config.cmos_dirty = false;
     mem_config.configured = true;  // Use defaults
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n",
            mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
            mem_config.ram_base, mem_config.ram_base + mem_config.ram_size - 1);
+    printf("  ROM aliasing: A15 not decoded, $%04X-$%04X aliases at $%04X-$%04X\n",
+           mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
+           mem_config.rom_base | 0x8000, (mem_config.rom_base | 0x8000) + mem_config.rom_size - 1);
+    printf("  Vectors at $FFF8-$FFFF access physical $7FF8-$7FFF\n");
     printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
+    printf("  CMOS RAM: $%04X-$%04X (persistent in flash)\n",
+           mem_config.cmos_base, mem_config.cmos_base + mem_config.cmos_size - 1);
     printf("  PIA region: $%04X-$%04X (%s)\n",
            mem_config.pia_base, mem_config.pia_base + mem_config.pia_size - 1,
            mem_config.pia_enabled ? "physical bus" : "disabled");
+
+    // Restore CMOS from flash
+    memory_init_cmos_from_flash();
 }
 
 // Get ROM configuration
@@ -108,19 +131,22 @@ void memory_configure_pia(uint16_t base, uint16_t size, bool enabled) {
 
 // Get memory type for address
 memory_type_t memory_get_type(uint16_t address) {
-    // Check ROM range
-    if (address >= mem_config.rom_base &&
-        address < mem_config.rom_base + mem_config.rom_size) {
+    // Translate address for missing A15 decode
+    uint16_t physical_addr = address & ADDR_MASK_A15;
+
+    // Check ROM range (using translated address)
+    if (physical_addr >= mem_config.rom_base &&
+        physical_addr < mem_config.rom_base + mem_config.rom_size) {
         return MEM_TYPE_ROM;
     }
 
-    // Check RAM range
+    // Check RAM range (uses original address - RAM is at 0x0000-0x13FF)
     if (address >= mem_config.ram_base &&
         address < mem_config.ram_base + mem_config.ram_size) {
         return MEM_TYPE_RAM;
     }
 
-    // Check PIA range (if enabled)
+    // Check PIA range (if enabled, uses original address)
     if (mem_config.pia_enabled &&
         address >= mem_config.pia_base &&
         address < mem_config.pia_base + mem_config.pia_size) {
@@ -141,7 +167,11 @@ uint8_t memory_read(uint16_t address) {
         bus_sync();
         eclock_wait_high();  // Data valid time
 
-        uint16_t rom_offset = address - mem_config.rom_base;
+        // Translate address for missing A15 decode
+        // 0xFFF8-0xFFFF → 0x7FF8-0x7FFF
+        uint16_t physical_addr = address & ADDR_MASK_A15;
+
+        uint16_t rom_offset = physical_addr - mem_config.rom_base;
         const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
         uint8_t data = flash_ptr[rom_offset];
 
@@ -208,6 +238,13 @@ void memory_write(uint16_t address, uint8_t value) {
 
         if (ram_offset < mem_config.ram_size) {
             ram_shadow[ram_offset] = value;
+
+            // Check if this is a write to CMOS region - mark for auto-save
+            if (address >= mem_config.cmos_base &&
+                address < mem_config.cmos_base + mem_config.cmos_size) {
+                mem_config.cmos_dirty = true;
+                cmos_last_write_time = time_us_64();
+            }
         }
 
         // bus_sync already counted the cycle
@@ -241,10 +278,16 @@ void memory_write(uint16_t address, uint8_t value) {
 
 // Load Intel HEX data into ROM load buffer
 bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length) {
+    // Check if address is in CMOS range - route to CMOS loader
+    if (address >= mem_config.cmos_base &&
+        address < mem_config.cmos_base + mem_config.cmos_size) {
+        return memory_load_cmos_data(address, data, length);
+    }
+
     // Check if address is in ROM range
     if (address < mem_config.rom_base ||
         address >= mem_config.rom_base + mem_config.rom_size) {
-        printf("HEX address $%04X outside ROM range\n", address);
+        printf("HEX address $%04X outside ROM/CMOS range\n", address);
         return false;
     }
 
@@ -300,4 +343,116 @@ const uint8_t* memory_get_rom_shadow(void) {
 // Get RAM shadow for diagnostics
 const uint8_t* memory_get_ram_shadow(void) {
     return ram_shadow;
+}
+
+// Initialize CMOS from flash on startup
+void memory_init_cmos_from_flash(void) {
+    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.cmos_flash_offset);
+
+    // Check if flash is erased (all 0xFF = new/empty flash)
+    bool is_erased = true;
+    for (uint16_t i = 0; i < CMOS_SIZE; i++) {
+        if (flash_ptr[i] != 0xFF) {
+            is_erased = false;
+            break;
+        }
+    }
+
+    if (is_erased) {
+        // Initialize CMOS to zeros (default state)
+        memset(&ram_shadow[CMOS_BASE], 0, CMOS_SIZE);
+        printf("CMOS RAM initialized to zeros (flash empty)\n");
+    } else {
+        // Restore CMOS from flash
+        memcpy(&ram_shadow[CMOS_BASE], flash_ptr, CMOS_SIZE);
+        printf("CMOS RAM restored from flash\n");
+    }
+
+    mem_config.cmos_dirty = false;
+    cmos_last_write_time = 0;
+}
+
+// Load Intel HEX data into CMOS shadow copy
+bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t length) {
+    // Validate address range
+    if (address < mem_config.cmos_base ||
+        address >= mem_config.cmos_base + mem_config.cmos_size) {
+        printf("CMOS address $%04X outside CMOS range\n", address);
+        return false;
+    }
+
+    uint16_t cmos_offset = address - mem_config.cmos_base;
+    if (cmos_offset + length > mem_config.cmos_size) {
+        printf("CMOS data exceeds CMOS size\n");
+        return false;
+    }
+
+    // Copy to both CMOS load buffer and RAM shadow for immediate use
+    memcpy(&cmos_load_buffer[cmos_offset], data, length);
+    memcpy(&ram_shadow[address], data, length);
+
+    return true;
+}
+
+// Save CMOS RAM to flash
+bool memory_save_cmos(void) {
+    // Skip if no changes
+    if (!mem_config.cmos_dirty) {
+        return true;
+    }
+
+    printf("Saving CMOS RAM to flash...\n");
+
+    // Copy CMOS from RAM shadow to load buffer
+    memcpy(cmos_load_buffer, &ram_shadow[CMOS_BASE], CMOS_SIZE);
+
+    // Fill rest of sector with 0xFF
+    memset(&cmos_load_buffer[CMOS_SIZE], 0xFF, FLASH_SECTOR_SIZE - CMOS_SIZE);
+
+    // Disable interrupts during flash write
+    uint32_t ints = save_and_disable_interrupts();
+
+    // Erase flash sector (4096 bytes)
+    flash_range_erase(mem_config.cmos_flash_offset, FLASH_SECTOR_SIZE);
+
+    // Program flash sector
+    flash_range_program(mem_config.cmos_flash_offset, cmos_load_buffer, FLASH_SECTOR_SIZE);
+
+    // Restore interrupts
+    restore_interrupts(ints);
+
+    // Verify
+    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.cmos_flash_offset);
+    if (memcmp(flash_ptr, &ram_shadow[CMOS_BASE], CMOS_SIZE) != 0) {
+        printf("CMOS flash verification FAILED\n");
+        return false;
+    }
+
+    printf("CMOS saved successfully\n");
+    mem_config.cmos_dirty = false;
+    cmos_last_write_time = 0;
+
+    return true;
+}
+
+// Check if CMOS needs auto-save (call periodically from main loop)
+void memory_check_cmos_autosave(void) {
+    // Skip if no changes
+    if (!mem_config.cmos_dirty) {
+        return;
+    }
+
+    // Check if enough time has elapsed since last write
+    uint64_t now = time_us_64();
+    uint64_t elapsed_ms = (now - cmos_last_write_time) / 1000;
+
+    if (elapsed_ms >= CMOS_AUTOSAVE_DELAY_MS) {
+        printf("Auto-saving CMOS (idle for %llu ms)...\n", (unsigned long long)elapsed_ms);
+        memory_save_cmos();
+    }
+}
+
+// Get CMOS data for diagnostics (direct access to shadow copy)
+const uint8_t* memory_get_cmos_shadow(void) {
+    return &ram_shadow[CMOS_BASE];
 }

@@ -108,6 +108,28 @@ static void process_command(char *cmd) {
             usb_cdc_send("ERROR: Usage: config pia <base_hex> <size_hex> <on|off>\r\n");
         }
 
+    } else if (strcmp(cmd, "cmos save") == 0) {
+        // Manually save CMOS to flash
+        if (memory_save_cmos()) {
+            usb_cdc_send("OK: CMOS saved to flash\r\n");
+        } else {
+            usb_cdc_send("ERROR: Failed to save CMOS\r\n");
+        }
+
+    } else if (strcmp(cmd, "cmos dump") == 0) {
+        // Display CMOS RAM contents
+        const uint8_t *cmos = memory_get_cmos_shadow();
+        usb_cdc_send("CMOS RAM ($0100-$01FF):\r\n");
+        for (uint16_t i = 0; i < 256; i++) {
+            if (i % 16 == 0) {
+                usb_cdc_printf("%04X: ", 0x0100 + i);
+            }
+            usb_cdc_printf("%02X ", cmos[i]);
+            if (i % 16 == 15) {
+                usb_cdc_send("\r\n");
+            }
+        }
+
     } else if (strncmp(cmd, "read", 4) == 0) {
         // Read memory: read <addr> <len>
         unsigned int addr, len;
@@ -185,14 +207,16 @@ static void process_command(char *cmd) {
         usb_cdc_send("OK: CPU started\r\n");
 
     } else if (strcmp(cmd, "halt") == 0) {
-        // Stop CPU execution
+        // Stop CPU execution and save CMOS
         cpu_halt();
-        usb_cdc_send("OK: CPU halted\r\n");
+        memory_save_cmos();
+        usb_cdc_send("OK: CPU halted, CMOS saved\r\n");
 
     } else if (strcmp(cmd, "reset") == 0) {
-        // Reset CPU
+        // Save CMOS and reset CPU
+        memory_save_cmos();
         interrupt_service_reset();
-        usb_cdc_send("OK: CPU reset\r\n");
+        usb_cdc_send("OK: CMOS saved, CPU reset\r\n");
 
     } else if (strcmp(cmd, "bootloader") == 0 || strcmp(cmd, "boot") == 0) {
         // Enter bootloader mode
@@ -210,17 +234,19 @@ static void process_command(char *cmd) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
             "MC6800 Emulator Commands:\r\n"
-            "  load                      - Load Intel HEX (auto-detects EOF)\r\n"
+            "  load                      - Load Intel HEX (auto-detects ROM/CMOS)\r\n"
             "  config                    - Show memory configuration\r\n"
             "  config rom <b> <s>        - Configure ROM region\r\n"
             "  config ram <b> <s>        - Configure RAM region\r\n"
             "  config pia <b> <s> <on|off> - Configure PIA physical bus\r\n"
+            "  cmos save                 - Manually save CMOS to flash\r\n"
+            "  cmos dump                 - Display CMOS RAM contents\r\n"
             "  read <addr> <len>         - Read memory\r\n"
             "  write <addr> <data>       - Write memory\r\n"
             "  status                    - Display CPU status\r\n"
             "  run                       - Start CPU execution\r\n"
-            "  halt                      - Stop CPU execution\r\n"
-            "  reset                     - Reset CPU\r\n"
+            "  halt                      - Stop CPU execution (auto-saves CMOS)\r\n"
+            "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
             "  cycletest                 - Test instruction cycle counts\r\n"
             "  bootloader                - Enter bootloader mode\r\n"
             "  help                      - Show this help\r\n"

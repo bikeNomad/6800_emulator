@@ -72,6 +72,8 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
     uint32_t base_address = 0;  // Extended address for 32-bit addressing
     uint32_t bytes_loaded = 0;
     bool eof_reached = false;
+    bool is_cmos_data = false;  // Auto-detect based on first data record
+    bool detection_done = false;
 
     printf("Loading Intel HEX data...\n");
 
@@ -106,6 +108,21 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
         if (result == IHEX_OK) {
             switch (record.record_type) {
                 case IHEX_TYPE_DATA:
+                    // Auto-detect ROM vs CMOS based on first data record
+                    if (!detection_done) {
+                        uint32_t full_address = base_address + record.address;
+                        // CMOS region: 0x0100-0x01FF
+                        // ROM region: typically 0xD000-0xFFFF or 0x5000-0x7FFF
+                        if (full_address >= 0x0100 && full_address < 0x0200) {
+                            is_cmos_data = true;
+                            printf("Detected CMOS data (address $%04lX)\n", (unsigned long)full_address);
+                        } else {
+                            is_cmos_data = false;
+                            printf("Detected ROM data (address $%04lX)\n", (unsigned long)full_address);
+                        }
+                        detection_done = true;
+                    }
+
                     // Load data into memory
                     {
                         uint32_t full_address = base_address + record.address;
@@ -154,9 +171,15 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
 
     printf("Loaded %lu bytes from HEX data\n", (unsigned long)bytes_loaded);
 
-    // Finalize EPROM load (write to flash)
+    // Finalize by writing to flash (ROM or CMOS)
     if (bytes_loaded > 0) {
-        return memory_finalize_load();
+        if (is_cmos_data) {
+            printf("Finalizing CMOS load...\n");
+            return memory_save_cmos();
+        } else {
+            printf("Finalizing ROM load...\n");
+            return memory_finalize_load();
+        }
     }
 
     return true;

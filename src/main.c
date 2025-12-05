@@ -110,6 +110,9 @@ int main() {
             // CPU halted, yield to reduce power consumption
             __wfi(); // Wait for interrupt
         }
+
+        // Check if CMOS needs auto-save (deferred write after idle period)
+        memory_check_cmos_autosave();
     }
 
     return 0;
