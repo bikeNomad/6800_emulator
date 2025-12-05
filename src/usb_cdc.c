@@ -7,6 +7,7 @@
 #include "memory.h"
 #include "ihex_parser.h"
 #include "interrupts.h"
+#include "cycle_test.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "tusb.h"
@@ -199,6 +200,12 @@ static void process_command(char *cmd) {
         sleep_ms(100);  // Give time for message to send
         reset_usb_boot(0, 0);  // Reset into USB bootloader
 
+    } else if (strcmp(cmd, "cycletest") == 0) {
+        // Run cycle count test for all instructions
+        usb_cdc_send("Running cycle count test...\r\n");
+        cycle_test_all();
+        usb_cdc_send("Cycle test complete.\r\n");
+
     } else if (strcmp(cmd, "help") == 0) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
@@ -214,6 +221,7 @@ static void process_command(char *cmd) {
             "  run                       - Start CPU execution\r\n"
             "  halt                      - Stop CPU execution\r\n"
             "  reset                     - Reset CPU\r\n"
+            "  cycletest                 - Test instruction cycle counts\r\n"
             "  bootloader                - Enter bootloader mode\r\n"
             "  help                      - Show this help\r\n"
         );

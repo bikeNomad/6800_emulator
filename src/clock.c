@@ -82,9 +82,8 @@ void eclock_wait_low(void) {
 // Consume N internal cycles (wait for N complete E clock cycles)
 void eclock_consume_cycles(uint8_t cycles) {
     for (uint8_t i = 0; i < cycles; i++) {
-        eclock_wait_low();   // Wait for E low (start of cycle)
         eclock_wait_high();  // Wait for E high
-        eclock_wait_low();   // Wait for E low (end of cycle)
+        eclock_wait_low();   // Wait for E low (increments counter)
     }
 }
 

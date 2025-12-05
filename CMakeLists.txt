@@ -40,6 +40,7 @@ add_executable(mc6800_emulator
     src/usb_descriptors.c
     src/ihex_parser.c
     src/debug_spi.c
+    src/cycle_test.c
 )
 
 # Create the PIO header for clock generation
