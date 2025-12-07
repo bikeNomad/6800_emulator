@@ -54,6 +54,11 @@
   #define GPIO_SPI_SCK 30
   #define GPIO_SPI_MOSI 31
 
+  // LED indicators (active low)
+  #define GPIO_LED_ROM 34      // Indicates ROM access
+  #define GPIO_LED_RAM 35      // Indicates RAM/CMOS access
+  #define GPIO_LED_UNMAPPED 36 // Indicates unmapped/bus access
+
 #else
   #error "Invalid BOARD_TYPE defined. Must be BOARD_PICO2 or BOARD_NED_SYS7"
 #endif

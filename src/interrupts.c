@@ -6,6 +6,8 @@
 #include "cpu_state.h"
 #include "bus.h"
 #include "memory.h"
+#include "board_config.h"
+#include "hardware/gpio.h"
 #include <stdio.h>
 
 // Previous interrupt line states (for edge detection)
@@ -73,6 +75,13 @@ void interrupt_service_reset(void) {
     cpu.halted = true;   // Start halted, waiting for 'run' command
     cpu.running = false;
     cpu.instruction_count = 0;  // Reset instruction counter
+
+#if defined(BOARD_NED_SYS7)
+    // Turn off all LEDs (active low, so HIGH = off)
+    gpio_put(GPIO_LED_ROM, 1);
+    gpio_put(GPIO_LED_RAM, 1);
+    gpio_put(GPIO_LED_UNMAPPED, 1);
+#endif
 
     // Load PC from reset vector
     uint8_t pch = memory_read(VECTOR_RESET);

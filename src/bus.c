@@ -71,9 +71,21 @@ void bus_init(void) {
         gpio_pull_up(unused_pins[i]);
     }
 #else
-    // NED_SYS7: Initialize unused high GPIO pins (34-48)
-    // GPIOs 0-33 are all actively used
-    for (int i = 34; i <= 48; i++) {
+    // NED_SYS7: Initialize LED indicators (active low, so HIGH = off)
+    gpio_init(GPIO_LED_ROM);
+    gpio_set_dir(GPIO_LED_ROM, GPIO_OUT);
+    gpio_put(GPIO_LED_ROM, 1);  // Off
+
+    gpio_init(GPIO_LED_RAM);
+    gpio_set_dir(GPIO_LED_RAM, GPIO_OUT);
+    gpio_put(GPIO_LED_RAM, 1);  // Off
+
+    gpio_init(GPIO_LED_UNMAPPED);
+    gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
+    gpio_put(GPIO_LED_UNMAPPED, 1);  // Off
+
+    // Initialize remaining unused high GPIO pins (37-48)
+    for (int i = 37; i <= 48; i++) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_IN);
         gpio_pull_up(i);

@@ -5,11 +5,50 @@
 #include "memory.h"
 #include "bus.h"
 #include "clock.h"
+#include "board_config.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
+#include "hardware/gpio.h"
 #include "pico/time.h"
 #include <stdio.h>
 #include <string.h>
+
+// LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
+// GPIO 34-36 are high pins, so we use SIO register access for masked writes
+#if defined(BOARD_NED_SYS7)
+#include "hardware/structs/sio.h"
+
+// LED bit mask for GPIO 34-36 (subtract 32 for high GPIO register offset)
+#define LED_MASK_HI ((1u << (GPIO_LED_ROM - 32)) | (1u << (GPIO_LED_RAM - 32)) | (1u << (GPIO_LED_UNMAPPED - 32)))
+#define LED_ROM_ON_HI ((1u << (GPIO_LED_RAM - 32)) | (1u << (GPIO_LED_UNMAPPED - 32)))  // ROM=0, others=1
+#define LED_RAM_ON_HI ((1u << (GPIO_LED_ROM - 32)) | (1u << (GPIO_LED_UNMAPPED - 32)))  // RAM=0, others=1
+#define LED_UNMAPPED_ON_HI ((1u << (GPIO_LED_ROM - 32)) | (1u << (GPIO_LED_RAM - 32)))  // UNMAPPED=0, others=1
+#define LED_ALL_OFF_HI LED_MASK_HI  // All LEDs off (all=1)
+
+// Helper to write masked values to high GPIO pins (32-47)
+static inline void gpio_put_masked_hi(uint32_t mask, uint32_t value) {
+    // Atomic masked write using SIO registers
+    // Clear bits where mask is 1, then set bits where value is 1
+    sio_hw->gpio_hi_clr = mask & ~value;  // Clear bits that should be 0
+    sio_hw->gpio_hi_set = mask & value;   // Set bits that should be 1
+}
+
+static inline void led_set_rom(void) {
+    gpio_put_masked_hi(LED_MASK_HI, LED_ROM_ON_HI);
+}
+
+static inline void led_set_ram(void) {
+    gpio_put_masked_hi(LED_MASK_HI, LED_RAM_ON_HI);
+}
+
+static inline void led_set_unmapped(void) {
+    gpio_put_masked_hi(LED_MASK_HI, LED_UNMAPPED_ON_HI);
+}
+
+static inline void led_all_off(void) {
+    gpio_put_masked_hi(LED_MASK_HI, LED_ALL_OFF_HI);
+}
+#endif
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (1024 * 1024)  // 1MB offset (adjust based on program size)
@@ -140,6 +179,9 @@ uint8_t memory_read(uint16_t address) {
 
     // Read from ROM (flash) - cycle-accurate
     if (type == MEM_TYPE_ROM) {
+#if defined(BOARD_NED_SYS7)
+        led_set_rom();  // ROM LED on, others off
+#endif
         // Wait for E clock cycle (even though not using physical bus)
         bus_sync();
         eclock_wait_high();  // Data valid time
@@ -158,6 +200,9 @@ uint8_t memory_read(uint16_t address) {
 
     // Read from RAM shadow (with mirroring) - cycle-accurate
     if (type == MEM_TYPE_RAM) {
+#if defined(BOARD_NED_SYS7)
+        led_set_ram();  // RAM LED on, others off
+#endif
         // Wait for E clock cycle (even though not using physical bus)
         bus_sync();
         eclock_wait_high();  // Data valid time
@@ -180,7 +225,11 @@ uint8_t memory_read(uint16_t address) {
 
     // Unmapped - route to physical bus (cycle-accurate)
     // This includes PIAs and other peripherals
-    return bus_read_cycle(address);
+#if defined(BOARD_NED_SYS7)
+    led_set_unmapped();  // Unmapped LED on, others off
+#endif
+    uint8_t data = bus_read_cycle(address);
+    return data;
 }
 
 // Write byte to address via bus
@@ -189,6 +238,9 @@ void memory_write(uint16_t address, uint8_t value) {
 
     // Write to RAM shadow (with mirroring) - cycle-accurate
     if (type == MEM_TYPE_RAM) {
+#if defined(BOARD_NED_SYS7)
+        led_set_ram();  // RAM LED on, others off
+#endif
         // Wait for E clock cycle (even though not using physical bus)
         bus_sync();
         eclock_wait_high();  // Data latch time
@@ -217,6 +269,9 @@ void memory_write(uint16_t address, uint8_t value) {
 
     // ROM writes are ignored but still consume a cycle
     if (type == MEM_TYPE_ROM) {
+#if defined(BOARD_NED_SYS7)
+        led_set_rom();  // ROM LED on, others off
+#endif
         bus_sync();
         eclock_wait_high();
         // bus_sync already counted the cycle
@@ -225,6 +280,9 @@ void memory_write(uint16_t address, uint8_t value) {
 
     // Unmapped writes - route to physical bus (cycle-accurate)
     // This includes PIAs and other peripherals
+#if defined(BOARD_NED_SYS7)
+    led_set_unmapped();  // Unmapped LED on, others off
+#endif
     bus_write_cycle(address, value);
 }
 
