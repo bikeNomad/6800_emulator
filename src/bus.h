@@ -45,9 +45,9 @@ static inline void drive_address_bus(uint16_t address) {
     gpio_put_masked(ADDR_GPIO_MASK, gpio_value);  // 0x7F00 (GPIO 8-14)
 }
 
-#elif defined(BOARD_WAVESHARE)
+#elif defined(BOARD_NED_SYS7)
 // ----------------------------------------------------------------------------
-// Waveshare RP2350B-Plus-W - Full 16-bit address bus (16 address lines)
+// Ned's System 7 Board - Full 16-bit address bus (16 address lines)
 // A0-A15 → GPIO 8-23 (contiguous mapping)
 // ----------------------------------------------------------------------------
 
@@ -67,7 +67,7 @@ static inline void drive_address_bus(uint16_t address) {
 }
 
 #else
-#error "Unknown board type - must define BOARD_PICO2 or BOARD_WAVESHARE"
+#error "Unknown board type - must define BOARD_PICO2 or BOARD_NED_SYS7"
 #endif
 
 // ----------------------------------------------------------------------------

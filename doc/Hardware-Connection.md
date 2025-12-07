@@ -14,31 +14,33 @@ This guide covers the physical connections required to interface the MC6800 Emul
 
 **Specifications**:
 - 26 GPIO pins available
-- 7 address lines (partial bus)
-- Best for PIA-based systems
+- 7 address lines (partial bus: A0, A1, A10-A14)
+- 128-address space (suitable for PIA-based systems)
 - Built-in WiFi/Bluetooth (future use)
 
 **Limitations**:
 - Cannot address full 64KB memory space
 - Suitable for peripheral-based systems only
 - GPIO 16-17 reserved for UART debug
+- Best used with emulated RAM/ROM
 
-### Waveshare RP2350B-Plus-W (BOARD_WAVESHARE)
+### Ned's System 7 Board (BOARD_NED_SYS7)
 
 **Specifications**:
-- 48 GPIO pins available
+- Based on RP2350 with 48 GPIO pins
 - 16 address lines (full bus)
 - Complete 64KB address space
-- Can replace MC6800 CPU entirely
+- Designed for Williams System 7 pinball machines
 
-**Advantages**:
+**Features**:
+- A0-A15 connect to GPIO 8-23 (standard contiguous mapping)
 - Full system replacement capability
 - Complete memory addressing
-- More expansion options
+- Suitable for CPU drop-in replacement
 
 ## Pin Assignments
 
-### Data Bus (Both Boards)
+### Data Bus (All Boards)
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
@@ -82,17 +84,19 @@ Accessible addresses (128 total):
 ```
 
 **Best for**:
-- PIA at specific address (e.g., $2100)
-- Simple peripheral systems
-- Development and testing
+- PIA-based peripheral systems
+- Development and testing with emulated RAM/ROM
+- Limited GPIO pin availability
 
-### Address Bus (BOARD_WAVESHARE)
+### Address Bus (BOARD_NED_SYS7)
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
 | A0-A15 | Output | 8-23 | Full address bus |
 
 **Contiguous mapping**: Complete 64KB address space
+- A0 → GPIO 8, A1 → GPIO 9, ..., A15 → GPIO 23
+- Standard sequential mapping
 
 ### Control Signals
 
@@ -107,7 +111,7 @@ Accessible addresses (128 total):
 | /RESET | Input | 28 | Reset (active low) |
 | E | Output | 29 | E Clock (894.886 kHz) |
 
-#### BOARD_WAVESHARE
+#### BOARD_NED_SYS7
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
@@ -120,12 +124,25 @@ Accessible addresses (128 total):
 
 ### Debug Interfaces
 
+#### BOARD_PICO2
+
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
-| SPI_SCK | Output | 18 (Pico2) / 30 (Waveshare) | Debug SPI clock |
-| SPI_MOSI | Output | 19 (Pico2) / 31 (Waveshare) | Debug SPI data |
+| SPI_SCK | Output | 18 | Debug SPI clock |
+| SPI_MOSI | Output | 19 | Debug SPI data |
 | UART_TX | Output | 16 | Debug UART output |
 | UART_RX | Input | 17 | Debug UART input |
+
+#### BOARD_NED_SYS7
+
+| Signal | Direction | GPIO | Notes |
+|--------|-----------|------|-------|
+| SPI_SCK | Output | 30 | Debug SPI clock |
+| SPI_MOSI | Output | 31 | Debug SPI data |
+| UART_TX | Output | 32 | Debug UART output |
+| UART_RX | Input | 33 | Debug UART input |
+
+**Note**: UART pins differ by board - PICO2 uses GPIO 16-17 (available pins), NED_SYS7 uses GPIO 32-33 (address bus uses 8-23)
 
 ### USB Interface
 
@@ -250,7 +267,9 @@ config ram 0000 1400
 
 **Use Case**: Replace failed MC6800 CPU in existing system
 
-**Required Connections** (Waveshare board only):
+**Supported Boards**: BOARD_NED_SYS7 only (requires full 16-bit address bus)
+
+**Required Connections**:
 - All signals (data, address, control)
 - Direct connection to CPU socket or edge connector
 
@@ -311,19 +330,21 @@ config ram 0000 1400
 
 **Use Case**: Replacement CPU for Williams pinball machines
 
+**Recommended Board**: BOARD_NED_SYS7
+
 **System Details**:
 - CPU: MC6800 @ 894.886 kHz
 - PIAs: Three 6821s at $2100-$21FF
 - Memory: 5KB RAM, 12KB EPROM
 
-**Connections**:
+**Connections (BOARD_NED_SYS7)**:
 ```
 J1 Connector (CPU Board)
 Pin  Signal      RP2350 GPIO    Notes
 1    GND         GND             Common ground
 2    +5V         (via USB)       RP2350 powered separately
 3    E           29              894.886 kHz
-4    R/W         22              Read/Write
+4    R/W         25              Read/Write
 5    D0          0               Data bus
 6    D1          1
 7    D2          2
@@ -332,21 +353,34 @@ Pin  Signal      RP2350 GPIO    Notes
 10   D5          5
 11   D6          6
 12   D7          7
-13   A0          8               Address bus (partial)
+13   A0          8               Address bus (full 16-bit)
 14   A1          9
-15   A10         10
-16   A11         11
-17   A12         12
-18   A13         13
-19   A14         14
-20   /RESET      28
-21   /IRQ        26
-22   /NMI        27
-23   VMA         21
+15   A2          10
+16   A3          11
+17   A4          12
+18   A5          13
+19   A6          14
+20   A7          15
+21   A8          16
+22   A9          17
+23   A10         18
+24   A11         19
+25   A12         20
+26   A13         21
+27   A14         22
+28   A15         23
+29   /RESET      28
+30   /IRQ        26
+31   /NMI        27
+32   VMA         24
 ```
 
 **Configuration**:
 ```bash
+# Build for NED_SYS7 board (if building from source)
+# cmake -DBOARD_TYPE=BOARD_NED_SYS7 ..
+# make
+
 # Load System 7 ROM
 load
 [paste system7.hex]

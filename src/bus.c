@@ -22,12 +22,22 @@ void bus_init(void) {
         gpio_pull_up(i);  // Weak pull-ups for floating data bus
     }
 
-    // Configure address bus (7 pins: GPIO 8-14 for A0,A1,A10-A14)
+    // Configure address bus (board-specific GPIO assignments)
+#if defined(BOARD_PICO2)
+    // PICO2: GPIO 8-14 for A0,A1,A10-A14 (7 pins, non-contiguous)
     for (int i = 8; i <= 14; i++) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_OUT);
         gpio_put(i, 0);
     }
+#else
+    // NED_SYS7: GPIO 8-23 for full address bus (A0-A15)
+    for (int i = 8; i <= 23; i++) {
+        gpio_init(i);
+        gpio_set_dir(i, GPIO_OUT);
+        gpio_put(i, 0);
+    }
+#endif
 
     // Configure control signals
     gpio_init(GPIO_VMA);
@@ -53,9 +63,15 @@ void bus_init(void) {
 
     printf("Bus interface initialized for %s\n", BOARD_NAME);
     printf("  Data:  GPIO %d-%d\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
+#if defined(BOARD_PICO2)
     printf("  Addr:  GPIO 8-14 -> MC6800 A{0,1,10-14} (%d lines, %d addresses)\n",
            ADDR_LINES, ADDR_SPACE_SIZE);
     printf("  Addr mask: 0x%04X (non-contiguous address space)\n", ADDR_MASK);
+#else
+    printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\n",
+           ADDR_LINES, ADDR_SPACE_SIZE);
+    printf("  Addr mask: 0x%04X (full address space)\n", ADDR_MASK);
+#endif
     printf("  VMA:   GPIO %d\n", GPIO_VMA);
     printf("  R/W:   GPIO %d\n", GPIO_RW);
     printf("  /IRQ:  GPIO %d\n", GPIO_IRQ);

@@ -65,11 +65,22 @@ target_link_libraries(mc6800_emulator
     tinyusb_board
 )
 
-# Enable UART on GPIO 16 (TX) and GPIO 17 (RX) for debug output
-# This reduces address bus from 13 to 11 bits (2KB address space)
-# but allows us to debug issues
+# Enable UART for debug output (board-specific GPIO pins)
 pico_enable_stdio_usb(mc6800_emulator 0)
 pico_enable_stdio_uart(mc6800_emulator 1)
+
+# Set UART pins based on board type (defined in board_config.h)
+if(BOARD_TYPE STREQUAL "BOARD_PICO2")
+    set(UART_TX_PIN 16)
+    set(UART_RX_PIN 17)
+elseif(BOARD_TYPE STREQUAL "BOARD_NED_SYS7")
+    set(UART_TX_PIN 32)
+    set(UART_RX_PIN 33)
+else()
+    message(FATAL_ERROR "Unknown BOARD_TYPE: ${BOARD_TYPE}")
+endif()
+
+message(STATUS "UART pins: TX=GPIO${UART_TX_PIN}, RX=GPIO${UART_RX_PIN}")
 
 # Create map/bin/hex/uf2 file etc.
 pico_add_extra_outputs(mc6800_emulator)
@@ -77,8 +88,8 @@ pico_add_extra_outputs(mc6800_emulator)
 # Add compile definitions for board type and UART pins
 target_compile_definitions(mc6800_emulator PRIVATE
     BOARD_TYPE=${BOARD_TYPE}
-    PICO_DEFAULT_UART_TX_PIN=16
-    PICO_DEFAULT_UART_RX_PIN=17
+    PICO_DEFAULT_UART_TX_PIN=${UART_TX_PIN}
+    PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
     DEBUG_INTERRUPTS=1  # Set to 0 to disable interrupt debug output
 )
 
