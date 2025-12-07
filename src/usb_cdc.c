@@ -214,7 +214,15 @@ static void process_command(char *cmd) {
     } else if (strcmp(cmd, "cycletest") == 0) {
         // Run cycle count test for all instructions
         usb_cdc_send("Running cycle count test...\r\n");
+
+        // Disable CMOS auto-save during test (prevents flash write lockups)
+        memory_set_cmos_autosave_enabled(false);
+
         cycle_test_all();
+
+        // Re-enable CMOS auto-save after test
+        memory_set_cmos_autosave_enabled(true);
+
         usb_cdc_send("Cycle test complete.\r\n");
 
     } else if (strcmp(cmd, "help") == 0) {

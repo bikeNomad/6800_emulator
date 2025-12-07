@@ -70,6 +70,7 @@ static uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
 static uint8_t cmos_load_buffer[FLASH_SECTOR_SIZE];  // Buffer for CMOS flash operations
 static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
+static bool cmos_autosave_enabled = true;  // Can be disabled during timing-critical operations
 
 // Initialize memory subsystem
 void memory_init(void) {
@@ -547,6 +548,11 @@ bool memory_save_cmos(void) {
 
 // Check if CMOS needs auto-save (call periodically from main loop)
 void memory_check_cmos_autosave(void) {
+    // Skip if auto-save is disabled (e.g., during timing-critical operations)
+    if (!cmos_autosave_enabled) {
+        return;
+    }
+
     // Skip if no changes
     if (!mem_config.cmos_dirty) {
         return;
@@ -560,6 +566,11 @@ void memory_check_cmos_autosave(void) {
         printf("Auto-saving CMOS (idle for %llu ms)...\n", (unsigned long long)elapsed_ms);
         memory_save_cmos();
     }
+}
+
+// Enable/disable CMOS auto-save (disable during timing-critical operations)
+void memory_set_cmos_autosave_enabled(bool enabled) {
+    cmos_autosave_enabled = enabled;
 }
 
 // Get CMOS data for diagnostics (direct access to shadow copy)

@@ -85,6 +85,9 @@ void memory_init_cmos_from_flash(void);
 // Check if CMOS needs auto-save (call periodically from main loop)
 void memory_check_cmos_autosave(void);
 
+// Enable/disable CMOS auto-save (disable during timing-critical operations)
+void memory_set_cmos_autosave_enabled(bool enabled);
+
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t* memory_get_cmos_shadow(void);
 
