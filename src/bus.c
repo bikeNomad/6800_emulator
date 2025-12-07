@@ -61,6 +61,25 @@ void bus_init(void) {
     gpio_set_dir(GPIO_RESET, GPIO_IN);
     gpio_pull_up(GPIO_RESET);
 
+    // Initialize unused GPIO pins as inputs with pull-ups to prevent floating
+#if defined(BOARD_PICO2)
+    // PICO2 unused pins: 15, 20, 23, 24, 25
+    const int unused_pins[] = {15, 20, 23, 24, 25};
+    for (int i = 0; i < 5; i++) {
+        gpio_init(unused_pins[i]);
+        gpio_set_dir(unused_pins[i], GPIO_IN);
+        gpio_pull_up(unused_pins[i]);
+    }
+#else
+    // NED_SYS7: Initialize unused high GPIO pins (34-48)
+    // GPIOs 0-33 are all actively used
+    for (int i = 34; i <= 48; i++) {
+        gpio_init(i);
+        gpio_set_dir(i, GPIO_IN);
+        gpio_pull_up(i);
+    }
+#endif
+
     printf("Bus interface initialized for %s\n", BOARD_NAME);
     printf("  Data:  GPIO %d-%d\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
 #if defined(BOARD_PICO2)
