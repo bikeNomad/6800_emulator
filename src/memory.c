@@ -15,7 +15,7 @@
 
 // LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
 // GPIO 34-36 are high pins, so we use SIO register access for masked writes
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
 #include "hardware/structs/sio.h"
 
 // LED bit mask for GPIO 34-36 (subtract 32 for high GPIO register offset)
@@ -179,7 +179,7 @@ uint8_t memory_read(uint16_t address) {
 
     // Read from ROM (flash) - cycle-accurate
     if (type == MEM_TYPE_ROM) {
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();  // ROM LED on, others off
 #endif
         // Wait for E clock cycle (even though not using physical bus)
@@ -200,7 +200,7 @@ uint8_t memory_read(uint16_t address) {
 
     // Read from RAM shadow (with mirroring) - cycle-accurate
     if (type == MEM_TYPE_RAM) {
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();  // RAM LED on, others off
 #endif
         // Wait for E clock cycle (even though not using physical bus)
@@ -225,7 +225,7 @@ uint8_t memory_read(uint16_t address) {
 
     // Unmapped - route to physical bus (cycle-accurate)
     // This includes PIAs and other peripherals
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();  // Unmapped LED on, others off
 #endif
     uint8_t data = bus_read_cycle(address);
@@ -238,7 +238,7 @@ void memory_write(uint16_t address, uint8_t value) {
 
     // Write to RAM shadow (with mirroring) - cycle-accurate
     if (type == MEM_TYPE_RAM) {
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();  // RAM LED on, others off
 #endif
         // Wait for E clock cycle (even though not using physical bus)
@@ -269,7 +269,7 @@ void memory_write(uint16_t address, uint8_t value) {
 
     // ROM writes are ignored but still consume a cycle
     if (type == MEM_TYPE_ROM) {
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();  // ROM LED on, others off
 #endif
         bus_sync();
@@ -280,7 +280,7 @@ void memory_write(uint16_t address, uint8_t value) {
 
     // Unmapped writes - route to physical bus (cycle-accurate)
     // This includes PIAs and other peripherals
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();  // Unmapped LED on, others off
 #endif
     bus_write_cycle(address, value);

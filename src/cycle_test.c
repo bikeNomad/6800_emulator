@@ -7,8 +7,47 @@
 #include "memory.h"
 #include "clock.h"
 #include "instructions.h"
+#include "hardware/clocks.h"
 #include <stdio.h>
 #include <string.h>
+
+// System clock frequency (RP2350 default)
+static uint32_t sys_clk_freq = 0;
+
+// E clock frequency (3.579545 MHz / 4 = 0.894886 MHz)
+#define E_CLOCK_HZ 894886.25f
+
+// DWT (Data Watchpoint and Trace) registers for Cortex-M33
+#define DWT_CTRL   (*(volatile uint32_t *)0xE0001000)
+#define DWT_CYCCNT (*(volatile uint32_t *)0xE0001004)
+#define DEM_CR     (*(volatile uint32_t *)0xE000EDFC)
+
+// Initialize timing system
+static void timing_init(void) {
+    if (sys_clk_freq == 0) {
+        sys_clk_freq = clock_get_hz(clk_sys);
+        printf("System clock: %lu Hz\n", (unsigned long)sys_clk_freq);
+        printf("E clock: %.2f Hz\n", E_CLOCK_HZ);
+        printf("Ratio: %.2f sys cycles per E cycle\n", (float)sys_clk_freq / E_CLOCK_HZ);
+    }
+}
+
+// Read cycle counter
+static inline uint32_t get_cycle_counter(void) {
+    return DWT_CYCCNT;
+}
+
+// Enable DWT cycle counter
+static void enable_cycle_counter(void) {
+    // Enable trace system (DEMCR)
+    DEM_CR |= (1 << 24);  // TRCENA - enable trace and debug blocks
+
+    // Reset cycle counter
+    DWT_CYCCNT = 0;
+
+    // Enable cycle counter (DWT_CTRL)
+    DWT_CTRL |= (1 << 0);  // CYCCNTENA - enable cycle counter
+}
 
 // Set up test environment for instruction execution
 static void setup_test_environment(uint8_t opcode) {
@@ -95,22 +134,34 @@ void cycle_test_instruction(uint8_t opcode) {
     // Set up test environment
     setup_test_environment(opcode);
 
-    // Get starting cycle count
-    uint32_t start_cycles = eclock_get_count();
+    // Get starting counts
+    uint32_t start_eclock = eclock_get_count();
+    uint32_t start_sysclock = get_cycle_counter();
 
     // Execute the instruction
     instruction_execute();
 
-    // Get ending cycle count
-    uint32_t end_cycles = eclock_get_count();
-    uint32_t cycles_used = end_cycles - start_cycles;
+    // Get ending counts
+    uint32_t end_eclock = eclock_get_count();
+    uint32_t end_sysclock = get_cycle_counter();
+
+    uint32_t eclock_cycles = end_eclock - start_eclock;
+    uint32_t sysclock_cycles = end_sysclock - start_sysclock;
+
+    // Convert system clock cycles to E clock equivalent
+    float sysclock_as_eclock = (float)sysclock_cycles / ((float)sys_clk_freq / E_CLOCK_HZ);
 
     // Get instruction mnemonic
     const char* mnemonic = instruction_get_mnemonic(opcode);
 
-    // Print result
+    // Print result with both timing measurements
     if (mnemonic && strcmp(mnemonic, "???") != 0) {
-        printf("$%02X %-8s : %lu cycles\n", opcode, mnemonic, (unsigned long)cycles_used);
+        printf("$%02X %-8s : %lu E cycles | %lu sys cycles (%.2f E equiv) | diff: %+.2f\n",
+               opcode, mnemonic,
+               (unsigned long)eclock_cycles,
+               (unsigned long)sysclock_cycles,
+               sysclock_as_eclock,
+               sysclock_as_eclock - (float)eclock_cycles);
     }
 
     // Restore CPU state
@@ -124,7 +175,13 @@ void cycle_test_all(void) {
     printf("MC6800 Instruction Cycle Count Test\n");
     printf("========================================\n");
     printf("\n");
-    printf("Format: $XX MNEMONIC : N cycles\n");
+
+    // Initialize timing system
+    timing_init();
+    enable_cycle_counter();
+
+    printf("\n");
+    printf("Format: $XX MNEMONIC : E cycles | sys cycles (E equiv) | diff\n");
     printf("\n");
 
     // Test all 256 possible opcodes

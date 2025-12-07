@@ -26,7 +26,7 @@ void cpu_init(void) {
     cpu.nmi_pending = false;
     cpu.instruction_count = 0;
 
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
     // Turn off all LEDs (active low, so HIGH = off)
     gpio_put(GPIO_LED_ROM, 1);
     gpio_put(GPIO_LED_RAM, 1);
@@ -53,7 +53,7 @@ void cpu_start(void) {
 void cpu_halt(void) {
     cpu.halted = true;
 
-#if defined(BOARD_NED_SYS7)
+#if BOARD_TYPE == BOARD_NED_SYS7
     // Turn off all LEDs (active low, so HIGH = off)
     gpio_put(GPIO_LED_ROM, 1);
     gpio_put(GPIO_LED_RAM, 1);
