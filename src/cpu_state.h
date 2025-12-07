@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "memory.h"  // For memory_read_fast/write_fast in inline stack functions
 
 // Condition Code Register (CCR) flag bits
 #define CCR_C  0x01  // Carry
@@ -48,20 +49,64 @@ void cpu_start(void);
 // Halt CPU execution
 void cpu_halt(void);
 
-// Get CCR flag
-bool cpu_get_flag(uint8_t flag);
+// Get CCR flag (inline for performance)
+static inline bool cpu_get_flag(uint8_t flag) {
+    return (cpu.ccr & flag) != 0;
+}
 
-// Set CCR flag
-void cpu_set_flag(uint8_t flag, bool value);
+// Set CCR flag (inline for performance)
+static inline void cpu_set_flag(uint8_t flag, bool value) {
+    if (value) {
+        cpu.ccr |= flag;
+    } else {
+        cpu.ccr &= ~flag;
+    }
+    // Ensure bits 7-6 always remain 1
+    cpu.ccr |= CCR_FIXED;
+}
 
-// Update flags based on result
-void cpu_update_nz(uint8_t result);
-void cpu_update_nzv(uint8_t result, uint8_t operand1, uint8_t operand2, bool subtraction);
+// Update N and Z flags based on result (inline for performance)
+static inline void cpu_update_nz(uint8_t result) {
+    cpu_set_flag(CCR_Z, result == 0);
+    cpu_set_flag(CCR_N, (result & 0x80) != 0);
+}
 
-// Stack operations
-void cpu_push(uint8_t value);
-uint8_t cpu_pull(void);
-void cpu_push16(uint16_t value);
-uint16_t cpu_pull16(void);
+// Update N, Z, V flags for arithmetic operations (inline for performance)
+static inline void cpu_update_nzv(uint8_t result, uint8_t operand1, uint8_t operand2, bool subtraction) {
+    cpu_update_nz(result);
+
+    // Calculate overflow
+    // For addition: V = (A^R) & (B^R) & 0x80
+    // For subtraction: V = (A^B) & (A^R) & 0x80
+    bool overflow;
+    if (subtraction) {
+        overflow = ((operand1 ^ operand2) & (operand1 ^ result) & 0x80) != 0;
+    } else {
+        overflow = ((operand1 ^ result) & (operand2 ^ result) & 0x80) != 0;
+    }
+    cpu_set_flag(CCR_V, overflow);
+}
+
+// Stack operations (inline for performance)
+static inline void cpu_push(uint8_t value) {
+    memory_write_fast(cpu.sp, value);  // Fast-path for stack RAM
+    cpu.sp--;
+}
+
+static inline uint8_t cpu_pull(void) {
+    cpu.sp++;
+    return memory_read_fast(cpu.sp);  // Fast-path for stack RAM
+}
+
+static inline void cpu_push16(uint16_t value) {
+    cpu_push(value & 0xFF);        // Low byte first
+    cpu_push((value >> 8) & 0xFF); // High byte second
+}
+
+static inline uint16_t cpu_pull16(void) {
+    uint16_t high = cpu_pull();
+    uint16_t low = cpu_pull();
+    return (high << 8) | low;
+}
 
 #endif // CPU_STATE_H

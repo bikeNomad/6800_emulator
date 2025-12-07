@@ -145,8 +145,8 @@ const char* instruction_get_mnemonic(uint8_t opcode) {
     return mnemonic ? mnemonic : "???";
 }
 
-// Helper: Add with carry flag update
-static void add_with_carry(uint8_t *dest, uint8_t operand) {
+// Helper: Add with carry flag update (inline for performance)
+static inline void add_with_carry(uint8_t *dest, uint8_t operand) {
     uint16_t result = *dest + operand;
     cpu_update_nzv(result & 0xFF, *dest, operand, false);
     cpu_set_flag(CCR_C, result > 0xFF);
@@ -154,18 +154,18 @@ static void add_with_carry(uint8_t *dest, uint8_t operand) {
     *dest = result & 0xFF;
 }
 
-// Helper: Subtract with carry flag update
-static void sub_with_carry(uint8_t *dest, uint8_t operand) {
+// Helper: Subtract with carry flag update (inline for performance)
+static inline void sub_with_carry(uint8_t *dest, uint8_t operand) {
     uint16_t result = *dest - operand;
     cpu_update_nzv(result & 0xFF, *dest, operand, true);
     cpu_set_flag(CCR_C, result > 0xFF);
     *dest = result & 0xFF;
 }
 
-// Execute one instruction
-void instruction_execute(void) {
-    // Fetch opcode
-    uint8_t opcode = memory_read(cpu.pc++);
+// Execute one instruction (placed in RAM for maximum performance)
+void __attribute__((section(".time_critical.instruction_execute"))) instruction_execute(void) {
+    // Fetch opcode using fast path (no GPIO polling)
+    uint8_t opcode = memory_read_fast(cpu.pc++);
 
     // Increment instruction counter
     cpu.instruction_count++;
@@ -313,7 +313,7 @@ void instruction_execute(void) {
 
         // BRA - Branch Always
         case 0x20: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             cpu.pc += offset;
             break;
@@ -321,7 +321,7 @@ void instruction_execute(void) {
 
         // BHI - Branch if Higher (C=0 AND Z=0)
         case 0x22: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_C) && !cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
@@ -331,7 +331,7 @@ void instruction_execute(void) {
 
         // BLS - Branch if Lower or Same (C=1 OR Z=1)
         case 0x23: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_C) || cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
@@ -341,7 +341,7 @@ void instruction_execute(void) {
 
         // BCC - Branch if Carry Clear
         case 0x24: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_C)) {
                 cpu.pc += offset;
@@ -351,7 +351,7 @@ void instruction_execute(void) {
 
         // BCS - Branch if Carry Set
         case 0x25: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_C)) {
                 cpu.pc += offset;
@@ -361,7 +361,7 @@ void instruction_execute(void) {
 
         // BNE - Branch if Not Equal (Z=0)
         case 0x26: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
@@ -371,7 +371,7 @@ void instruction_execute(void) {
 
         // BEQ - Branch if Equal (Z=1)
         case 0x27: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_Z)) {
                 cpu.pc += offset;
@@ -381,7 +381,7 @@ void instruction_execute(void) {
 
         // BVC - Branch if Overflow Clear (V=0)
         case 0x28: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
@@ -391,7 +391,7 @@ void instruction_execute(void) {
 
         // BVS - Branch if Overflow Set (V=1)
         case 0x29: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
@@ -401,7 +401,7 @@ void instruction_execute(void) {
 
         // BPL - Branch if Plus (N=0)
         case 0x2A: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_N)) {
                 cpu.pc += offset;
@@ -411,7 +411,7 @@ void instruction_execute(void) {
 
         // BMI - Branch if Minus (N=1)
         case 0x2B: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_N)) {
                 cpu.pc += offset;
@@ -421,7 +421,7 @@ void instruction_execute(void) {
 
         // BGE - Branch if Greater or Equal (N XOR V = 0)
         case 0x2C: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_N) == cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
@@ -431,7 +431,7 @@ void instruction_execute(void) {
 
         // BLT - Branch if Less Than (N XOR V = 1)
         case 0x2D: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_N) != cpu_get_flag(CCR_V)) {
                 cpu.pc += offset;
@@ -441,7 +441,7 @@ void instruction_execute(void) {
 
         // BGT - Branch if Greater Than (Z=0 AND (N XOR V)=0)
         case 0x2E: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (!cpu_get_flag(CCR_Z) && (cpu_get_flag(CCR_N) == cpu_get_flag(CCR_V))) {
                 cpu.pc += offset;
@@ -451,7 +451,7 @@ void instruction_execute(void) {
 
         // BLE - Branch if Less or Equal (Z=1 OR (N XOR V)=1)
         case 0x2F: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: branch decision and address calculation
             if (cpu_get_flag(CCR_Z) || (cpu_get_flag(CCR_N) != cpu_get_flag(CCR_V))) {
                 cpu.pc += offset;
@@ -550,8 +550,8 @@ void instruction_execute(void) {
             // Set interrupt mask
             cpu_set_flag(CCR_I, true);
             // Load PC from SWI vector (0xFFFA-0xFFFB)
-            uint8_t pch = memory_read(0xFFFA);
-            uint8_t pcl = memory_read(0xFFFB);
+            uint8_t pch = memory_read_fast(0xFFFA);
+            uint8_t pcl = memory_read_fast(0xFFFB);
             cpu.pc = (pch << 8) | pcl;
             break;
 
@@ -781,13 +781,13 @@ void instruction_execute(void) {
 
         // NEG - Negate Memory (Indexed)
         case 0x60: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             value = (~value) + 1;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x80);
             cpu_set_flag(CCR_C, value != 0);
@@ -796,13 +796,13 @@ void instruction_execute(void) {
 
         // COM - Complement Memory (Indexed)
         case 0x63: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             value = ~value;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
             cpu_set_flag(CCR_C, true);
@@ -811,14 +811,14 @@ void instruction_execute(void) {
 
         // LSR - Logical Shift Right (Indexed)
         case 0x64: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit0 = value & 0x01;
             value >>= 1;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit0 != 0);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, value == 0);
@@ -828,15 +828,15 @@ void instruction_execute(void) {
 
         // ROR - Rotate Right (Indexed)
         case 0x66: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = value & 0x01;
             value = (value >> 1) | old_carry;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit0 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -845,15 +845,15 @@ void instruction_execute(void) {
 
         // ASR - Arithmetic Shift Right (Indexed)
         case 0x67: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit0 = value & 0x01;
             uint8_t sign_bit = value & 0x80;
             value = (value >> 1) | sign_bit;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit0 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -862,14 +862,14 @@ void instruction_execute(void) {
 
         // ASL - Arithmetic Shift Left (Indexed)
         case 0x68: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value <<= 1;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -878,15 +878,15 @@ void instruction_execute(void) {
 
         // ROL - Rotate Left (Indexed)
         case 0x69: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value = (value << 1) | old_carry;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -895,13 +895,13 @@ void instruction_execute(void) {
 
         // DEC - Decrement Memory (Indexed)
         case 0x6A: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             value--;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x7F);
             break;
@@ -909,13 +909,13 @@ void instruction_execute(void) {
 
         // INC - Increment Memory (Indexed)
         case 0x6C: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: modify operation
             value++;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x80);
             break;
@@ -923,10 +923,10 @@ void instruction_execute(void) {
 
         // TST - Test Memory (Indexed)
         case 0x6D: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: test operation
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
@@ -935,7 +935,7 @@ void instruction_execute(void) {
 
         // JMP (Indexed)
         case 0x6E: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             cpu.pc = cpu.x + offset;
             break;
@@ -943,9 +943,9 @@ void instruction_execute(void) {
 
         // CLR - Clear Memory (Indexed)
         case 0x6F: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(4);  // Internal: address calculation
-            memory_write(cpu.x + offset, 0x00);
+            memory_write_fast(cpu.x + offset, 0x00);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
             cpu_set_flag(CCR_V, false);
@@ -955,12 +955,12 @@ void instruction_execute(void) {
 
         // NEG - Negate Memory (Extended)
         case 0x70: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             value = (~value) + 1;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x80);
             cpu_set_flag(CCR_C, value != 0);
@@ -969,12 +969,12 @@ void instruction_execute(void) {
 
         // COM - Complement Memory (Extended)
         case 0x73: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             value = ~value;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
             cpu_set_flag(CCR_C, true);
@@ -983,13 +983,13 @@ void instruction_execute(void) {
 
         // LSR - Logical Shift Right (Extended)
         case 0x74: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             uint8_t old_bit0 = value & 0x01;
             value >>= 1;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit0 != 0);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, value == 0);
@@ -999,14 +999,14 @@ void instruction_execute(void) {
 
         // ROR - Rotate Right (Extended)
         case 0x76: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = value & 0x01;
             value = (value >> 1) | old_carry;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit0 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -1015,14 +1015,14 @@ void instruction_execute(void) {
 
         // ASR - Arithmetic Shift Right (Extended)
         case 0x77: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             uint8_t old_bit0 = value & 0x01;
             uint8_t sign_bit = value & 0x80;
             value = (value >> 1) | sign_bit;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit0 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -1031,13 +1031,13 @@ void instruction_execute(void) {
 
         // ASL - Arithmetic Shift Left (Extended)
         case 0x78: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value <<= 1;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -1046,14 +1046,14 @@ void instruction_execute(void) {
 
         // ROL - Rotate Left (Extended)
         case 0x79: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value = (value << 1) | old_carry;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
@@ -1062,13 +1062,13 @@ void instruction_execute(void) {
 
         // DEC - Decrement Memory (Extended)
         case 0x7A: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: arithmetic operation
             value--;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x7F);  // V set if value was 0x80 (overflow from negative to positive)
             break;
@@ -1076,12 +1076,12 @@ void instruction_execute(void) {
 
         // INC - Increment Memory (Extended)
         case 0x7C: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             value++;
-            memory_write(addr, value);
+            memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x80);
             break;
@@ -1089,10 +1089,10 @@ void instruction_execute(void) {
 
         // TST - Test Memory (Extended)
         case 0x7D: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t value = memory_read(addr);
+            uint8_t value = memory_read_fast(addr);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1100,18 +1100,18 @@ void instruction_execute(void) {
 
         // JMP (Extended)
         case 0x7E: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             cpu.pc = (high << 8) | low;
             break;
         }
 
         // CLR - Clear Memory (Extended)
         case 0x7F: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            memory_write(addr, 0x00);
+            memory_write_fast(addr, 0x00);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
             cpu_set_flag(CCR_V, false);
@@ -1121,14 +1121,14 @@ void instruction_execute(void) {
 
         // SUBA (Immediate)
         case 0x80: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             sub_with_carry(&cpu.a, operand);
             break;
         }
 
         // CMPA - Compare A (Immediate)
         case 0x81: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.a - operand;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1137,7 +1137,7 @@ void instruction_execute(void) {
 
         // SBCA - Subtract with Carry A (Immediate)
         case 0x82: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1147,7 +1147,7 @@ void instruction_execute(void) {
 
         // ANDA (Immediate)
         case 0x84: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             cpu.a &= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1156,7 +1156,7 @@ void instruction_execute(void) {
 
         // BITA - Bit Test A (Immediate)
         case 0x85: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint8_t result = cpu.a & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -1165,7 +1165,7 @@ void instruction_execute(void) {
 
         // LDAA (Immediate)
         case 0x86: {
-            cpu.a = memory_read(cpu.pc++);
+            cpu.a = memory_read_fast(cpu.pc++);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1173,7 +1173,7 @@ void instruction_execute(void) {
 
         // EORA - Exclusive OR A (Immediate)
         case 0x88: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             cpu.a ^= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1182,7 +1182,7 @@ void instruction_execute(void) {
 
         // ADCA - Add with Carry A (Immediate)
         case 0x89: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.a + operand + (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1193,7 +1193,7 @@ void instruction_execute(void) {
 
         // ORAA (Immediate)
         case 0x8A: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             cpu.a |= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1202,15 +1202,15 @@ void instruction_execute(void) {
 
         // ADDA (Immediate)
         case 0x8B: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             add_with_carry(&cpu.a, operand);
             break;
         }
 
         // CPX - Compare X (Immediate)
         case 0x8C: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t imm_val = (high << 8) | low;
 
             // Perform subtraction for comparison
@@ -1225,7 +1225,7 @@ void instruction_execute(void) {
 
         // BSR - Branch to Subroutine
         case 0x8D: {
-            int8_t offset = (int8_t)memory_read(cpu.pc++);
+            int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
             eclock_consume_cycles(1);  // Internal: address calculation
             cpu_push16(cpu.pc);
             eclock_consume_cycles(3);  // Internal: branch setup
@@ -1235,8 +1235,8 @@ void instruction_execute(void) {
 
         // LDS - Load Stack Pointer (Immediate)
         case 0x8E: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             cpu.sp = (high << 8) | low;
             cpu_update_nz(high);  // Update flags based on high byte
             cpu_set_flag(CCR_V, false);  // Clear overflow
@@ -1245,16 +1245,16 @@ void instruction_execute(void) {
 
         // SUBA (Direct)
         case 0x90: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             sub_with_carry(&cpu.a, operand);
             break;
         }
 
         // CMPA (Direct)
         case 0x91: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1263,8 +1263,8 @@ void instruction_execute(void) {
 
         // SBCA (Direct)
         case 0x92: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1274,8 +1274,8 @@ void instruction_execute(void) {
 
         // ANDA (Direct)
         case 0x94: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a &= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1284,8 +1284,8 @@ void instruction_execute(void) {
 
         // BITA (Direct)
         case 0x95: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.a & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -1294,8 +1294,8 @@ void instruction_execute(void) {
 
         // LDAA (Direct)
         case 0x96: {
-            uint8_t addr = memory_read(cpu.pc++);
-            cpu.a = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            cpu.a = memory_read_fast(addr);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1303,8 +1303,8 @@ void instruction_execute(void) {
 
         // STAA (Direct)
         case 0x97: {
-            uint8_t addr = memory_read(cpu.pc++);
-            memory_write(addr, cpu.a);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            memory_write_fast(addr, cpu.a);
             eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1313,8 +1313,8 @@ void instruction_execute(void) {
 
         // EORA (Direct)
         case 0x98: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a ^= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1323,8 +1323,8 @@ void instruction_execute(void) {
 
         // ADCA - Add with Carry to A (Direct)
         case 0x99: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.a + operand + carry;
 
@@ -1337,8 +1337,8 @@ void instruction_execute(void) {
 
         // ORAA (Direct)
         case 0x9A: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a |= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1347,17 +1347,17 @@ void instruction_execute(void) {
 
         // ADDA - Add to A (Direct)
         case 0x9B: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             add_with_carry(&cpu.a, operand);
             break;
         }
 
         // CPX - Compare X (Direct)
         case 0x9C: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t high = memory_read(addr);
-            uint8_t low = memory_read(addr + 1);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t high = memory_read_fast(addr);
+            uint8_t low = memory_read_fast(addr + 1);
             uint16_t mem_val = (high << 8) | low;
 
             // Perform subtraction for comparison
@@ -1372,7 +1372,7 @@ void instruction_execute(void) {
 
         // JSR - Jump to Subroutine (Direct)
         case 0x9D: {
-            uint8_t addr = memory_read(cpu.pc++);
+            uint8_t addr = memory_read_fast(cpu.pc++);
             cpu_push16(cpu.pc);
             cpu.pc = addr;
             break;
@@ -1380,9 +1380,9 @@ void instruction_execute(void) {
 
         // LDS - Load Stack Pointer (Direct)
         case 0x9E: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t high = memory_read(addr);
-            uint8_t low = memory_read(addr + 1);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t high = memory_read_fast(addr);
+            uint8_t low = memory_read_fast(addr + 1);
             cpu.sp = (high << 8) | low;
             cpu_update_nz(high);
             cpu_set_flag(CCR_V, false);
@@ -1391,9 +1391,9 @@ void instruction_execute(void) {
 
         // STS - Store Stack Pointer (Direct)
         case 0x9F: {
-            uint8_t addr = memory_read(cpu.pc++);
-            memory_write(addr, (cpu.sp >> 8) & 0xFF);
-            memory_write(addr + 1, cpu.sp & 0xFF);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            memory_write_fast(addr, (cpu.sp >> 8) & 0xFF);
+            memory_write_fast(addr + 1, cpu.sp & 0xFF);
             eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
@@ -1402,20 +1402,20 @@ void instruction_execute(void) {
 
         // SUBA (Indexed)
         case 0xA0: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             sub_with_carry(&cpu.a, operand);
             break;
         }
 
         // CMPA (Indexed)
         case 0xA1: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1424,10 +1424,10 @@ void instruction_execute(void) {
 
         // SBCA (Indexed)
         case 0xA2: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1437,10 +1437,10 @@ void instruction_execute(void) {
 
         // ANDA (Indexed)
         case 0xA4: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a &= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1449,10 +1449,10 @@ void instruction_execute(void) {
 
         // BITA (Indexed)
         case 0xA5: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.a & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -1461,9 +1461,9 @@ void instruction_execute(void) {
 
         // LDAA (Indexed)
         case 0xA6: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
-            cpu.a = memory_read(cpu.x + offset);
+            cpu.a = memory_read_fast(cpu.x + offset);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1471,9 +1471,9 @@ void instruction_execute(void) {
 
         // STAA (Indexed)
         case 0xA7: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(3);  // Internal: address calculation
-            memory_write(cpu.x + offset, cpu.a);
+            memory_write_fast(cpu.x + offset, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1481,10 +1481,10 @@ void instruction_execute(void) {
 
         // EORA (Indexed)
         case 0xA8: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a ^= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1493,10 +1493,10 @@ void instruction_execute(void) {
 
         // ADCA (Indexed)
         case 0xA9: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.a + operand + carry;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
@@ -1508,10 +1508,10 @@ void instruction_execute(void) {
 
         // ORAA (Indexed)
         case 0xAA: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a |= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1520,21 +1520,21 @@ void instruction_execute(void) {
 
         // ADDA (Indexed)
         case 0xAB: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             add_with_carry(&cpu.a, operand);
             break;
         }
 
         // CPX (Indexed)
         case 0xAC: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t high = memory_read(addr);
-            uint8_t low = memory_read(addr + 1);
+            uint8_t high = memory_read_fast(addr);
+            uint8_t low = memory_read_fast(addr + 1);
             uint16_t mem_val = (high << 8) | low;
             uint32_t result = cpu.x - mem_val;
             cpu_set_flag(CCR_N, (result & 0x8000) != 0);
@@ -1545,7 +1545,7 @@ void instruction_execute(void) {
 
         // JSR (Indexed)
         case 0xAD: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(1);  // Internal: address calculation
             cpu_push16(cpu.pc);
             eclock_consume_cycles(3);  // Internal: jump setup
@@ -1555,11 +1555,11 @@ void instruction_execute(void) {
 
         // LDS - Load Stack Pointer (Indexed)
         case 0xAE: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t high = memory_read(addr);
-            uint8_t low = memory_read(addr + 1);
+            uint8_t high = memory_read_fast(addr);
+            uint8_t low = memory_read_fast(addr + 1);
             cpu.sp = (high << 8) | low;
             cpu_update_nz(high);
             cpu_set_flag(CCR_V, false);
@@ -1568,11 +1568,11 @@ void instruction_execute(void) {
 
         // STS - Store Stack Pointer (Indexed)
         case 0xAF: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            memory_write(addr, (cpu.sp >> 8) & 0xFF);
-            memory_write(addr + 1, cpu.sp & 0xFF);
+            memory_write_fast(addr, (cpu.sp >> 8) & 0xFF);
+            memory_write_fast(addr + 1, cpu.sp & 0xFF);
             cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1580,20 +1580,20 @@ void instruction_execute(void) {
 
         // SUBA (Extended)
         case 0xB0: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             sub_with_carry(&cpu.a, operand);
             break;
         }
 
         // CMPA (Extended)
         case 0xB1: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1602,10 +1602,10 @@ void instruction_execute(void) {
 
         // SBCA (Extended)
         case 0xB2: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1615,10 +1615,10 @@ void instruction_execute(void) {
 
         // ANDA (Extended)
         case 0xB4: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a &= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1627,10 +1627,10 @@ void instruction_execute(void) {
 
         // BITA (Extended)
         case 0xB5: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.a & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -1639,10 +1639,10 @@ void instruction_execute(void) {
 
         // LDAA (Extended)
         case 0xB6: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            cpu.a = memory_read(addr);
+            cpu.a = memory_read_fast(addr);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1650,11 +1650,11 @@ void instruction_execute(void) {
 
         // STAA (Extended)
         case 0xB7: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
             eclock_consume_cycles(1);  // Internal
-            memory_write(addr, cpu.a);
+            memory_write_fast(addr, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1662,10 +1662,10 @@ void instruction_execute(void) {
 
         // EORA (Extended)
         case 0xB8: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a ^= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1674,10 +1674,10 @@ void instruction_execute(void) {
 
         // ADCA (Extended)
         case 0xB9: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.a + operand + carry;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, false);
@@ -1689,10 +1689,10 @@ void instruction_execute(void) {
 
         // ORAA (Extended)
         case 0xBA: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.a |= operand;
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1701,21 +1701,21 @@ void instruction_execute(void) {
 
         // ADDA (Extended)
         case 0xBB: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             add_with_carry(&cpu.a, operand);
             break;
         }
 
         // CPX (Extended)
         case 0xBC: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t mem_high = memory_read(addr);
-            uint8_t mem_low = memory_read(addr + 1);
+            uint8_t mem_high = memory_read_fast(addr);
+            uint8_t mem_low = memory_read_fast(addr + 1);
             uint16_t mem_val = (mem_high << 8) | mem_low;
             uint32_t result = cpu.x - mem_val;
             cpu_set_flag(CCR_N, (result & 0x8000) != 0);
@@ -1726,8 +1726,8 @@ void instruction_execute(void) {
 
         // JSR (Extended)
         case 0xBD: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
             eclock_consume_cycles(1);  // Internal: jump setup
             cpu_push16(cpu.pc);
@@ -1738,11 +1738,11 @@ void instruction_execute(void) {
 
         // LDS - Load Stack Pointer (Extended)
         case 0xBE: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t sp_high = memory_read(addr);
-            uint8_t sp_low = memory_read(addr + 1);
+            uint8_t sp_high = memory_read_fast(addr);
+            uint8_t sp_low = memory_read_fast(addr + 1);
             cpu.sp = (sp_high << 8) | sp_low;
             cpu_update_nz(sp_high);
             cpu_set_flag(CCR_V, false);
@@ -1751,12 +1751,12 @@ void instruction_execute(void) {
 
         // STS - Store Stack Pointer (Extended)
         case 0xBF: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
             eclock_consume_cycles(1);  // Internal: address hold after write
-            memory_write(addr, (cpu.sp >> 8) & 0xFF);
-            memory_write(addr + 1, cpu.sp & 0xFF);
+            memory_write_fast(addr, (cpu.sp >> 8) & 0xFF);
+            memory_write_fast(addr + 1, cpu.sp & 0xFF);
             cpu_update_nz((cpu.sp >> 8) & 0xFF);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1764,7 +1764,7 @@ void instruction_execute(void) {
 
         // SUBB (Immediate)
         case 0xC0: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1774,7 +1774,7 @@ void instruction_execute(void) {
 
         // CMPB - Compare B (Immediate)
         case 0xC1: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1783,7 +1783,7 @@ void instruction_execute(void) {
 
         // SBCB (Immediate)
         case 0xC2: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1793,7 +1793,7 @@ void instruction_execute(void) {
 
         // ANDB - Logical AND B (Immediate)
         case 0xC4: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             cpu.b &= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1802,8 +1802,8 @@ void instruction_execute(void) {
 
         // BITB - Bit Test B (Direct)
         case 0xC5: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t mem_val = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t mem_val = memory_read_fast(addr);
             uint8_t result = cpu.b & mem_val;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -1812,7 +1812,7 @@ void instruction_execute(void) {
 
         // LDAB (Immediate)
         case 0xC6: {
-            cpu.b = memory_read(cpu.pc++);
+            cpu.b = memory_read_fast(cpu.pc++);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1820,7 +1820,7 @@ void instruction_execute(void) {
 
         // EORB (Immediate)
         case 0xC8: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             cpu.b ^= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1829,7 +1829,7 @@ void instruction_execute(void) {
 
         // ADCB (Immediate)
         case 0xC9: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.b + operand + carry;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
@@ -1841,7 +1841,7 @@ void instruction_execute(void) {
 
         // ORAB (Immediate)
         case 0xCA: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             cpu.b |= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1850,7 +1850,7 @@ void instruction_execute(void) {
 
         // ADDB (Immediate)
         case 0xCB: {
-            uint8_t operand = memory_read(cpu.pc++);
+            uint8_t operand = memory_read_fast(cpu.pc++);
             uint16_t result = cpu.b + operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1861,8 +1861,8 @@ void instruction_execute(void) {
 
         // LDX (Immediate) - 16-bit load
         case 0xCE: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             cpu.x = (high << 8) | low;
             cpu_update_nz(high);  // Only test high byte
             cpu_set_flag(CCR_V, false);
@@ -1871,8 +1871,8 @@ void instruction_execute(void) {
 
         // SUBB (Direct)
         case 0xD0: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1882,8 +1882,8 @@ void instruction_execute(void) {
 
         // CMPB (Direct)
         case 0xD1: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1892,8 +1892,8 @@ void instruction_execute(void) {
 
         // SBCB (Direct)
         case 0xD2: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1903,8 +1903,8 @@ void instruction_execute(void) {
 
         // ANDB (Direct)
         case 0xD4: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b &= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1913,8 +1913,8 @@ void instruction_execute(void) {
 
         // BITB (Direct)
         case 0xD5: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.b & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -1923,8 +1923,8 @@ void instruction_execute(void) {
 
         // LDAB (Direct)
         case 0xD6: {
-            uint8_t addr = memory_read(cpu.pc++);
-            cpu.b = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            cpu.b = memory_read_fast(addr);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1932,8 +1932,8 @@ void instruction_execute(void) {
 
         // STAB (Direct)
         case 0xD7: {
-            uint8_t addr = memory_read(cpu.pc++);
-            memory_write(addr, cpu.b);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            memory_write_fast(addr, cpu.b);
             eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1942,8 +1942,8 @@ void instruction_execute(void) {
 
         // EORB (Direct)
         case 0xD8: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b ^= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1952,8 +1952,8 @@ void instruction_execute(void) {
 
         // ADCB (Direct)
         case 0xD9: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.b + operand + carry;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
@@ -1965,8 +1965,8 @@ void instruction_execute(void) {
 
         // ORAB (Direct)
         case 0xDA: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b |= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -1975,8 +1975,8 @@ void instruction_execute(void) {
 
         // ADDB (Direct)
         case 0xDB: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t operand = memory_read(addr);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b + operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -1987,9 +1987,9 @@ void instruction_execute(void) {
 
         // LDX (Direct)
         case 0xDE: {
-            uint8_t addr = memory_read(cpu.pc++);
-            uint8_t high = memory_read(addr);
-            uint8_t low = memory_read(addr + 1);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            uint8_t high = memory_read_fast(addr);
+            uint8_t low = memory_read_fast(addr + 1);
             cpu.x = (high << 8) | low;
             cpu_update_nz(high);
             cpu_set_flag(CCR_V, false);
@@ -1998,9 +1998,9 @@ void instruction_execute(void) {
 
         // STX (Direct)
         case 0xDF: {
-            uint8_t addr = memory_read(cpu.pc++);
-            memory_write(addr, cpu.x >> 8);
-            memory_write(addr + 1, cpu.x & 0xFF);
+            uint8_t addr = memory_read_fast(cpu.pc++);
+            memory_write_fast(addr, cpu.x >> 8);
+            memory_write_fast(addr + 1, cpu.x & 0xFF);
             eclock_consume_cycles(1);  // Internal: address hold after write
             cpu_update_nz(cpu.x >> 8);
             cpu_set_flag(CCR_V, false);
@@ -2009,10 +2009,10 @@ void instruction_execute(void) {
 
         // SUBB (Indexed)
         case 0xE0: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2022,10 +2022,10 @@ void instruction_execute(void) {
 
         // CMPB (Indexed)
         case 0xE1: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2034,10 +2034,10 @@ void instruction_execute(void) {
 
         // SBCB (Indexed)
         case 0xE2: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2047,9 +2047,9 @@ void instruction_execute(void) {
 
         // ANDB - Logical AND B (Indexed)
         case 0xE4: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
-            uint8_t operand = memory_read(cpu.x + offset);
+            uint8_t operand = memory_read_fast(cpu.x + offset);
             cpu.b &= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2058,10 +2058,10 @@ void instruction_execute(void) {
 
         // BITB (Indexed)
         case 0xE5: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.b & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -2070,9 +2070,9 @@ void instruction_execute(void) {
 
         // LDAB (Indexed)
         case 0xE6: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
-            cpu.b = memory_read(cpu.x + offset);
+            cpu.b = memory_read_fast(cpu.x + offset);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -2080,9 +2080,9 @@ void instruction_execute(void) {
 
         // STAB (Indexed)
         case 0xE7: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(3);  // Internal: address calculation
-            memory_write(cpu.x + offset, cpu.b);
+            memory_write_fast(cpu.x + offset, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -2090,10 +2090,10 @@ void instruction_execute(void) {
 
         // EORB (Indexed)
         case 0xE8: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b ^= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2102,10 +2102,10 @@ void instruction_execute(void) {
 
         // ADCB (Indexed)
         case 0xE9: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.b + operand + carry;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
@@ -2117,9 +2117,9 @@ void instruction_execute(void) {
 
         // ORAB - Logical OR B (Indexed)
         case 0xEA: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
-            uint8_t operand = memory_read(cpu.x + offset);
+            uint8_t operand = memory_read_fast(cpu.x + offset);
             cpu.b |= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2128,10 +2128,10 @@ void instruction_execute(void) {
 
         // ADDB (Indexed)
         case 0xEB: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b + operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2142,11 +2142,11 @@ void instruction_execute(void) {
 
         // LDX (Indexed)
         case 0xEE: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            uint8_t high = memory_read(addr);
-            uint8_t low = memory_read(addr + 1);
+            uint8_t high = memory_read_fast(addr);
+            uint8_t low = memory_read_fast(addr + 1);
             cpu.x = (high << 8) | low;
             cpu_update_nz(high);
             cpu_set_flag(CCR_V, false);
@@ -2155,11 +2155,11 @@ void instruction_execute(void) {
 
         // STX (Indexed)
         case 0xEF: {
-            uint8_t offset = memory_read(cpu.pc++);
+            uint8_t offset = memory_read_fast(cpu.pc++);
             eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
-            memory_write(addr, cpu.x >> 8);
-            memory_write(addr + 1, cpu.x & 0xFF);
+            memory_write_fast(addr, cpu.x >> 8);
+            memory_write_fast(addr + 1, cpu.x & 0xFF);
             cpu_update_nz(cpu.x >> 8);
             cpu_set_flag(CCR_V, false);
             break;
@@ -2167,10 +2167,10 @@ void instruction_execute(void) {
 
         // SUBB (Extended)
         case 0xF0: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2180,10 +2180,10 @@ void instruction_execute(void) {
 
         // CMPB (Extended)
         case 0xF1: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2192,10 +2192,10 @@ void instruction_execute(void) {
 
         // SBCB (Extended)
         case 0xF2: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2205,10 +2205,10 @@ void instruction_execute(void) {
 
         // ANDB (Extended)
         case 0xF4: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b &= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2217,10 +2217,10 @@ void instruction_execute(void) {
 
         // BITB (Extended)
         case 0xF5: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.b & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
@@ -2229,10 +2229,10 @@ void instruction_execute(void) {
 
         // LDAB (Extended)
         case 0xF6: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            cpu.b = memory_read(addr);
+            cpu.b = memory_read_fast(addr);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -2240,11 +2240,11 @@ void instruction_execute(void) {
 
         // STAB (Extended)
         case 0xF7: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
             eclock_consume_cycles(1);  // Internal: address hold after write
-            memory_write(addr, cpu.b);
+            memory_write_fast(addr, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
             break;
@@ -2252,10 +2252,10 @@ void instruction_execute(void) {
 
         // EORB (Extended)
         case 0xF8: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b ^= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2264,10 +2264,10 @@ void instruction_execute(void) {
 
         // ADCB (Extended)
         case 0xF9: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.b + operand + carry;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
@@ -2279,10 +2279,10 @@ void instruction_execute(void) {
 
         // ORAB (Extended)
         case 0xFA: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             cpu.b |= operand;
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2291,10 +2291,10 @@ void instruction_execute(void) {
 
         // ADDB (Extended)
         case 0xFB: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t operand = memory_read(addr);
+            uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b + operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
             cpu_set_flag(CCR_C, result > 0xFF);
@@ -2305,11 +2305,11 @@ void instruction_execute(void) {
 
         // LDX (Extended)
         case 0xFE: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            uint8_t xh = memory_read(addr);
-            uint8_t xl = memory_read(addr + 1);
+            uint8_t xh = memory_read_fast(addr);
+            uint8_t xl = memory_read_fast(addr + 1);
             cpu.x = (xh << 8) | xl;
             cpu_update_nz(xh);
             cpu_set_flag(CCR_V, false);
@@ -2318,12 +2318,12 @@ void instruction_execute(void) {
 
         // STX (Extended)
         case 0xFF: {
-            uint8_t high = memory_read(cpu.pc++);
-            uint8_t low = memory_read(cpu.pc++);
+            uint8_t high = memory_read_fast(cpu.pc++);
+            uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
             eclock_consume_cycles(1);  // Internal: address hold after write
-            memory_write(addr, cpu.x >> 8);
-            memory_write(addr + 1, cpu.x & 0xFF);
+            memory_write_fast(addr, cpu.x >> 8);
+            memory_write_fast(addr + 1, cpu.x & 0xFF);
             cpu_update_nz(cpu.x >> 8);
             cpu_set_flag(CCR_V, false);
             break;
@@ -2335,4 +2335,7 @@ void instruction_execute(void) {
             cpu.halted = true;
             break;
     }
+
+    // Sync accumulated cycles once at end of instruction
+    eclock_sync_instruction();
 }

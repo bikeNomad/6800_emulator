@@ -14,8 +14,11 @@ static PIO pio = pio0;
 static uint sm = 0;
 static uint offset;
 
-// Cycle counter
-static volatile uint32_t cycle_count = 0;
+// Cycle counter (non-volatile for performance - not accessed by ISRs)
+uint32_t cycle_count = 0;
+
+// Pending cycles for fast-path accumulation (non-volatile for performance)
+uint32_t pending_cycles = 0;
 
 // Last known E clock state
 static volatile bool last_e_state = false;
@@ -72,15 +75,7 @@ void eclock_wait_low(void) {
     cycle_count++;  // Increment once per complete cycle
 }
 
-// Consume N internal cycles (wait for N complete E clock cycles)
-void eclock_consume_cycles(uint8_t cycles) {
-    for (uint8_t i = 0; i < cycles; i++) {
-        eclock_wait_high();  // Wait for E high
-        eclock_wait_low();   // Wait for E low (increments counter)
-    }
-}
+// Note: eclock_consume_cycles, eclock_accumulate, eclock_sync_instruction,
+// eclock_get_pending, and eclock_get_count are now inline in clock.h
 
-// Get cycle count
-uint32_t eclock_get_count(void) {
-    return cycle_count;
-}
+// (Functions removed - now inline for performance)

@@ -134,11 +134,22 @@ void cycle_test_instruction(uint8_t opcode) {
     // Set up test environment
     setup_test_environment(opcode);
 
+    // Sync any accumulated cycles from test setup before measurement
+    eclock_sync_instruction();
+
+    // Warm-up: Execute the instruction once to prime caches and branch predictor
+    cpu_state_t warmup_cpu = cpu;
+    instruction_execute();
+
+    // Restore state for actual measurement
+    cpu = warmup_cpu;
+    eclock_sync_instruction();
+
     // Get starting counts
     uint32_t start_eclock = eclock_get_count();
     uint32_t start_sysclock = get_cycle_counter();
 
-    // Execute the instruction
+    // Execute the instruction (measured)
     instruction_execute();
 
     // Get ending counts

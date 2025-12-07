@@ -12,6 +12,10 @@
 
 // E clock output pin is defined in board_config.h as GPIO_ECLOCK
 
+// Global cycle counters (non-volatile for performance - not accessed by ISRs)
+extern uint32_t cycle_count;
+extern uint32_t pending_cycles;
+
 // Initialize E clock PIO
 void eclock_init(void);
 
@@ -27,10 +31,32 @@ void eclock_wait_high(void);
 // Wait for E clock falling edge
 void eclock_wait_low(void);
 
-// Consume N internal cycles (for address calculation, etc.)
-void eclock_consume_cycles(uint8_t cycles);
+// Accumulate cycles without GPIO polling (inline for performance)
+static inline void eclock_accumulate(uint32_t cycles) {
+    pending_cycles += cycles;
+}
 
-// Get cycle count (for timing validation)
-uint32_t eclock_get_count(void);
+// Synchronize accumulated cycles at end of instruction (inline for performance)
+static inline void eclock_sync_instruction(void) {
+    // Just update the cycle count without GPIO polling
+    // (PIO continues to generate E-clock in background for external hardware)
+    cycle_count += pending_cycles;
+    pending_cycles = 0;
+}
+
+// Consume N internal cycles - fast-path: accumulate without GPIO polling (inline for performance)
+static inline void eclock_consume_cycles(uint8_t cycles) {
+    eclock_accumulate(cycles);
+}
+
+// Get cycle count (inline for performance)
+static inline uint32_t eclock_get_count(void) {
+    return cycle_count;
+}
+
+// Get accumulated cycle count for debugging (inline for performance)
+static inline uint32_t eclock_get_pending(void) {
+    return pending_cycles;
+}
 
 #endif // CLOCK_H

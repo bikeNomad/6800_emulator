@@ -55,6 +55,12 @@ uint8_t memory_read(uint16_t address);
 // Write byte to address (via bus)
 void memory_write(uint16_t address, uint8_t value);
 
+// Fast-path read (no GPIO polling for ROM/RAM)
+uint8_t memory_read_fast(uint16_t address);
+
+// Fast-path write (no GPIO polling for ROM/RAM)
+void memory_write_fast(uint16_t address, uint8_t value);
+
 // Load Intel HEX data into flash shadow copy
 bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length);
 

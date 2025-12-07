@@ -66,6 +66,7 @@ static memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE];
+static uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
 static uint8_t cmos_load_buffer[FLASH_SECTOR_SIZE];  // Buffer for CMOS flash operations
 static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
@@ -74,6 +75,7 @@ static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
 void memory_init(void) {
     memset(&mem_config, 0, sizeof(mem_config));
     memset(ram_shadow, 0, sizeof(ram_shadow));
+    memset(rom_shadow, 0xFF, sizeof(rom_shadow));
     memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
     memset(cmos_load_buffer, 0xFF, sizeof(cmos_load_buffer));
 
@@ -175,9 +177,12 @@ memory_type_t memory_get_type(uint16_t address) {
 
 // Read byte from address via bus
 uint8_t memory_read(uint16_t address) {
+    // Sync any accumulated cycles before bus operation
+    eclock_sync_instruction();
+
     memory_type_t type = memory_get_type(address);
 
-    // Read from ROM (flash) - cycle-accurate
+    // Read from ROM shadow (RAM copy) - cycle-accurate
     if (type == MEM_TYPE_ROM) {
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();  // ROM LED on, others off
@@ -191,8 +196,7 @@ uint8_t memory_read(uint16_t address) {
         uint16_t physical_addr = address & ADDR_MASK_A15;
 
         uint16_t rom_offset = physical_addr - mem_config.rom_base;
-        const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
-        uint8_t data = flash_ptr[rom_offset];
+        uint8_t data = rom_shadow[rom_offset];
 
         // bus_sync already counted the cycle
         return data;
@@ -232,8 +236,49 @@ uint8_t memory_read(uint16_t address) {
     return data;
 }
 
+// Fast-path read (no GPIO polling for ROM/RAM)
+uint8_t memory_read_fast(uint16_t address) {
+    memory_type_t type = memory_get_type(address);
+
+    // Read from ROM shadow (RAM copy) - fast path
+    if (type == MEM_TYPE_ROM) {
+        eclock_accumulate(1);  // Track cycle, don't wait
+#if BOARD_TYPE == BOARD_NED_SYS7
+        led_set_rom();
+#endif
+
+        // Translate address for missing A15 decode
+        uint16_t physical_addr = address & ADDR_MASK_A15;
+        uint16_t rom_offset = physical_addr - mem_config.rom_base;
+        return rom_shadow[rom_offset];
+    }
+
+    // Read from RAM shadow (with mirroring) - fast path
+    if (type == MEM_TYPE_RAM) {
+        eclock_accumulate(1);  // Track cycle, don't wait
+#if BOARD_TYPE == BOARD_NED_SYS7
+        led_set_ram();
+#endif
+
+        uint16_t ram_offset = address - mem_config.ram_base;
+
+        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
+        if (address >= 0x1000 && address <= 0x10FF) {
+            ram_offset = address - 0x1000;
+        }
+
+        return (ram_offset < mem_config.ram_size) ? ram_shadow[ram_offset] : 0xFF;
+    }
+
+    // Unmapped - use slow path (keeps GPIO sync for peripherals)
+    return memory_read(address);
+}
+
 // Write byte to address via bus
 void memory_write(uint16_t address, uint8_t value) {
+    // Sync any accumulated cycles before bus operation
+    eclock_sync_instruction();
+
     memory_type_t type = memory_get_type(address);
 
     // Write to RAM shadow (with mirroring) - cycle-accurate
@@ -258,8 +303,12 @@ void memory_write(uint16_t address, uint8_t value) {
             // Check if this is a write to CMOS region - mark for auto-save
             if (address >= mem_config.cmos_base &&
                 address < mem_config.cmos_base + mem_config.cmos_size) {
-                mem_config.cmos_dirty = true;
-                cmos_last_write_time = time_us_64();
+                // Only call time_us_64() if transitioning from clean to dirty
+                // (avoids expensive timer read on every stack write)
+                if (!mem_config.cmos_dirty) {
+                    cmos_last_write_time = time_us_64();
+                    mem_config.cmos_dirty = true;
+                }
             }
         }
 
@@ -284,6 +333,51 @@ void memory_write(uint16_t address, uint8_t value) {
     led_set_unmapped();  // Unmapped LED on, others off
 #endif
     bus_write_cycle(address, value);
+}
+
+// Fast-path write (no GPIO polling for ROM/RAM)
+void memory_write_fast(uint16_t address, uint8_t value) {
+    memory_type_t type = memory_get_type(address);
+
+    // Write to RAM shadow (with mirroring) - fast path
+    if (type == MEM_TYPE_RAM) {
+        eclock_accumulate(1);  // Track cycle, don't wait
+#if BOARD_TYPE == BOARD_NED_SYS7
+        led_set_ram();
+#endif
+
+        uint16_t ram_offset = address - mem_config.ram_base;
+
+        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
+        if (address >= 0x1000 && address <= 0x10FF) {
+            ram_offset = address - 0x1000;
+        }
+
+        if (ram_offset < mem_config.ram_size) {
+            ram_shadow[ram_offset] = value;
+
+            // Check if this is a write to CMOS region - mark for auto-save
+            if (address >= mem_config.cmos_base &&
+                address < mem_config.cmos_base + mem_config.cmos_size) {
+                // Only call time_us_64() if transitioning from clean to dirty
+                // (avoids expensive timer read on every stack write)
+                if (!mem_config.cmos_dirty) {
+                    cmos_last_write_time = time_us_64();
+                    mem_config.cmos_dirty = true;
+                }
+            }
+        }
+        return;
+    }
+
+    // ROM writes are ignored but still count cycle
+    if (type == MEM_TYPE_ROM) {
+        eclock_accumulate(1);  // Ignored write, still count cycle
+        return;
+    }
+
+    // Unmapped - use slow path (keeps GPIO sync for peripherals)
+    memory_write(address, value);
 }
 
 // Load Intel HEX data into ROM load buffer
@@ -341,6 +435,12 @@ bool memory_finalize_load(void) {
     }
 
     printf("Flash verification OK\n");
+
+    // Copy ROM to RAM shadow for fast execution
+    printf("Copying ROM to RAM shadow for fast access...\n");
+    memcpy(rom_shadow, rom_load_buffer, mem_config.flash_size);
+    printf("ROM shadow copy complete (%u bytes)\n", (unsigned int)mem_config.flash_size);
+
     return true;
 }
 
