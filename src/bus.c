@@ -173,9 +173,44 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     }
 }
 
-// Wait for next E clock edge
+// Wait for next E clock edge (with real-time tracking)
 void bus_sync(void) {
-    eclock_wait_low();
+    // Get real elapsed cycles from PIO
+    uint32_t pio_cycles = eclock_get_pio_cycles();
+
+    // Calculate difference (positive = ahead, negative = behind)
+    int32_t diff = (int32_t)(eclock_get_count() - pio_cycles);
+
+    if (diff > 0) {
+        // Emulator is ahead of real time
+        // Apply overage credit first
+        diff -= cycle_overage;
+
+        if (diff > 0) {
+            // Still need to wait for additional cycles
+            for (int32_t i = 0; i < diff; i++) {
+                eclock_wait_low();
+            }
+            cycle_overage = 0;
+        } else {
+            // Overage covers the difference
+            cycle_overage = -diff;
+        }
+    } else if (diff < 0) {
+        // Emulator is behind real time - accumulate overage credit
+        cycle_overage += (-diff);
+
+        // Cap overage at reasonable limit to prevent overflow
+        if (cycle_overage > 1000) {
+            cycle_overage = 1000;
+        }
+
+        // Wait for at least the next E clock edge to stay synchronized
+        eclock_wait_low();
+    } else {
+        // Exactly on time - wait for next edge
+        eclock_wait_low();
+    }
 }
 
 // Read interrupt request lines (active low)

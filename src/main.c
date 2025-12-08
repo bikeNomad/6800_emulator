@@ -12,6 +12,8 @@
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
+#include "hardware/clocks.h"
+#include "hardware/vreg.h"
 
 #include "cpu_state.h"
 #include "memory.h"
@@ -39,6 +41,13 @@ void core1_entry() {
 }
 
 int main() {
+    // Overclock to 300MHz for better emulation performance
+    // (Default is 150MHz, we need ~2x speedup for real-time IRQ handling)
+    // RP2350 can safely run at 300MHz with proper voltage
+    vreg_set_voltage(VREG_VOLTAGE_1_25);
+    sleep_ms(10);
+    set_sys_clock_khz(300000, true);
+
     // Initialize Pico SDK
     // NOTE: UART moved to GPIO 24 (TX) and GPIO 25 (RX) to avoid conflict with data bus
     stdio_init_all();
@@ -46,10 +55,13 @@ int main() {
     // Small delay for USB to enumerate
     sleep_ms(1000);
 
+    uint32_t sys_clock_hz = clock_get_hz(clk_sys);
+
     printf("\n\n========================================\n");
     printf("MC6800 Emulator Starting...\n");
     printf("Version 1.0\n");
     printf("Target: RP2350 (Pico 2 W)\n");
+    printf("System Clock: %lu MHz\n", sys_clock_hz / 1000000);
     printf("UART Debug Output Active\n");
     printf("========================================\n\n");
 
@@ -65,7 +77,7 @@ int main() {
 
     printf("Initializing E clock...\n");
     eclock_init();
-    eclock_start();
+    // Note: E clock will be started by cpu_start() when user runs 'run' command
 
     printf("Initializing debug SPI...\n");
     debug_spi_init();

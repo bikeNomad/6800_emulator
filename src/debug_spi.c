@@ -11,9 +11,9 @@
 
 // SPI instance
 #define DEBUG_SPI_INST spi0
-#define SPI_BAUDRATE (16 * 1000 * 1000)  // 16 MHz
+#define SPI_BAUDRATE (30 * 1000 * 1000)  // 30 MHz
 
-static bool debug_enabled = true;
+static bool debug_enabled = false;  // Disabled by default (enable via USB "debug on")
 static uint8_t last_data_bus = 0;
 static bool last_rw = true;
 

@@ -15,6 +15,7 @@
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
 extern uint32_t pending_cycles;
+extern int32_t cycle_overage;
 
 // Initialize E clock PIO
 void eclock_init(void);
@@ -30,6 +31,15 @@ void eclock_wait_high(void);
 
 // Wait for E clock falling edge
 void eclock_wait_low(void);
+
+// Get real elapsed E clock cycles from PIO
+uint32_t eclock_get_pio_cycles(void);
+
+// Reset PIO cycle counter
+void eclock_reset_pio_counter(void);
+
+// Check timing and wait if emulator is ahead of real-time
+void eclock_check_timing(void);
 
 // Accumulate cycles without GPIO polling (inline for performance)
 static inline void eclock_accumulate(uint32_t cycles) {

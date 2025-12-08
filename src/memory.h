@@ -79,6 +79,9 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 // Save CMOS RAM to flash
 bool memory_save_cmos(void);
 
+// Initialize ROM from flash on startup
+void memory_init_rom_from_flash(void);
+
 // Initialize CMOS from flash on startup
 void memory_init_cmos_from_flash(void);
 

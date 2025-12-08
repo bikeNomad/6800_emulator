@@ -5,6 +5,8 @@
 #include "memory.h"
 #include "bus.h"
 #include "clock.h"
+#include "cpu_state.h"
+#include "interrupts.h"
 #include "board_config.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
@@ -105,7 +107,8 @@ void memory_init(void) {
            mem_config.cmos_base, mem_config.cmos_base + mem_config.cmos_size - 1);
     printf("  Unmapped addresses route to physical bus\n");
 
-    // Restore CMOS from flash
+    // Restore ROM and CMOS from flash
+    memory_init_rom_from_flash();
     memory_init_cmos_from_flash();
 }
 
@@ -178,6 +181,11 @@ memory_type_t memory_get_type(uint16_t address) {
 
 // Read byte from address via bus
 uint8_t memory_read(uint16_t address) {
+    // If CPU is not running, use fast path (for diagnostic/init access)
+    if (!cpu_is_running()) {
+        return memory_read_fast(address);
+    }
+
     // Sync any accumulated cycles before bus operation
     eclock_sync_instruction();
 
@@ -277,6 +285,12 @@ uint8_t memory_read_fast(uint16_t address) {
 
 // Write byte to address via bus
 void memory_write(uint16_t address, uint8_t value) {
+    // If CPU is not running, use fast path (for diagnostic/init access)
+    if (!cpu_is_running()) {
+        memory_write_fast(address, value);
+        return;
+    }
+
     // Sync any accumulated cycles before bus operation
     eclock_sync_instruction();
 
@@ -389,14 +403,19 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
         return memory_load_cmos_data(address, data, length);
     }
 
+    // Translate address for missing A15 decode
+    // (e.g., $D800 -> $5800, $FFF8 -> $7FF8)
+    uint16_t physical_addr = address & ADDR_MASK_A15;
+
     // Check if address is in ROM range
-    if (address < mem_config.rom_base ||
-        address >= mem_config.rom_base + mem_config.rom_size) {
-        printf("HEX address $%04X outside ROM/CMOS range\n", address);
+    if (physical_addr < mem_config.rom_base ||
+        physical_addr >= mem_config.rom_base + mem_config.rom_size) {
+        printf("HEX address $%04X (physical $%04X) outside ROM/CMOS range\n",
+               address, physical_addr);
         return false;
     }
 
-    uint16_t rom_offset = address - mem_config.rom_base;
+    uint16_t rom_offset = physical_addr - mem_config.rom_base;
     if (rom_offset + length > mem_config.rom_size) {
         printf("HEX data exceeds ROM size\n");
         return false;
@@ -454,6 +473,30 @@ const uint8_t* memory_get_rom_shadow(void) {
 // Get RAM shadow for diagnostics
 const uint8_t* memory_get_ram_shadow(void) {
     return ram_shadow;
+}
+
+// Initialize ROM from flash on startup
+void memory_init_rom_from_flash(void) {
+    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
+
+    // Check if flash is erased (all 0xFF = new/empty flash)
+    bool is_erased = true;
+    for (uint16_t i = 0; i < mem_config.flash_size; i++) {
+        if (flash_ptr[i] != 0xFF) {
+            is_erased = false;
+            break;
+        }
+    }
+
+    if (is_erased) {
+        // No ROM programmed yet
+        printf("ROM not programmed (flash empty)\n");
+    } else {
+        // Restore ROM from flash to RAM shadow
+        memcpy(rom_shadow, flash_ptr, mem_config.flash_size);
+        printf("ROM restored from flash (%u bytes)\n", (unsigned int)mem_config.flash_size);
+        // Note: Reset vector will be loaded by cpu_init() after this
+    }
 }
 
 // Initialize CMOS from flash on startup

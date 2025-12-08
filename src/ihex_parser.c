@@ -4,6 +4,7 @@
 
 #include "ihex_parser.h"
 #include "memory.h"
+#include "interrupts.h"
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -178,7 +179,13 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
             return memory_save_cmos();
         } else {
             printf("Finalizing ROM load...\n");
-            return memory_finalize_load();
+            bool success = memory_finalize_load();
+            if (success) {
+                // Automatically reset CPU to load reset vector from new ROM
+                printf("Resetting CPU to load reset vector...\n");
+                interrupt_service_reset();
+            }
+            return success;
         }
     }
 

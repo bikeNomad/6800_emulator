@@ -8,6 +8,8 @@
 #include "ihex_parser.h"
 #include "interrupts.h"
 #include "cycle_test.h"
+#include "clock.h"
+#include "debug_spi.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "tusb.h"
@@ -119,6 +121,7 @@ static void process_command(char *cmd) {
 
     } else if (strncmp(cmd, "read", 4) == 0) {
         // Read memory: read <addr> <len>
+        // Use fast path for diagnostic reads (no E clock waiting)
         unsigned int addr, len;
         if (sscanf(cmd + 4, "%x %x", &addr, &len) == 2) {
             usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
@@ -126,7 +129,7 @@ static void process_command(char *cmd) {
                 if (i % 16 == 0) {
                     usb_cdc_printf("%04X: ", addr + i);
                 }
-                uint8_t value = memory_read(addr + i);
+                uint8_t value = memory_read_fast(addr + i);
                 usb_cdc_printf("%02X ", value);
                 if (i % 16 == 15 || i == len - 1) {
                     usb_cdc_send("\r\n");
@@ -187,6 +190,17 @@ static void process_command(char *cmd) {
         usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
         usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
         usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)cpu.instruction_count);
+        usb_cdc_printf("  Cycle Count: %lu\r\n", (unsigned long)eclock_get_count());
+        usb_cdc_printf("  PIO Cycles: %lu\r\n", (unsigned long)eclock_get_pio_cycles());
+        usb_cdc_printf("  Overage: %ld\r\n", (long)cycle_overage);
+
+        // Calculate and display speed ratio
+        uint32_t cycle_cnt = eclock_get_count();
+        uint32_t pio_cnt = eclock_get_pio_cycles();
+        if (pio_cnt > 0) {
+            float speed_ratio = (float)cycle_cnt / (float)pio_cnt;
+            usb_cdc_printf("  Speed: %.2fx real-time\r\n", speed_ratio);
+        }
 
     } else if (strcmp(cmd, "run") == 0) {
         // Start CPU execution
@@ -225,6 +239,16 @@ static void process_command(char *cmd) {
 
         usb_cdc_send("Cycle test complete.\r\n");
 
+    } else if (strcmp(cmd, "debug on") == 0) {
+        // Enable debug SPI output
+        debug_spi_enable(true);
+        usb_cdc_send("OK: Debug SPI enabled\r\n");
+
+    } else if (strcmp(cmd, "debug off") == 0) {
+        // Disable debug SPI output
+        debug_spi_enable(false);
+        usb_cdc_send("OK: Debug SPI disabled\r\n");
+
     } else if (strcmp(cmd, "help") == 0) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
@@ -242,6 +266,7 @@ static void process_command(char *cmd) {
             "  halt                      - Stop CPU execution (auto-saves CMOS)\r\n"
             "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
             "  cycletest                 - Test instruction cycle counts\r\n"
+            "  debug on/off              - Enable/disable SPI debug output\r\n"
             "  bootloader                - Enter bootloader mode\r\n"
             "  help                      - Show this help\r\n"
         );

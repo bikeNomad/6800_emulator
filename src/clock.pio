@@ -8,12 +8,19 @@
 
 .program eclock
 
+public entry_point:
+    mov x, ~null        ; Initialize X to 0xFFFFFFFF (count down)
+
 .wrap_target
+loop:
     set pins, 1 [31]    ; E clock high, delay 32 cycles
     set pins, 0 [31]    ; E clock low, delay 32 cycles
+    jmp x-- loop        ; Decrement X each cycle and loop
 .wrap
 
 % c-sdk {
+#include "hardware/clocks.h"
+
 static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) {
     // Configure pin as PIO output
     pio_gpio_init(pio, pin);
@@ -25,13 +32,19 @@ static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) 
     // Configure SET pins
     sm_config_set_set_pins(&c, pin, 1);
 
-    // Configure clock divider
-    // System clock: 125 MHz
-    // Target: 0.894886 MHz with 64 PIO cycles per period (32 high + 32 low)
-    // Required PIO clock: 0.894886 MHz * 64 = 57.27 MHz
-    // Divider: 125 MHz / 57.27 MHz ≈ 2.18
-    // Using divider of 2.18 (integer part 2, fractional part 46/256)
-    sm_config_set_clkdiv_int_frac(&c, 2, 46);
+    // Configure clock divider dynamically based on system clock
+    // Target E clock: 3.579545 MHz / 4 = 0.894886 MHz
+    // PIO cycles per E cycle: 65 (32 high + 32 low + 1 jmp)
+    // Required PIO clock: 0.894886 MHz * 65 = 58.17 MHz
+    // Divider = System clock / PIO clock
+    uint32_t sys_clock = clock_get_hz(clk_sys);
+    float divider = (float)sys_clock / 58170000.0f;
+
+    // Extract integer and fractional parts
+    uint16_t div_int = (uint16_t)divider;
+    uint8_t div_frac = (uint8_t)((divider - div_int) * 256.0f);
+
+    sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
 
     // Initialize and start state machine
     pio_sm_init(pio, sm, offset, &c);
