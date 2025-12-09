@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MC6800 Emulator Control</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    h1 {
+      color: #4ec9b0;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    h2 {
+      color: #569cd6;
+      margin: 15px 0 10px 0;
+      font-size: 18px;
+    }
+
+    .panel {
+      border: 1px solid #404040;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #252526;
+      border-radius: 4px;
+    }
+
+    button {
+      padding: 8px 16px;
+      margin: 5px 5px 5px 0;
+      background: #0e639c;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    button:hover:not(:disabled) {
+      background: #1177bb;
+    }
+
+    button:disabled {
+      background: #404040;
+      color: #808080;
+      cursor: not-allowed;
+    }
+
+    button.danger {
+      background: #c94f4f;
+    }
+
+    button.danger:hover:not(:disabled) {
+      background: #e85a5a;
+    }
+
+    input[type="text"],
+    input[type="file"] {
+      padding: 6px 10px;
+      background: #3c3c3c;
+      color: #d4d4d4;
+      border: 1px solid #404040;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    input[type="file"] {
+      margin: 5px 0;
+    }
+
+    #status-indicator {
+      padding: 4px 12px;
+      border-radius: 3px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    #status-indicator.disconnected {
+      background: #5a1f1f;
+      color: #f48771;
+    }
+
+    #status-indicator.connected {
+      background: #1f5a3f;
+      color: #4ec9b0;
+    }
+
+    #status-display {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .status-row {
+      padding: 5px;
+      background: #1e1e1e;
+      border-radius: 3px;
+    }
+
+    .status-label {
+      color: #9cdcfe;
+      display: inline-block;
+      min-width: 80px;
+    }
+
+    .status-value {
+      color: #ce9178;
+      font-weight: bold;
+    }
+
+    #terminal-panel {
+      background: #1e1e1e;
+    }
+
+    #terminal-output {
+      height: 300px;
+      overflow-y: auto;
+      background: #000;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #404040;
+      border-radius: 3px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    #terminal-output div {
+      margin: 2px 0;
+    }
+
+    #terminal-output .command {
+      color: #4ec9b0;
+    }
+
+    #terminal-output .response {
+      color: #d4d4d4;
+    }
+
+    #terminal-output .error {
+      color: #f48771;
+    }
+
+    #terminal-input {
+      width: 100%;
+      padding: 8px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border: 1px solid #404040;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+
+    #upload-status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 3px;
+      display: none;
+    }
+
+    #upload-status.success {
+      background: #1f5a3f;
+      color: #4ec9b0;
+      display: block;
+    }
+
+    #upload-status.error {
+      background: #5a1f1f;
+      color: #f48771;
+      display: block;
+    }
+
+    #upload-status.progress {
+      background: #3c3c1f;
+      color: #dcdcaa;
+      display: block;
+    }
+
+    #address-input {
+      margin-top: 10px;
+      padding: 10px;
+      background: #2d2d2d;
+      border-radius: 3px;
+    }
+
+    #address-input label {
+      display: block;
+      margin-bottom: 5px;
+      color: #9cdcfe;
+    }
+
+    #start-addr {
+      width: 150px;
+    }
+
+    .help-text {
+      color: #808080;
+      font-size: 12px;
+      margin-top: 10px;
+      font-style: italic;
+    }
+
+    .browser-warning {
+      background: #5a3f1f;
+      color: #dcdcaa;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      border-left: 4px solid #dcdcaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>MC6800 Emulator Control</h1>
+
+  <div id="browser-check" class="browser-warning" style="display:none;">
+    ⚠️ WebSerial API not supported in this browser. Please use Chrome, Edge, or Opera.
+  </div>
+
+  <!-- Connection Panel -->
+  <div class="panel">
+    <h2>Connection</h2>
+    <button id="connect-btn">Connect to Emulator</button>
+    <span id="status-indicator" class="disconnected">Disconnected</span>
+    <div class="help-text">Click "Connect" to select the emulator's USB serial port.</div>
+  </div>
+
+  <!-- CPU Control Panel -->
+  <div class="panel">
+    <h2>CPU Control</h2>
+    <button id="run-btn" disabled>Run</button>
+    <button id="halt-btn" disabled>Halt</button>
+    <button id="reset-btn" disabled>Reset</button>
+  </div>
+
+  <!-- Status Display Panel -->
+  <div class="panel">
+    <h2>CPU Status</h2>
+    <button id="refresh-btn" disabled>Refresh Now</button>
+    <button id="auto-refresh-btn" disabled>Auto-Refresh: ON</button>
+    <span style="font-size:12px; color:#808080; margin-left:10px;" id="refresh-status">Not connected</span>
+    <div id="status-display">
+      <div class="status-row">
+        <span class="status-label">PC:</span>
+        <span class="status-value" id="reg-pc">$0000</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">A:</span>
+        <span class="status-value" id="reg-a">$00</span>
+        <span class="status-label" style="margin-left:20px;">B:</span>
+        <span class="status-value" id="reg-b">$00</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">X:</span>
+        <span class="status-value" id="reg-x">$0000</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">SP:</span>
+        <span class="status-value" id="reg-sp">$0000</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">CCR:</span>
+        <span class="status-value" id="reg-ccr">$00</span>
+        <span style="color:#808080;margin-left:10px;" id="flags">------</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Running:</span>
+        <span class="status-value" id="running">NO</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Instructions:</span>
+        <span class="status-value" id="instructions">0</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Speed:</span>
+        <span class="status-value" id="speed">0.00x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROM Upload Panel -->
+  <div class="panel">
+    <h2>ROM Upload</h2>
+    <input type="file" id="rom-file" accept=".hex,.bin" disabled>
+    <div id="address-input" style="display:none;">
+      <label for="start-addr">Start Address (hex, no $ prefix):</label>
+      <input type="text" id="start-addr" placeholder="5800" maxlength="4">
+      <span id="address-hint" style="font-size:12px; color:#808080; margin-left:10px;"></span>
+    </div>
+    <button id="upload-btn" disabled>Upload ROM</button>
+    <div id="upload-status"></div>
+    <div class="help-text">
+      Supports Intel HEX (.hex) and binary (.bin) files.<br>
+      Binary files: IC number auto-detected from filename (IC26→$5800, IC14→$6000, IC20→$6800, IC17→$7000)<br>
+      Manual address overrides auto-detection.
+    </div>
+  </div>
+
+  <!-- Terminal Panel -->
+  <div class="panel" id="terminal-panel">
+    <h2>Terminal</h2>
+    <div id="terminal-output"></div>
+    <input type="text" id="terminal-input" placeholder="Enter command... (try 'help')" disabled>
+    <div class="help-text">Enter raw commands. Use up/down arrows for command history.</div>
+  </div>
+
+  <script>
+    // ============================================================================
+    // WebSerial Connection Manager
+    // ============================================================================
+    class EmulatorConnection {
+      constructor() {
+        this.port = null;
+        this.reader = null;
+        this.writer = null;
+        this.readBuffer = '';
+        this.onDataCallbacks = [];
+        this.connected = false;
+        this.reading = false;
+      }
+
+      async connect() {
+        try {
+          // Request serial port
+          this.port = await navigator.serial.requestPort();
+
+          // Open port (baudRate ignored for USB CDC but required by API)
+          await this.port.open({ baudRate: 115200 });
+
+          this.connected = true;
+
+          // Start read loop
+          this.startReadLoop();
+
+          return true;
+        } catch (error) {
+          console.error('Connection error:', error);
+          throw error;
+        }
+      }
+
+      async disconnect() {
+        this.connected = false;
+        this.reading = false;
+
+        try {
+          if (this.reader) {
+            await this.reader.cancel();
+            this.reader.releaseLock();
+            this.reader = null;
+          }
+
+          if (this.port) {
+            await this.port.close();
+            this.port = null;
+          }
+        } catch (error) {
+          console.error('Disconnect error:', error);
+        }
+      }
+
+      async sendCommand(cmd) {
+        if (!this.connected || !this.port) {
+          throw new Error('Not connected');
+        }
+
+        const encoder = new TextEncoder();
+        const writer = this.port.writable.getWriter();
+
+        try {
+          await writer.write(encoder.encode(cmd + '\r\n'));
+          return true;
+        } finally {
+          writer.releaseLock();
+        }
+      }
+
+      async startReadLoop() {
+        this.reading = true;
+        const decoder = new TextDecoder();
+        this.reader = this.port.readable.getReader();
+
+        try {
+          while (this.reading && this.connected) {
+            const { value, done } = await this.reader.read();
+            if (done) break;
+
+            const text = decoder.decode(value);
+            this.readBuffer += text;
+
+            // Process complete lines
+            let newlineIndex;
+            while ((newlineIndex = this.readBuffer.indexOf('\n')) !== -1) {
+              const line = this.readBuffer.substring(0, newlineIndex).trim();
+              this.readBuffer = this.readBuffer.substring(newlineIndex + 1);
+
+              if (line) {
+                this.onDataCallbacks.forEach(callback => callback(line));
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Read error:', error);
+          if (this.connected) {
+            this.onDataCallbacks.forEach(callback =>
+              callback('ERROR: Connection lost')
+            );
+          }
+        } finally {
+          if (this.reader) {
+            this.reader.releaseLock();
+            this.reader = null;
+          }
+        }
+      }
+
+      onData(callback) {
+        this.onDataCallbacks.push(callback);
+      }
+
+      isConnected() {
+        return this.connected;
+      }
+    }
+
+    // ============================================================================
+    // ROM Loader
+    // ============================================================================
+    class ROMLoader {
+      constructor(connection) {
+        this.connection = connection;
+      }
+
+      async loadFile(file, startAddress = null) {
+        const filename = file.name;
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // Detect format
+        const isHex = this.detectHexFormat(filename, uint8Array);
+
+        if (isHex) {
+          // Intel HEX format - send directly
+          const hexText = new TextDecoder().decode(uint8Array);
+          return await this.loadHex(hexText);
+        } else {
+          // Binary format - convert and load
+          return await this.loadBinary(uint8Array, filename, startAddress);
+        }
+      }
+
+      detectHexFormat(filename, data) {
+        // Check file extension
+        if (filename.toLowerCase().endsWith('.hex')) {
+          return true;
+        }
+
+        // Check content (Intel HEX starts with ':')
+        if (data.length > 0 && data[0] === 0x3A) { // ':' character
+          return true;
+        }
+
+        return false;
+      }
+
+      async loadHex(hexData) {
+        // Send "load" command and wait for ready response
+        await this.connection.sendCommand('load');
+
+        console.log('Waiting for emulator to enter HEX load mode...');
+
+        // Wait for emulator to acknowledge and enter HEX mode
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            const index = this.connection.onDataCallbacks.indexOf(handleReady);
+            if (index > -1) {
+              this.connection.onDataCallbacks.splice(index, 1);
+            }
+            reject(new Error('Timeout waiting for emulator to enter HEX mode'));
+          }, 3000);
+
+          const handleReady = (line) => {
+            if (line.includes('Ready') || line.includes('Paste') || line.includes('load')) {
+              clearTimeout(timeout);
+              const index = this.connection.onDataCallbacks.indexOf(handleReady);
+              if (index > -1) {
+                this.connection.onDataCallbacks.splice(index, 1);
+              }
+              console.log('Emulator ready, proceeding with HEX upload');
+              resolve();
+            }
+          };
+
+          this.connection.onData(handleReady);
+        });
+
+        // Wait for writer to be fully released
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Set up response handler BEFORE sending HEX data
+        // (EOF record triggers immediate processing)
+        const uploadPromise = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            // Remove callback
+            const index = this.connection.onDataCallbacks.indexOf(handleResponse);
+            if (index > -1) {
+              this.connection.onDataCallbacks.splice(index, 1);
+            }
+            reject(new Error('Upload timeout - flash write may have failed'));
+          }, 15000); // 15 second timeout for flash operations
+
+          const handleResponse = (line) => {
+            if (line.includes('OK') || line.includes('success')) {
+              clearTimeout(timeout);
+              // Remove this callback so it doesn't accumulate
+              const index = this.connection.onDataCallbacks.indexOf(handleResponse);
+              if (index > -1) {
+                this.connection.onDataCallbacks.splice(index, 1);
+              }
+              resolve(line);
+            } else if (line.includes('ERROR') || line.includes('Failed')) {
+              clearTimeout(timeout);
+              // Remove this callback
+              const index = this.connection.onDataCallbacks.indexOf(handleResponse);
+              if (index > -1) {
+                this.connection.onDataCallbacks.splice(index, 1);
+              }
+              reject(new Error(line));
+            }
+          };
+
+          this.connection.onData(handleResponse);
+        });
+
+        // Send HEX data directly (not using sendCommand to avoid extra \r\n)
+        // EOF record will trigger processing and "OK" response
+        console.log('Sending HEX data to emulator, size:', hexData.length, 'bytes');
+        console.log('HEX data starts with:', hexData.substring(0, 100));
+        console.log('HEX data ends with:', hexData.substring(hexData.length - 50));
+
+        const encoder = new TextEncoder();
+        const writer = this.connection.port.writable.getWriter();
+
+        try {
+          const encoded = encoder.encode(hexData);
+          console.log('Encoded data size:', encoded.length, 'bytes');
+          await writer.write(encoded);
+          console.log('HEX data sent successfully');
+        } finally {
+          writer.releaseLock();
+        }
+
+        // Wait for response (don't send "end" - EOF triggers auto-processing)
+        return uploadPromise;
+      }
+
+      async loadBinary(binData, filename, manualAddress = null) {
+        // Determine start address
+        let startAddr = manualAddress;
+
+        if (startAddr === null) {
+          // Try to detect IC number from filename
+          const icNumber = this.detectICNumber(filename);
+          if (icNumber !== null) {
+            startAddr = this.icToAddress(icNumber);
+          }
+        }
+
+        if (startAddr === null) {
+          throw new Error('Start address required for binary file');
+        }
+
+        // Convert to Intel HEX
+        const hexData = this.binaryToIntelHex(binData, startAddr);
+
+        // Load via HEX method
+        return await this.loadHex(hexData);
+      }
+
+      detectICNumber(filename) {
+        const match = filename.match(/IC(\d+)/i);
+        return match ? parseInt(match[1]) : null;
+      }
+
+      icToAddress(icNumber) {
+        // System 7 IC mappings
+        const mappings = {
+          26: 0x5800,
+          14: 0x6000,
+          20: 0x6800,
+          17: 0x7000
+        };
+        return mappings[icNumber] || null;
+      }
+
+      binaryToIntelHex(binData, startAddress) {
+        const records = [];
+        const BYTES_PER_RECORD = 16;
+
+        console.log('Converting binary to HEX:', binData.length, 'bytes at address $' + startAddress.toString(16));
+
+        for (let i = 0; i < binData.length; i += BYTES_PER_RECORD) {
+          const chunk = binData.slice(i, Math.min(i + BYTES_PER_RECORD, binData.length));
+          const address = startAddress + i;
+          records.push(this.createHexRecord(chunk, address));
+        }
+
+        // Add EOF record
+        records.push(':00000001FF');
+
+        console.log('Generated', records.length, 'HEX records (including EOF)');
+        console.log('First record:', records[0]);
+        console.log('Second record:', records[1]);
+        console.log('Last data record:', records[records.length - 2]);
+        console.log('EOF record:', records[records.length - 1]);
+
+        // Use \r\n line endings for proper Intel HEX format
+        const hexData = records.join('\r\n') + '\r\n';
+        console.log('Total HEX data size:', hexData.length, 'bytes');
+
+        return hexData;
+      }
+
+      createHexRecord(data, address) {
+        const byteCount = data.length;
+        const recordType = 0x00; // Data record
+
+        // Calculate checksum
+        let checksum = byteCount + (address >> 8) + (address & 0xFF) + recordType;
+        for (let i = 0; i < data.length; i++) {
+          checksum += data[i];
+        }
+        checksum = (256 - (checksum & 0xFF)) & 0xFF;
+
+        // Format: :LLAAAATTDD...CC
+        let record = ':';
+        record += byteCount.toString(16).padStart(2, '0').toUpperCase();
+        record += address.toString(16).padStart(4, '0').toUpperCase();
+        record += '00';
+        for (let i = 0; i < data.length; i++) {
+          record += data[i].toString(16).padStart(2, '0').toUpperCase();
+        }
+        record += checksum.toString(16).padStart(2, '0').toUpperCase();
+
+        return record;
+      }
+    }
+
+    // ============================================================================
+    // Status Parser
+    // ============================================================================
+    class StatusParser {
+      parse(statusText) {
+        const status = {};
+
+        // Extract fields using regex
+        const pcMatch = statusText.match(/PC:\s*\$([0-9A-F]{4})/i);
+        const aMatch = statusText.match(/A:\s*\$([0-9A-F]{2})/i);
+        const bMatch = statusText.match(/B:\s*\$([0-9A-F]{2})/i);
+        const xMatch = statusText.match(/X:\s*\$([0-9A-F]{4})/i);
+        const spMatch = statusText.match(/SP:\s*\$([0-9A-F]{4})/i);
+        const ccrMatch = statusText.match(/CCR:\s*\$([0-9A-F]{2})\s*\[([^\]]+)\]/i);
+        const runningMatch = statusText.match(/Running:\s*(YES|NO)/i);
+        const instructionsMatch = statusText.match(/Instructions:\s*(\d+)/i);
+        const speedMatch = statusText.match(/Speed:\s*([\d.]+)x/i);
+
+        if (pcMatch) status.pc = '$' + pcMatch[1];
+        if (aMatch) status.a = '$' + aMatch[1];
+        if (bMatch) status.b = '$' + bMatch[1];
+        if (xMatch) status.x = '$' + xMatch[1];
+        if (spMatch) status.sp = '$' + spMatch[1];
+        if (ccrMatch) {
+          status.ccr = '$' + ccrMatch[1];
+          status.flags = ccrMatch[2];
+        }
+        if (runningMatch) status.running = runningMatch[1];
+        if (instructionsMatch) status.instructions = instructionsMatch[1];
+        if (speedMatch) status.speed = speedMatch[1] + 'x';
+
+        return status;
+      }
+    }
+
+    // ============================================================================
+    // UI Controller
+    // ============================================================================
+    class UI {
+      constructor() {
+        this.connection = new EmulatorConnection();
+        this.romLoader = new ROMLoader(this.connection);
+        this.statusParser = new StatusParser();
+        this.autoRefreshInterval = null;
+        this.autoRefreshEnabled = true;
+        this.cpuRunning = false;
+        this.commandHistory = [];
+        this.historyIndex = -1;
+        this.terminalBuffer = [];
+      }
+
+      async init() {
+        // Check browser support
+        if (!('serial' in navigator)) {
+          document.getElementById('browser-check').style.display = 'block';
+          return;
+        }
+
+        this.setupEventListeners();
+
+        // Listen for data from emulator
+        this.connection.onData((line) => {
+          this.appendTerminal(line, 'response');
+        });
+      }
+
+      setupEventListeners() {
+        // Connection
+        document.getElementById('connect-btn').addEventListener('click', () => {
+          if (this.connection.isConnected()) {
+            this.onDisconnect();
+          } else {
+            this.onConnect();
+          }
+        });
+
+        // CPU Control
+        document.getElementById('run-btn').addEventListener('click', () => this.onRun());
+        document.getElementById('halt-btn').addEventListener('click', () => this.onHalt());
+        document.getElementById('reset-btn').addEventListener('click', () => this.onReset());
+
+        // Status Control
+        document.getElementById('refresh-btn').addEventListener('click', () => this.refreshStatus());
+        document.getElementById('auto-refresh-btn').addEventListener('click', () => this.toggleAutoRefresh());
+
+        // ROM Upload
+        document.getElementById('rom-file').addEventListener('change', () => this.onFileSelected());
+        document.getElementById('upload-btn').addEventListener('click', () => this.onUpload());
+
+        // Terminal
+        const terminalInput = document.getElementById('terminal-input');
+        terminalInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            this.onTerminalInput();
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.showPreviousCommand();
+          } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.showNextCommand();
+          }
+        });
+      }
+
+      async onConnect() {
+        try {
+          await this.connection.connect();
+
+          // Update UI
+          document.getElementById('status-indicator').textContent = 'Connected';
+          document.getElementById('status-indicator').className = 'connected';
+          document.getElementById('connect-btn').textContent = 'Disconnect';
+
+          // Enable controls
+          document.getElementById('run-btn').disabled = false;
+          document.getElementById('halt-btn').disabled = false;
+          document.getElementById('reset-btn').disabled = false;
+          document.getElementById('rom-file').disabled = false;
+          document.getElementById('terminal-input').disabled = false;
+          document.getElementById('refresh-btn').disabled = false;
+          document.getElementById('auto-refresh-btn').disabled = false;
+
+          // Start auto-refresh
+          this.startAutoRefresh();
+
+          // Initial status update
+          await this.refreshStatus();
+
+          this.appendTerminal('Connected to emulator', 'response');
+        } catch (error) {
+          this.appendTerminal('Connection failed: ' + error.message, 'error');
+        }
+      }
+
+      async onDisconnect() {
+        this.stopAutoRefresh();
+        await this.connection.disconnect();
+
+        // Update UI
+        document.getElementById('status-indicator').textContent = 'Disconnected';
+        document.getElementById('status-indicator').className = 'disconnected';
+        document.getElementById('connect-btn').textContent = 'Connect to Emulator';
+
+        // Disable controls
+        document.getElementById('run-btn').disabled = true;
+        document.getElementById('halt-btn').disabled = true;
+        document.getElementById('reset-btn').disabled = true;
+        document.getElementById('rom-file').disabled = true;
+        document.getElementById('upload-btn').disabled = true;
+        document.getElementById('terminal-input').disabled = true;
+        document.getElementById('refresh-btn').disabled = true;
+        document.getElementById('auto-refresh-btn').disabled = true;
+
+        this.updateRefreshStatus();
+        this.appendTerminal('Disconnected', 'response');
+      }
+
+      async onRun() {
+        try {
+          await this.connection.sendCommand('run');
+          this.appendTerminal('> run', 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onHalt() {
+        try {
+          await this.connection.sendCommand('halt');
+          this.appendTerminal('> halt', 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onReset() {
+        try {
+          await this.connection.sendCommand('reset');
+          this.appendTerminal('> reset', 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async refreshStatus() {
+        if (!this.connection.isConnected()) return;
+
+        try {
+          // Send status command (response will come via onData callback)
+          await this.connection.sendCommand('status');
+
+          // Parse response after a short delay
+          setTimeout(() => {
+            // Get last few lines from terminal buffer
+            const recentLines = this.terminalBuffer.slice(-15).join('\n');
+            const status = this.statusParser.parse(recentLines);
+            this.updateStatusDisplay(status);
+
+            // Update CPU running state
+            this.cpuRunning = status.running === 'YES';
+
+            // If CPU is halted and auto-refresh is enabled, stop refreshing
+            if (!this.cpuRunning && this.autoRefreshEnabled && this.autoRefreshInterval) {
+              this.updateRefreshStatus();
+            }
+          }, 200);
+        } catch (error) {
+          console.error('Status refresh error:', error);
+        }
+      }
+
+      startAutoRefresh() {
+        if (!this.autoRefreshEnabled) return;
+
+        if (this.autoRefreshInterval) {
+          clearInterval(this.autoRefreshInterval);
+        }
+        this.autoRefreshInterval = setInterval(() => {
+          // Only refresh if CPU is running or we haven't checked yet
+          if (this.cpuRunning || this.autoRefreshInterval === null) {
+            this.refreshStatus();
+          }
+        }, 1000);
+        this.updateRefreshStatus();
+      }
+
+      stopAutoRefresh() {
+        if (this.autoRefreshInterval) {
+          clearInterval(this.autoRefreshInterval);
+          this.autoRefreshInterval = null;
+        }
+        this.updateRefreshStatus();
+      }
+
+      toggleAutoRefresh() {
+        this.autoRefreshEnabled = !this.autoRefreshEnabled;
+
+        const btn = document.getElementById('auto-refresh-btn');
+        btn.textContent = 'Auto-Refresh: ' + (this.autoRefreshEnabled ? 'ON' : 'OFF');
+
+        if (this.autoRefreshEnabled && this.connection.isConnected()) {
+          this.startAutoRefresh();
+        } else {
+          this.stopAutoRefresh();
+        }
+      }
+
+      updateRefreshStatus() {
+        const statusSpan = document.getElementById('refresh-status');
+        if (!this.autoRefreshEnabled) {
+          statusSpan.textContent = 'Auto-refresh disabled';
+        } else if (!this.cpuRunning && this.autoRefreshInterval) {
+          statusSpan.textContent = 'Paused (CPU halted)';
+        } else if (this.autoRefreshInterval) {
+          statusSpan.textContent = 'Updates every 1s when running';
+        } else {
+          statusSpan.textContent = 'Not connected';
+        }
+      }
+
+      onFileSelected() {
+        const fileInput = document.getElementById('rom-file');
+        const file = fileInput.files[0];
+        const addressInput = document.getElementById('start-addr');
+        const addressHint = document.getElementById('address-hint');
+
+        if (!file) {
+          document.getElementById('address-input').style.display = 'none';
+          document.getElementById('upload-btn').disabled = true;
+          addressInput.value = '';
+          addressHint.textContent = '';
+          return;
+        }
+
+        // Check if binary file
+        const isBinary = !file.name.toLowerCase().endsWith('.hex');
+
+        if (isBinary) {
+          // Show address input for binary files
+          document.getElementById('address-input').style.display = 'block';
+          document.getElementById('upload-btn').disabled = false;
+
+          // Try to detect IC number from filename
+          const icNumber = this.romLoader.detectICNumber(file.name);
+          if (icNumber !== null) {
+            const detectedAddr = this.romLoader.icToAddress(icNumber);
+            if (detectedAddr !== null) {
+              // Pre-fill with detected address
+              addressInput.value = detectedAddr.toString(16).toUpperCase();
+              addressHint.textContent = `(IC${icNumber} detected)`;
+            }
+          } else {
+            addressInput.value = '';
+            addressHint.textContent = '(no IC number detected)';
+          }
+        } else {
+          // HEX file - hide address input
+          document.getElementById('address-input').style.display = 'none';
+          document.getElementById('upload-btn').disabled = false;
+          addressInput.value = '';
+          addressHint.textContent = '';
+        }
+      }
+
+      async onUpload() {
+        const fileInput = document.getElementById('rom-file');
+        const file = fileInput.files[0];
+
+        if (!file) {
+          this.showUploadStatus('No file selected', 'error');
+          return;
+        }
+
+        // Get start address for binary files
+        let startAddress = null;
+        const isBinary = !file.name.toLowerCase().endsWith('.hex');
+
+        if (isBinary) {
+          const addrInput = document.getElementById('start-addr');
+          if (addrInput.value) {
+            startAddress = parseInt(addrInput.value, 16);
+            if (isNaN(startAddress)) {
+              this.showUploadStatus('Invalid address (must be hex)', 'error');
+              return;
+            }
+          } else {
+            this.showUploadStatus('Start address required for binary file', 'error');
+            return;
+          }
+        }
+
+        try {
+          this.showUploadStatus('Uploading ' + file.name + '...', 'progress');
+
+          await this.romLoader.loadFile(file, startAddress);
+
+          this.showUploadStatus('Upload successful!', 'success');
+          this.appendTerminal('ROM uploaded: ' + file.name, 'response');
+
+          // Clear file input and address
+          fileInput.value = '';
+          document.getElementById('start-addr').value = '';
+          document.getElementById('address-hint').textContent = '';
+          document.getElementById('address-input').style.display = 'none';
+          document.getElementById('upload-btn').disabled = true;
+        } catch (error) {
+          this.showUploadStatus('Upload failed: ' + error.message, 'error');
+          this.appendTerminal('Upload error: ' + error.message, 'error');
+        }
+      }
+
+      showUploadStatus(message, type) {
+        const statusDiv = document.getElementById('upload-status');
+        statusDiv.textContent = message;
+        statusDiv.className = type;
+
+        if (type === 'success' || type === 'error') {
+          setTimeout(() => {
+            statusDiv.style.display = 'none';
+          }, 5000);
+        }
+      }
+
+      async onTerminalInput() {
+        const input = document.getElementById('terminal-input');
+        const command = input.value.trim();
+
+        if (!command) return;
+
+        // Add to history
+        this.commandHistory.push(command);
+        this.historyIndex = this.commandHistory.length;
+
+        // Display command
+        this.appendTerminal('> ' + command, 'command');
+
+        // Send command
+        try {
+          await this.connection.sendCommand(command);
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+
+        // Clear input
+        input.value = '';
+      }
+
+      showPreviousCommand() {
+        if (this.historyIndex > 0) {
+          this.historyIndex--;
+          document.getElementById('terminal-input').value = this.commandHistory[this.historyIndex];
+        }
+      }
+
+      showNextCommand() {
+        if (this.historyIndex < this.commandHistory.length - 1) {
+          this.historyIndex++;
+          document.getElementById('terminal-input').value = this.commandHistory[this.historyIndex];
+        } else {
+          this.historyIndex = this.commandHistory.length;
+          document.getElementById('terminal-input').value = '';
+        }
+      }
+
+      appendTerminal(text, className = 'response') {
+        const output = document.getElementById('terminal-output');
+        const div = document.createElement('div');
+        div.textContent = text;
+        div.className = className;
+        output.appendChild(div);
+
+        // Keep buffer for status parsing
+        this.terminalBuffer.push(text);
+        if (this.terminalBuffer.length > 50) {
+          this.terminalBuffer.shift();
+        }
+
+        // Auto-scroll
+        output.scrollTop = output.scrollHeight;
+      }
+
+      updateStatusDisplay(status) {
+        if (status.pc) document.getElementById('reg-pc').textContent = status.pc;
+        if (status.a) document.getElementById('reg-a').textContent = status.a;
+        if (status.b) document.getElementById('reg-b').textContent = status.b;
+        if (status.x) document.getElementById('reg-x').textContent = status.x;
+        if (status.sp) document.getElementById('reg-sp').textContent = status.sp;
+        if (status.ccr) document.getElementById('reg-ccr').textContent = status.ccr;
+        if (status.flags) document.getElementById('flags').textContent = '[' + status.flags + ']';
+        if (status.running) document.getElementById('running').textContent = status.running;
+        if (status.instructions) document.getElementById('instructions').textContent = status.instructions;
+        if (status.speed) document.getElementById('speed').textContent = status.speed;
+      }
+    }
+
+    // ============================================================================
+    // Initialize on page load
+    // ============================================================================
+    window.addEventListener('DOMContentLoaded', () => {
+      const ui = new UI();
+      ui.init();
+    });
+  </script>
+</body>
+</html>
