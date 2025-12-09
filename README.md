@@ -39,8 +39,16 @@ The PIO and DMA peripherals MAY be used to speed bus operations, which include:
 The USB interface presents as a CDC device to the host PC for loading EPROM contents into RP2350 flash, as well as for interactive diagnostics.
 These diagnostics include:
   - Read memory
-  - Write memory 
+  - Write memory
   - Checksum memory range
+
+A browser-based web interface (`web-interface/emulator-control.html`) provides a graphical control panel for the emulator, featuring:
+  - WebSerial USB connection
+  - Real-time CPU status monitoring
+  - One-click ROM loading (Intel HEX and binary files)
+  - Automatic IC number detection for System 7 boards
+  - Built-in terminal for command-line access
+  - See: [Web Interface Documentation](doc/Web-Interface.md)
 
 For debugging, a clocked serial data stream is available via a hardware SPI port that outputs for every instruction:
     - current PC value (16 bits)

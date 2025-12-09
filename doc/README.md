@@ -64,6 +64,20 @@ Detailed memory architecture:
 
 **Best for**: Understanding memory layout, debugging memory issues
 
+### 🌐 [Web Interface](Web-Interface.md)
+**Browser-based control panel**
+
+Graphical interface for controlling the emulator:
+- One-click connection via WebSerial API
+- Real-time CPU status with auto-refresh
+- Visual CPU control buttons (Run/Halt/Reset)
+- Drag-and-drop ROM loading (HEX and binary)
+- Automatic IC number detection (System 7)
+- Built-in terminal for advanced commands
+- No installation required (single HTML file)
+
+**Best for**: Beginners, visual learners, quick ROM loading
+
 ### 💻 [USB Commands](USB-Commands.md)
 **Complete command reference**
 
@@ -77,7 +91,7 @@ Full USB CDC interface documentation:
 - Debugging tools
 - Error messages and solutions
 
-**Best for**: Daily use reference, scripting, automation
+**Best for**: Daily use reference, scripting, automation, terminal users
 
 ## Quick Navigation
 
@@ -85,8 +99,9 @@ Full USB CDC interface documentation:
 
 **First-Time User**:
 1. [Getting Started](Getting-Started.md) → Flash and run
-2. [USB Commands](USB-Commands.md) → Learn basic commands
+2. [Web Interface](Web-Interface.md) → Easy graphical control (recommended)
 3. [Getting Started - Examples](Getting-Started.md#example-programs) → Try example programs
+4. [USB Commands](USB-Commands.md) → Advanced command-line control
 
 **Hardware Developer**:
 1. [Hardware Connection](Hardware-Connection.md) → Pin assignments
@@ -106,6 +121,7 @@ Full USB CDC interface documentation:
 ### By Task
 
 **Loading Programs**:
+- [Web Interface - ROM Upload](Web-Interface.md#4-rom-upload-panel) → Easiest method (recommended)
 - [Getting Started - Loading](Getting-Started.md#loading-your-own-program)
 - [USB Commands - load](USB-Commands.md#load)
 - [Memory Map - ROM](Memory-Map.md#rom-flash)
@@ -150,10 +166,11 @@ Full USB CDC interface documentation:
 - **Address Space**: 64KB with A15 aliasing
 
 ### Interface
-- **USB CDC**: Command-line interface
+- **Web Interface**: Browser-based GUI (Chrome/Edge/Opera)
+- **USB CDC**: Command-line interface via serial terminal
 - **UART**: Debug output (GPIO 16-17)
 - **SPI**: Debug trace (GPIO 18-19)
-- **Intel HEX**: Standard program loading
+- **Intel HEX**: Standard program loading format
 
 ## Key Specifications
 
@@ -182,6 +199,15 @@ $7FF8-$7FFF:   └─ Vectors
 ## Common Tasks
 
 ### Load and Run Program
+
+**Via Web Interface (Easiest)**:
+1. Open `web-interface/emulator-control.html` in Chrome
+2. Click "Connect to Emulator"
+3. Choose ROM file (HEX or binary)
+4. Click "Upload ROM"
+5. Click "Reset" → "Run"
+
+**Via USB Terminal**:
 ```bash
 load
 [paste HEX file]
@@ -235,7 +261,8 @@ read 7FF8 8
 | Architecture | 2024-12-05 | 1.0 |
 | Hardware Connection | 2024-12-05 | 1.0 |
 | Memory Map | 2024-12-05 | 1.0 |
-| USB Commands | 2024-12-05 | 1.0 |
+| Web Interface | 2024-12-09 | 1.0 |
+| USB Commands | 2024-12-09 | 1.1 |
 
 ## Contributing
 

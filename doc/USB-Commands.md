@@ -4,7 +4,17 @@
 
 The MC6800 Emulator provides a comprehensive command-line interface via USB CDC (Communication Device Class). This allows you to control the emulator, load programs, inspect memory, and configure the system without requiring specialized software.
 
+**💡 Prefer a graphical interface?** Check out the [Web Interface](Web-Interface.md) for a browser-based control panel with visual status display, one-click ROM uploads, and auto-refresh capabilities. The web interface uses these same USB commands under the hood.
+
+**This document** covers the raw USB CDC command protocol for:
+- Terminal/command-line users
+- Scripting and automation
+- Understanding the communication protocol
+- Advanced debugging and testing
+
 ## Connection
+
+**💡 Tip**: The [Web Interface](Web-Interface.md) (`web-interface/emulator-control.html`) provides an easier way to connect using your browser's built-in serial support - no terminal software required!
 
 ### Serial Terminal Settings
 
