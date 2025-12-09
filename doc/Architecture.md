@@ -146,7 +146,7 @@ Target Frequency: 894.886 kHz (Williams System 7)
 Period:          1.117 µs
 Duty Cycle:      50%
 Implementation:  PIO state machine
-Output Pin:      GPIO 29
+Output Pin:      GPIO 22 (Pico 2) / GPIO 25 (Waveshare)
 ```
 
 **Why PIO?**
@@ -195,15 +195,13 @@ Write Cycle:
 
 **Control Signals**:
 - VMA (Valid Memory Address): GPIO 21 (Pico 2) / GPIO 24 (Waveshare)
-- R/W (Read/Write): GPIO 22 (Pico 2) / GPIO 25 (Waveshare)
+- E (E Clock): GPIO 22 (Pico 2) / GPIO 25 (Waveshare) - PIO-generated
+- R/W (Read/Write): GPIO 23 (Pico 2) / GPIO 26 (Waveshare)
 
 **Interrupt Inputs** (Active Low):
-- /IRQ: GPIO 26
-- /NMI: GPIO 27
-- /RESET: GPIO 28
-
-**E Clock Output**:
-- E: GPIO 29 (PIO-generated)
+- /IRQ: GPIO 27
+- /NMI: GPIO 28
+- /RESET: GPIO 29
 
 ### Bus Cycle Implementation
 

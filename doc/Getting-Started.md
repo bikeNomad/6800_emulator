@@ -274,8 +274,8 @@ Address Bus:
 
 Control:
   Pico GPIO 21   →   PIA /CS (via decode)
-  Pico GPIO 22   →   PIA R/W
-  Pico GPIO 29   →   PIA E
+  Pico GPIO 22   →   PIA E
+  Pico GPIO 23   →   PIA R/W
 
 Power:
   Pico 3.3V → 74LVC245 VccB
@@ -573,7 +573,7 @@ IRQ_HANDLER:
 > reset
 > run
 
-[Trigger IRQ on GPIO 26]
+[Trigger IRQ on GPIO 27]
 
 > halt
 > read 0101 1
@@ -886,11 +886,11 @@ GPIO 0-7:   Data bus (D0-D7)
 GPIO 8-9:   Address bus (A0-A1)
 GPIO 10-14: Address bus (A10-A14)
 GPIO 21:    VMA
-GPIO 22:    R/W
-GPIO 26:    /IRQ (input)
-GPIO 27:    /NMI (input)
-GPIO 28:    /RESET (input)
-GPIO 29:    E clock (output, 894.886 kHz)
+GPIO 22:    E clock (output, 894.886 kHz)
+GPIO 23:    R/W
+GPIO 27:    /IRQ (input)
+GPIO 28:    /NMI (input)
+GPIO 29:    /RESET (input)
 ```
 
 ---

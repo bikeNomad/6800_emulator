@@ -28,8 +28,9 @@
   #define ADDR_GPIO_MASK 0x7F00  // GPIO 8-14 for address bus
 
   // Control signal pins (adjusted for fewer GPIOs)
-  #define GPIO_VMA 21
-  #define GPIO_RW 22
+  #define GPIO_VMA    21  // VMA (Valid Memory Address) output
+  #define GPIO_ECLOCK 22  // E clock output (PIO)
+  #define GPIO_RW     23  // R/W (Read/Write) output
 
   // SPI debug pins
   #define GPIO_SPI_SCK 18
@@ -47,8 +48,9 @@
   #define ADDR_GPIO_MASK 0xFFFF00  // GPIO 8-23 for address bus
 
   // Control signal pins
-  #define GPIO_VMA 24
-  #define GPIO_RW 25
+  #define GPIO_VMA    24  // VMA (Valid Memory Address) output
+  #define GPIO_ECLOCK 25  // E clock output (PIO)
+  #define GPIO_RW     26  // R/W (Read/Write) output
 
   // SPI debug pins
   #define GPIO_SPI_SCK 30
@@ -68,12 +70,9 @@
 #define GPIO_ADDR_BASE  8   // GPIO 8+: Address bus (starts at GPIO 8)
 
 // Interrupt/Control inputs (same on all boards)
-#define GPIO_IRQ    26  // /IRQ input (active low)
-#define GPIO_NMI    27  // /NMI input (active low)
-#define GPIO_RESET  28  // /RESET input (active low)
-
-// E clock output
-#define GPIO_ECLOCK 29  // E clock output (PIO)
+#define GPIO_IRQ    27  // /IRQ input (active low)
+#define GPIO_NMI    28  // /NMI input (active low)
+#define GPIO_RESET  29  // /RESET input (active low)
 
 // UART debug pins (defined by CMake based on board type)
 // BOARD_PICO2: GPIO 16-17 (available)

@@ -105,22 +105,22 @@ Accessible addresses (128 total):
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
 | VMA | Output | 21 | Valid Memory Address |
-| R/W | Output | 22 | Read/Write (1=Read, 0=Write) |
-| /IRQ | Input | 26 | Interrupt Request (active low) |
-| /NMI | Input | 27 | Non-Maskable Interrupt (active low) |
-| /RESET | Input | 28 | Reset (active low) |
-| E | Output | 29 | E Clock (894.886 kHz) |
+| E | Output | 22 | E Clock (894.886 kHz) |
+| R/W | Output | 23 | Read/Write (1=Read, 0=Write) |
+| /IRQ | Input | 27 | Interrupt Request (active low) |
+| /NMI | Input | 28 | Non-Maskable Interrupt (active low) |
+| /RESET | Input | 29 | Reset (active low) |
 
 #### BOARD_NED_SYS7
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
 | VMA | Output | 24 | Valid Memory Address |
-| R/W | Output | 25 | Read/Write |
-| /IRQ | Input | 26 | Interrupt Request |
-| /NMI | Input | 27 | Non-Maskable Interrupt |
-| /RESET | Input | 28 | Reset |
-| E | Output | 29 | E Clock |
+| E | Output | 25 | E Clock (894.886 kHz) |
+| R/W | Output | 26 | Read/Write (1=Read, 0=Write) |
+| /IRQ | Input | 27 | Interrupt Request (active low) |
+| /NMI | Input | 28 | Non-Maskable Interrupt (active low) |
+| /RESET | Input | 29 | Reset (active low) |
 
 ### Debug Interfaces
 
@@ -183,7 +183,8 @@ D0-D7  ←→  74LVC245  ←→  GPIO 0-7
            (OE, DIR)
               ↓
            GPIO 21 (VMA)
-           GPIO 22 (R/W)
+           GPIO 22 (E Clock)
+           GPIO 23 (R/W)
 
 A0-A14 →   74LVC245  ←   GPIO 8-22
            (OE=GND)
@@ -242,9 +243,9 @@ Pin 24 (CS2)       ←   GPIO 13 (A13, via decode)
 Pin 23 (/CS1)      ←   Address decode logic
 Pin 22 (CS0)       ←   VCC
 
-Pin 21 (R/W)       ←   GPIO 22 (R/W)
-Pin 25 (E)         ←   GPIO 29 (E)
-Pin 34 (/RESET)    ←   GPIO 28 (/RESET)
+Pin 21 (R/W)       ←   GPIO 23 (R/W)
+Pin 25 (E)         ←   GPIO 22 (E)
+Pin 34 (/RESET)    ←   GPIO 29 (/RESET)
 ```
 
 **Address Decode Logic**:
@@ -494,7 +495,7 @@ Before full connection:
 
 ### Recommended Test Signals
 
-1. **E Clock (GPIO 29)**
+1. **E Clock (GPIO 22 PICO2 / GPIO 25 NED_SYS7)**
    - Frequency: 894.886 kHz
    - Duty cycle: 50%
    - Amplitude: 3.3V
@@ -504,11 +505,11 @@ Before full connection:
    - Active read: Input mode
    - Active write: Output mode, 0V or 3.3V
 
-3. **VMA (GPIO 21/24)**
+3. **VMA (GPIO 21 PICO2 / GPIO 24 NED_SYS7)**
    - Asserted during bus cycles
    - De-asserted between cycles
 
-4. **R/W (GPIO 22/25)**
+4. **R/W (GPIO 23 PICO2 / GPIO 26 NED_SYS7)**
    - High during reads
    - Low during writes
 
