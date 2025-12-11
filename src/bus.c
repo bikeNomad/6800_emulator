@@ -63,8 +63,8 @@ void bus_init(void) {
 
     // Initialize unused GPIO pins as inputs with pull-ups to prevent floating
 #if defined(BOARD_PICO2)
-    // PICO2 unused pins: 15, 20, 23, 24, 25
-    const int unused_pins[] = {15, 20, 23, 24, 25};
+    // PICO2 unused pins: 15, 20, 24, 25, 26
+    const int unused_pins[] = {15, 20, 24, 25, 26};
     for (int i = 0; i < 5; i++) {
         gpio_init(unused_pins[i]);
         gpio_set_dir(unused_pins[i], GPIO_IN);
@@ -84,11 +84,13 @@ void bus_init(void) {
     gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
     gpio_put(GPIO_LED_UNMAPPED, 1);  // Off
 
-    // Initialize remaining unused high GPIO pins (37-48)
-    for (int i = 37; i <= 48; i++) {
-        gpio_init(i);
-        gpio_set_dir(i, GPIO_IN);
-        gpio_pull_up(i);
+    // Initialize unused GPIO pins as inputs with pull-ups
+    // Unused: 30-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
+    const int unused_pins[] = {30, 31, 32, 35, 36, 42, 43, 44, 45, 46, 47};
+    for (int i = 0; i < 11; i++) {
+        gpio_init(unused_pins[i]);
+        gpio_set_dir(unused_pins[i], GPIO_IN);
+        gpio_pull_up(unused_pins[i]);
     }
 #endif
 
