@@ -89,13 +89,13 @@ pico_add_extra_outputs(mc6800_emulator)
 # System clock configuration (can be overridden from command line)
 # Options: 150-300 MHz (safe range for RP2350 with proper voltage)
 if(NOT DEFINED SYS_CLOCK_MHZ)
-    set(SYS_CLOCK_MHZ 300)  # Default: 300MHz
+    set(SYS_CLOCK_MHZ 266)  # Default: 266MHz (optimized for 133MHz QSPI flash)
 endif()
 
 # QSPI clock divisor configuration (can be overridden from command line)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
 if(NOT DEFINED QSPI_CLOCK_DIVISOR)
-    set(QSPI_CLOCK_DIVISOR 3)  # Default: system clock / 3 (100MHz with 300MHz sys clock)
+    set(QSPI_CLOCK_DIVISOR 2)  # Default: system clock / 2 (133MHz with 266MHz sys clock)
 endif()
 
 message(STATUS "QSPI clock divisor: ${QSPI_CLOCK_DIVISOR}")

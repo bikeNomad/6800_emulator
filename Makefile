@@ -15,11 +15,11 @@ BUILD_NED_SYS7_DIR = build_ned_sys7
 
 # System clock speed (can be overridden from command line)
 # Options: 150-300 MHz (safe range for RP2350 with proper voltage)
-SYS_CLOCK_MHZ ?= 300  # Default: 300MHz (for optimal emulation performance)
+SYS_CLOCK_MHZ ?= 266  # Default: 266MHz (optimized for 133MHz QSPI flash)
 
 # QSPI clock divisor (can be overridden from command line)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
-QSPI_CLOCK_DIVISOR ?= 3  # Default: 100MHz with 300MHz system clock (for PSRAM compatibility)
+QSPI_CLOCK_DIVISOR ?= 2  # Default: 133MHz with 266MHz system clock (flash chip max rating)
 
 # UF2 executable name (from CMakeLists.txt)
 UF2_NAME = mc6800_emulator.uf2
@@ -74,11 +74,12 @@ help:
 	@echo "  help         - Show this help"
 	@echo ""
 	@echo "Build options:"
-	@echo "  SYS_CLOCK_MHZ=N      - Set system clock speed in MHz (default: 300)"
+	@echo "  SYS_CLOCK_MHZ=N      - Set system clock speed in MHz (default: 266)"
 	@echo "                         Safe range: 150-300 MHz (RP2350 with proper voltage)"
 	@echo "                         Use: make SYS_CLOCK_MHZ=250 build_pico2"
-	@echo "  QSPI_CLOCK_DIVISOR=N - Set QSPI bus clock divisor (default: 3)"
-	@echo "                         With 300MHz sys clock: 1=300MHz, 2=150MHz, 3=100MHz, 4=75MHz"
+	@echo "  QSPI_CLOCK_DIVISOR=N - Set QSPI bus clock divisor (default: 2)"
+	@echo "                         With 266MHz sys clock: 1=266MHz, 2=133MHz, 3=88MHz, 4=66MHz"
+	@echo "                         Flash chip rated at 133MHz maximum"
 	@echo "                         Use: make QSPI_CLOCK_DIVISOR=4 build_pico2"
 	@echo ""
 	@echo "Examples:"

@@ -14,6 +14,8 @@
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 #include "hardware/vreg.h"
+#include "hardware/regs/qmi.h"
+#include "hardware/structs/qmi.h"
 
 
 #include "cpu_state.h"
@@ -30,12 +32,12 @@ extern cpu_state_t cpu;
 
 // System clock speed in MHz (configurable at build time)
 #ifndef SYS_CLOCK_MHZ
-#define SYS_CLOCK_MHZ 300  // Default: 300MHz
+#define SYS_CLOCK_MHZ 266  // Default: 266MHz (optimized for 133MHz QSPI flash)
 #endif
 
 // QSPI flash interface speed divisor (configurable at build time)
 #ifndef QSPI_CLOCK_DIVISOR
-#define QSPI_CLOCK_DIVISOR 3  // Default: system clock / 3 (100MHz with 300MHz sys clock)
+#define QSPI_CLOCK_DIVISOR 2  // Default: system clock / 2 (133MHz with 266MHz sys clock)
 #endif
 
 // Get current QSPI flash interface speed
@@ -44,13 +46,42 @@ uint32_t qspi_get_current_speed(void) {
     return sys_clock_hz / QSPI_CLOCK_DIVISOR;
 }
 
+// Configure QSPI (XIP) clock divisor
+// This must be called after set_sys_clock_khz() to apply the configured divisor
+void qspi_configure_clock(void) {
+    // On RP2350, the QSPI interface uses the QMI (Quad Memory Interface) peripheral
+    // The clock divisor is configured in the QMI_M0_TIMING register
+    // CLKDIV field controls the divisor: 0 = div by 1, 1 = div by 2, 2 = div by 3, etc.
+
+    // Read current timing configuration
+    uint32_t timing = qmi_hw->m[0].timing;
+
+    // Clear the CLKDIV field (bits 16:23)
+    timing &= ~(0xFF << QMI_M0_TIMING_CLKDIV_LSB);
+
+    // Set new divisor (subtract 1 because 0 = div by 1, 1 = div by 2, etc.)
+    uint32_t divisor_value = (QSPI_CLOCK_DIVISOR > 0) ? (QSPI_CLOCK_DIVISOR - 1) : 0;
+    timing |= (divisor_value << QMI_M0_TIMING_CLKDIV_LSB);
+
+    // Write back the timing configuration
+    qmi_hw->m[0].timing = timing;
+}
+
 // Report QSPI flash interface speed configuration
 void qspi_report_speed(void) {
     uint32_t sys_clock_hz = clock_get_hz(clk_sys);
-    uint32_t qspi_freq_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
 
-    printf("QSPI bus speed: %lu MHz (system clock divisor: %d)\n",
-           qspi_freq_hz / 1000000, QSPI_CLOCK_DIVISOR);
+    // Read actual divisor from QMI hardware
+    uint32_t timing = qmi_hw->m[0].timing;
+    uint32_t clkdiv_field = (timing >> QMI_M0_TIMING_CLKDIV_LSB) & 0xFF;
+    uint32_t actual_divisor = clkdiv_field + 1;  // Hardware uses 0-based divisor
+
+    uint32_t qspi_target_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
+    uint32_t qspi_actual_hz = sys_clock_hz / actual_divisor;
+
+    printf("QSPI bus speed: target %lu MHz (divisor: %d), actual %lu MHz (divisor: %lu)\n",
+           qspi_target_hz / 1000000, QSPI_CLOCK_DIVISOR,
+           qspi_actual_hz / 1000000, actual_divisor);
 }
 
 // Core 1: Dedicated USB CDC processing
@@ -73,6 +104,9 @@ int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_25);
     sleep_ms(10);
     set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, true);
+
+    // Configure QSPI clock divisor after system clock is set
+    qspi_configure_clock();
 
     // Report QSPI bus speed configuration
     qspi_report_speed();
