@@ -12,6 +12,7 @@
 #include "debug_spi.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
+#include "hardware/clocks.h"
 #include "tusb.h"
 #include <stdio.h>
 #include <string.h>
@@ -201,6 +202,11 @@ static void process_command(char *cmd) {
             float speed_ratio = (float)cycle_cnt / (float)pio_cnt;
             usb_cdc_printf("  Speed: %.2fx real-time\r\n", speed_ratio);
         }
+
+        // Include QSPI information
+        uint32_t sys_clock_hz = clock_get_hz(clk_sys);
+        uint32_t qspi_freq_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
+        usb_cdc_printf("  QSPI Bus: %lu MHz (divisor: %d)\r\n", qspi_freq_hz / 1000000, QSPI_CLOCK_DIVISOR);
 
     } else if (strcmp(cmd, "run") == 0) {
         // Start CPU execution

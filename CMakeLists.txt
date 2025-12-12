@@ -26,6 +26,7 @@ if(NOT DEFINED BOARD_TYPE)
 endif()
 
 message(STATUS "Building for board: ${BOARD_TYPE}")
+message(STATUS "System clock: ${SYS_CLOCK_MHZ} MHz")
 
 # Add executable
 add_executable(mc6800_emulator
@@ -85,11 +86,27 @@ message(STATUS "UART pins: TX=GPIO${UART_TX_PIN}, RX=GPIO${UART_RX_PIN}")
 # Create map/bin/hex/uf2 file etc.
 pico_add_extra_outputs(mc6800_emulator)
 
+# System clock configuration (can be overridden from command line)
+# Options: 150-300 MHz (safe range for RP2350 with proper voltage)
+if(NOT DEFINED SYS_CLOCK_MHZ)
+    set(SYS_CLOCK_MHZ 300)  # Default: 300MHz
+endif()
+
+# QSPI clock divisor configuration (can be overridden from command line)
+# Options: 1 (full speed), 2 (half speed), 3, 4, etc.
+if(NOT DEFINED QSPI_CLOCK_DIVISOR)
+    set(QSPI_CLOCK_DIVISOR 3)  # Default: system clock / 3 (100MHz with 300MHz sys clock)
+endif()
+
+message(STATUS "QSPI clock divisor: ${QSPI_CLOCK_DIVISOR}")
+
 # Add compile definitions for board type and UART pins
 target_compile_definitions(mc6800_emulator PRIVATE
     BOARD_TYPE=${BOARD_TYPE}
     PICO_DEFAULT_UART_TX_PIN=${UART_TX_PIN}
     PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
+    SYS_CLOCK_MHZ=${SYS_CLOCK_MHZ}
+    QSPI_CLOCK_DIVISOR=${QSPI_CLOCK_DIVISOR}
     DEBUG_INTERRUPTS=1  # Set to 0 to disable interrupt debug output
 )
 
