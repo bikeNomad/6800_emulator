@@ -74,9 +74,12 @@
 #define GPIO_NMI    28  // /NMI input (active low)
 #define GPIO_RESET  29  // /RESET input (active low)
 
-// UART debug pins (defined by CMake based on board type)
-// BOARD_PICO2: GPIO 16-17 (available)
-// BOARD_WAVESHARE: GPIO 32-33 (GPIO 16-17 used by address bus)
+  // PSRAM chip select (shared QSPI interface)
+  #define GPIO_PSRAM_CS    47  // PSRAM chip select
+
+  // UART debug pins (defined by CMake based on board type)
+  // BOARD_PICO2: GPIO 16-17 (available)
+  // BOARD_WAVESHARE: GPIO 32-33 (GPIO 16-17 used by address bus)
 #ifndef PICO_DEFAULT_UART_TX_PIN
   #error "PICO_DEFAULT_UART_TX_PIN not defined by CMake"
 #endif
