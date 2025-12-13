@@ -16,9 +16,11 @@
 // Initialize bus interface
 void bus_init(void) {
     // Configure data bus (GPIO 0-7) as inputs initially
+    // Set drive strength once here for efficiency (applies when pins become outputs)
     for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_IN);
+        gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);  // Set once during init
         gpio_pull_up(i);  // Weak pull-ups for floating data bus
     }
 
@@ -157,11 +159,9 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     // Wait for E clock low (beginning of cycle)
     bus_sync();
 
-    // Set data bus to output mode
-    for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {
-        gpio_set_dir(i, GPIO_OUT);
-        gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);
-    }
+    // Set data bus to output mode (bulk operation)
+    // Drive strength already configured in bus_init()
+    gpio_set_dir_masked(DATA_MASK, DATA_MASK);
 
     // Drive address bus using board-specific mapping
     drive_address_bus(address);
@@ -178,10 +178,8 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     // De-assert VMA and return R/W to read
     deassert_vma();
 
-    // Set data bus back to input mode
-    for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {
-        gpio_set_dir(i, GPIO_IN);
-    }
+    // Set data bus back to input mode (bulk operation)
+    gpio_set_dir_masked(DATA_MASK, 0);
 }
 
 // Wait for next E clock edge (with real-time tracking)
