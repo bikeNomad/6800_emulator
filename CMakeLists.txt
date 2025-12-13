@@ -74,14 +74,16 @@ pico_enable_stdio_uart(mc6800_emulator 1)
 if(BOARD_TYPE STREQUAL "BOARD_PICO2")
     set(UART_TX_PIN 16)
     set(UART_RX_PIN 17)
+    set(UART_INSTANCE 0)  # UART0 for Pico 2
 elseif(BOARD_TYPE STREQUAL "BOARD_NED_SYS7")
     set(UART_TX_PIN 40)
     set(UART_RX_PIN 41)
+    set(UART_INSTANCE 1)  # UART1 for NED_SYS7 (GPIO40/41 require UART1)
 else()
     message(FATAL_ERROR "Unknown BOARD_TYPE: ${BOARD_TYPE}")
 endif()
 
-message(STATUS "UART pins: TX=GPIO${UART_TX_PIN}, RX=GPIO${UART_RX_PIN}")
+message(STATUS "UART configuration: UART${UART_INSTANCE} on TX=GPIO${UART_TX_PIN}, RX=GPIO${UART_RX_PIN}")
 
 # Create map/bin/hex/uf2 file etc.
 pico_add_extra_outputs(mc6800_emulator)
@@ -103,6 +105,7 @@ message(STATUS "QSPI clock divisor: ${QSPI_CLOCK_DIVISOR}")
 # Add compile definitions for board type and UART pins
 target_compile_definitions(mc6800_emulator PRIVATE
     BOARD_TYPE=${BOARD_TYPE}
+    PICO_DEFAULT_UART=${UART_INSTANCE}
     PICO_DEFAULT_UART_TX_PIN=${UART_TX_PIN}
     PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
     SYS_CLOCK_MHZ=${SYS_CLOCK_MHZ}

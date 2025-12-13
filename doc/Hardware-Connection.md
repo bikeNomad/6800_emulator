@@ -139,10 +139,12 @@ Accessible addresses (128 total):
 |--------|-----------|------|-------|
 | SPI_SCK | Output | 33 | Debug SPI clock |
 | SPI_MOSI | Output | 34 | Debug SPI data |
-| UART_TX | Output | 40 | Debug UART output |
-| UART_RX | Input | 41 | Debug UART input |
+| UART_TX | Output | 40 | Debug UART output (UART1) |
+| UART_RX | Input | 41 | Debug UART input (UART1) |
 
-**Note**: UART pins differ by board - PICO2 uses GPIO 16-17 (available pins), NED_SYS7 uses GPIO 40-41 (address bus uses 8-23)
+**Note**: UART pins differ by board:
+- PICO2 uses GPIO 16-17 on UART0 (available pins)
+- NED_SYS7 uses GPIO 40-41 on UART1 (address bus uses 8-23, UART0 pins occupied)
 
 ### USB Interface
 
