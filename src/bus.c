@@ -74,14 +74,17 @@ void bus_init(void) {
     // NED_SYS7: Initialize LED indicators (active low, so HIGH = off)
     gpio_init(GPIO_LED_ROM);
     gpio_set_dir(GPIO_LED_ROM, GPIO_OUT);
+    gpio_set_drive_strength(GPIO_LED_ROM, GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
     gpio_put(GPIO_LED_ROM, 1);  // Off
 
     gpio_init(GPIO_LED_RAM);
     gpio_set_dir(GPIO_LED_RAM, GPIO_OUT);
+    gpio_set_drive_strength(GPIO_LED_RAM, GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
     gpio_put(GPIO_LED_RAM, 1);  // Off
 
     gpio_init(GPIO_LED_UNMAPPED);
     gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
+    gpio_set_drive_strength(GPIO_LED_UNMAPPED, GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
     gpio_put(GPIO_LED_UNMAPPED, 1);  // Off
 
     // Initialize unused GPIO pins as inputs with pull-ups

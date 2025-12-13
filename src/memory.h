@@ -94,4 +94,7 @@ void memory_set_cmos_autosave_enabled(bool enabled);
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t* memory_get_cmos_shadow(void);
 
+// Turn off all LEDs (for NED_SYS7 board)
+void led_all_off(void);
+
 #endif // MEMORY_H

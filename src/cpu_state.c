@@ -28,12 +28,8 @@ void cpu_init(void) {
     cpu.nmi_pending = false;
     cpu.instruction_count = 0;
 
-#if BOARD_TYPE == BOARD_NED_SYS7
-    // Turn off all LEDs (active low, so HIGH = off)
-    gpio_put(GPIO_LED_ROM, 1);
-    gpio_put(GPIO_LED_RAM, 1);
-    gpio_put(GPIO_LED_UNMAPPED, 1);
-#endif
+    // Turn off all LEDs at startup
+    led_all_off();
 
     // Check if ROM has been loaded (reset vector is not 0xFFFF)
     uint8_t vec_h = memory_read_fast(VECTOR_RESET);
@@ -68,12 +64,8 @@ void cpu_halt(void) {
     cpu.halted = true;
     eclock_stop();  // Stop E clock PIO
 
-#if BOARD_TYPE == BOARD_NED_SYS7
-    // Turn off all LEDs (active low, so HIGH = off)
-    gpio_put(GPIO_LED_ROM, 1);
-    gpio_put(GPIO_LED_RAM, 1);
-    gpio_put(GPIO_LED_UNMAPPED, 1);
-#endif
+    // Turn off all LEDs when halted
+    led_all_off();
 
     printf("CPU halted at PC=$%04X\n", cpu.pc);
 }

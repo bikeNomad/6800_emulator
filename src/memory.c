@@ -47,10 +47,17 @@ static inline void led_set_unmapped(void) {
     gpio_put_masked_hi(LED_MASK_HI, LED_UNMAPPED_ON_HI);
 }
 
-static inline void led_all_off(void) {
+static inline void led_all_off_inline(void) {
     gpio_put_masked_hi(LED_MASK_HI, LED_ALL_OFF_HI);
 }
 #endif
+
+// Public function to turn off all LEDs (for use outside memory.c)
+void led_all_off(void) {
+#if BOARD_TYPE == BOARD_NED_SYS7
+    led_all_off_inline();
+#endif
+}
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (1024 * 1024)  // 1MB offset (adjust based on program size)

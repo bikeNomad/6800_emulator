@@ -76,12 +76,8 @@ void interrupt_service_reset(void) {
     cpu.running = false;
     cpu.instruction_count = 0;  // Reset instruction counter
 
-#if BOARD_TYPE == BOARD_NED_SYS7
-    // Turn off all LEDs (active low, so HIGH = off)
-    gpio_put(GPIO_LED_ROM, 1);
-    gpio_put(GPIO_LED_RAM, 1);
-    gpio_put(GPIO_LED_UNMAPPED, 1);
-#endif
+    // Turn off all LEDs during reset
+    led_all_off();
 
     // Load PC from reset vector
     uint8_t pch = memory_read(VECTOR_RESET);
