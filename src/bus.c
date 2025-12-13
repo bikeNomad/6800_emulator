@@ -28,6 +28,7 @@ void bus_init(void) {
     for (int i = 8; i <= 14; i++) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_OUT);
+        gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);
         gpio_put(i, 0);
     }
 #else
@@ -35,6 +36,7 @@ void bus_init(void) {
     for (int i = 8; i <= 23; i++) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_OUT);
+        gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);
         gpio_put(i, 0);
     }
 #endif
@@ -42,10 +44,12 @@ void bus_init(void) {
     // Configure control signals
     gpio_init(GPIO_VMA);
     gpio_set_dir(GPIO_VMA, GPIO_OUT);
+    gpio_set_drive_strength(GPIO_VMA, GPIO_DRIVE_STRENGTH_12MA);
     gpio_put(GPIO_VMA, 0);  // VMA inactive
 
     gpio_init(GPIO_RW);
     gpio_set_dir(GPIO_RW, GPIO_OUT);
+    gpio_set_drive_strength(GPIO_RW, GPIO_DRIVE_STRENGTH_12MA);
     gpio_put(GPIO_RW, 1);  // Default to read
 
     // Configure interrupt inputs with pull-ups (active low)
@@ -71,6 +75,16 @@ void bus_init(void) {
         gpio_pull_up(unused_pins[i]);
     }
 #else
+    // NED_SYS7: Initialize unused GPIO pins as inputs with pull-ups
+    // Unused: 30-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
+    // Allow for either 36 or 39 to be used for yellow LED.
+    const int unused_pins[] = {30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
+    for (int i = 0; i < 11; i++) {
+        gpio_init(unused_pins[i]);
+        gpio_set_dir(unused_pins[i], GPIO_IN);
+        gpio_pull_up(unused_pins[i]);
+    }
+
     // NED_SYS7: Initialize LED indicators (active low, so HIGH = off)
     gpio_init(GPIO_LED_ROM);
     gpio_set_dir(GPIO_LED_ROM, GPIO_OUT);
@@ -86,15 +100,6 @@ void bus_init(void) {
     gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
     gpio_set_drive_strength(GPIO_LED_UNMAPPED, GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
     gpio_put(GPIO_LED_UNMAPPED, 1);  // Off
-
-    // Initialize unused GPIO pins as inputs with pull-ups
-    // Unused: 30-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
-    const int unused_pins[] = {30, 31, 32, 35, 36, 42, 43, 44, 45, 46, 47};
-    for (int i = 0; i < 11; i++) {
-        gpio_init(unused_pins[i]);
-        gpio_set_dir(unused_pins[i], GPIO_IN);
-        gpio_pull_up(unused_pins[i]);
-    }
 #endif
 
     printf("Bus interface initialized for %s\n", BOARD_NAME);
@@ -155,6 +160,7 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     // Set data bus to output mode
     for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {
         gpio_set_dir(i, GPIO_OUT);
+        gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);
     }
 
     // Drive address bus using board-specific mapping
