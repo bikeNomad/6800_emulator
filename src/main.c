@@ -105,10 +105,11 @@ int main() {
     sleep_ms(10);
     set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, true);
 
-    // Configure QSPI clock divisor after system clock is set
-    qspi_configure_clock();
+    // NOTE: Do NOT call qspi_configure_clock() here!
+    // Modifying QSPI timing while executing from XIP flash causes a crash.
+    // The Pico SDK's set_sys_clock_khz() already handles QSPI timing appropriately.
 
-    // Report QSPI bus speed configuration
+    // Report QSPI bus speed configuration (read-only, safe to call)
     qspi_report_speed();
 
     // Initialize Pico SDK
