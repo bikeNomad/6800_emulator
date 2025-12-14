@@ -130,9 +130,10 @@ Accessible addresses (128 total):
 |--------|-----------|------|-------|
 | SPI_CS | Output | 17 | Debug SPI chip select |
 | SPI_SCK | Output | 18 | Debug SPI clock |
-| SPI_MOSI | Output | 19 | Debug SPI data |
+| SPI_MOSI | Output | 19 | Debug SPI data out |
+| SPI_MISO | Input | 20 | Debug SPI data in |
 | UART_TX | Output | 24 | Debug UART output |
-| UART_RX | Input | 25 | Debug UART input |
+| UART_RX | Input | 25 | Debug UART input (unused) |
 
 #### BOARD_NED_SYS7
 
@@ -140,12 +141,13 @@ Accessible addresses (128 total):
 |--------|-----------|------|-------|
 | SPI_CS | Output | 33 | Debug SPI chip select |
 | SPI_SCK | Output | 34 | Debug SPI clock |
-| SPI_MOSI | Output | 35 | Debug SPI data |
-| UART_TX | Output | 40 | Debug UART output (UART1) |
-| UART_RX | Input | 41 | Debug UART input (UART1) |
+| SPI_MOSI | Output | 35 | Debug SPI data out |
+| SPI_MISO | Input | 36 | Debug SPI data in |
+| UART_TX | Output | 40 | Debug UART output |
+| UART_RX | Input | 41 | Debug UART input (unused) |
 
 **Note**: UART pins differ by board:
-- PICO2 uses GPIO 16-17 on UART0 (available pins)
+- PICO2 uses GPIO 24-25 on UART0 (available pins)
 - NED_SYS7 uses GPIO 40-41 on UART1 (address bus uses 8-23, UART0 pins occupied)
 
 ### USB Interface
@@ -160,39 +162,14 @@ Accessible addresses (128 total):
 
 The RP2350 is a 3.3V device, while most MC6800 systems use 5V logic.
 
-**Options**:
+The NED_SYS7 board uses 74LVC245 octal level shifters to shift 5V to 3.3V for the data and address bus,
+and TXU0104 quad level shifters for the control signals.
 
-1. **74LVC245 Transceivers** (Recommended)
-   - Bidirectional level shifting
-   - Fast switching (< 5ns)
-   - 5V tolerant inputs
-   - Use one for data bus, one for address bus
+For the PICO2 board, the level shifters are not used.
+However, the E signal is pulled up to +5V on the target system,
+so it requires buffering. The prototype used a 74HCT14 hex Schmitt inverter
+for this purpose.
 
-2. **TXS0108E Level Shifters**
-   - Auto-direction sensing
-   - 8 channels per chip
-   - Slower than 74LVC245 (check timing)
-
-3. **Resistor Dividers** (Input only)
-   - For interrupt inputs only
-   - R1=2.2KΩ, R2=3.3KΩ (5V → 3.3V)
-   - Not suitable for data/address bus
-
-### Example Level Shifter Circuit
-
-```
-MC6800 System (5V)        RP2350 (3.3V)
-
-D0-D7  ←→  74LVC245  ←→  GPIO 0-7
-           (OE, DIR)
-              ↓
-           GPIO 21 (VMA)
-           GPIO 22 (E Clock)
-           GPIO 23 (R/W)
-
-A0-A14 →   74LVC245  ←   GPIO 8-22
-           (OE=GND)
-```
 
 **Power Supply**:
 - VccA (A side): 5V (MC6800 system)

@@ -90,8 +90,8 @@ void memory_init(void) {
     memset(cmos_load_buffer, 0xFF, sizeof(cmos_load_buffer));
 
     // Default configuration (A15 not decoded)
-    mem_config.rom_base = 0x5000;
-    mem_config.rom_size = 0x3000;  // 12KB (5000-7FFF)
+    mem_config.rom_base = 0x4000;
+    mem_config.rom_size = 0x4000;  // 16KB (4000-7FFF, aliased at C000-FFFF)
     mem_config.ram_base = 0x0000;
     mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
     mem_config.flash_offset = FLASH_TARGET_OFFSET;

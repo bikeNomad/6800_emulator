@@ -22,7 +22,7 @@ pico_sdk_init()
 # Board configuration (can be overridden from command line)
 # Options: BOARD_PICO2 (default) or BOARD_WAVESHARE
 if(NOT DEFINED BOARD_TYPE)
-    set(BOARD_TYPE "BOARD_PICO2")
+    set(BOARD_TYPE "BOARD_NED_SYS7")
 endif()
 
 message(STATUS "Building for board: ${BOARD_TYPE}")

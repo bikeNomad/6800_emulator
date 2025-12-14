@@ -12,7 +12,7 @@
 
 // Select active board (can be overridden by CMake)
 #ifndef BOARD_TYPE
-  #define BOARD_TYPE BOARD_PICO2  // Default to Pico 2 for initial testing
+  #define BOARD_TYPE BOARD_NED_SYS7
 #endif
 
 // Board-specific configurations
@@ -60,6 +60,7 @@
   #define GPIO_SPI_CS 33
   #define GPIO_SPI_SCK 34
   #define GPIO_SPI_MOSI 35
+  #define GPIO_SPI_MISO 36
 
   // UART debug pins
   #define GPIO_UART_TX 40 // TX
@@ -68,10 +69,7 @@
   // LED indicators (active low)
   #define GPIO_LED_ROM 37      // (GREEN) Indicates ROM access
   #define GPIO_LED_RAM 38      // (RED) Indicates RAM/CMOS access
-  // NOTE: The Waveshare RP2350 board uses GPIO 39 for its red LED, so we avoid using it here
-  //  #define GPIO_LED_UNMAPPED 39 // (YELLOW) Indicates unmapped/bus access
-  #warning "Using GPIO 36 for UNMAPPED LED instead of GPIO 39 to avoid conflict with Waveshare RP2350 board"
-  #define GPIO_LED_UNMAPPED 36 // (YELLOW) Indicates unmapped/bus access
+  #define GPIO_LED_UNMAPPED 39 // (YELLOW) Indicates unmapped/bus access
 
   // PSRAM chip select (shared QSPI interface)
   #define GPIO_PSRAM_CS    47  // PSRAM chip select
