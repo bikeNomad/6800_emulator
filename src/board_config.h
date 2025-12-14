@@ -36,9 +36,9 @@
   #define GPIO_SPI_SCK 18
   #define GPIO_SPI_MOSI 19
 
-  // UART debug pins
-  #define GPIO_UART_TX 24  // TX
-  #define GPIO_UART_RX 25  // RX
+  // UART debug pins defined in CMakeLists.txt
+  // #define GPIO_UART_TX 24  // TX
+  // #define GPIO_UART_RX 25  // RX
 
 #elif BOARD_TYPE == BOARD_NED_SYS7
   // Ned's System 7 Board - Full GPIO (48 pins)
@@ -62,9 +62,9 @@
   #define GPIO_SPI_MOSI 35
   #define GPIO_SPI_MISO 36
 
-  // UART debug pins
-  #define GPIO_UART_TX 40 // TX
-  #define GPIO_UART_RX 41 // RX
+  // UART debug pins defined in CMakeLists.txt
+  // #define GPIO_UART_TX 40 // TX
+  // #define GPIO_UART_RX 41 // RX
 
   // LED indicators (active low)
   #define GPIO_LED_ROM 37      // (GREEN) Indicates ROM access
