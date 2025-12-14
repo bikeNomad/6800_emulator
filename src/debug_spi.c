@@ -25,6 +25,7 @@ void debug_spi_init(void) {
     // Configure GPIO for SPI
     gpio_set_function(GPIO_SPI_SCK, GPIO_FUNC_SPI);
     gpio_set_function(GPIO_SPI_MOSI, GPIO_FUNC_SPI);
+    gpio_set_function(GPIO_SPI_CS, GPIO_FUNC_SPI);
 
     printf("Debug SPI initialized on GPIO %d (SCK), %d (MOSI)\n",
            GPIO_SPI_SCK, GPIO_SPI_MOSI);
