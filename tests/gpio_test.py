@@ -73,16 +73,38 @@ def test_all_pins():
         test_gpio(mc6800_pin, config)
         time.sleep_us(88)  # Delay between tests
 
+def test_spi_debug():
+    """Test SPI debug interface using MicroPython SPI object"""
+    print("Testing SPI Debug Interface:")
+    try:
+        # SPI debug pins for NED_SYS7 board - GPIO 33 (SCK), GPIO 34 (MOSI)
+        # Using SPI peripheral that corresponds to these pins
+        spi = machine.SPI(1, baudrate=1000000, polarity=0, phase=0,
+                         sck=machine.Pin(33), mosi=machine.Pin(34))
+
+        # Send test bytes using SPI.write()
+        test_data = b'\x55\xAA\xF0\x0F'  # Test patterns: alternating bits, then nibble patterns
+        bytes_written = spi.write(test_data)
+
+        # Clean up SPI object
+        spi.deinit()
+
+        print("  SPI Debug: Wrote {} bytes (0x55, 0xAA, 0xF0, 0x0F) ✓".format(bytes_written))
+
+    except Exception as e:
+        print("  SPI Debug ERROR: {}".format(e))
+
 def run_test():
     print("MC6800 GPIO Hardware Test")
-    print("Testing all connected pins in MC6800 pin order")
-    print("=" * 50)
+    print("Testing SPI debug + all connected pins in MC6800 pin order")
+    print("=" * 60)
 
     try:
         while True:
             gc.collect()
+            test_spi_debug()
             test_all_pins()
-            time.sleep_ms(100)  # Delay between tests
+            time.sleep_ms(100)  # Delay between test cycles
     except KeyboardInterrupt:
         print("\nTest interrupted by user.")
     except Exception as e:
