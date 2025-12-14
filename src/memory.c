@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
+ // LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
 // GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (supporting >32 GPIOs)
 #if BOARD_TYPE == BOARD_NED_SYS7
 // LED GPIO values for masked writes: bit positions correspond to GPIO numbers

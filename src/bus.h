@@ -21,7 +21,7 @@
 // Different boards have different GPIO layouts due to pin constraints.
 // ============================================================================
 
-#if defined(BOARD_PICO2)
+#if BOARD_TYPE == BOARD_PICO2
 // ----------------------------------------------------------------------------
 // Raspberry Pi Pico 2 W - Non-contiguous mapping (7 address lines)
 // A0-A1 → GPIO 8-9, A10-A14 → GPIO 10-14
@@ -45,7 +45,7 @@ static inline void drive_address_bus(uint16_t address) {
     gpio_put_masked(ADDR_GPIO_MASK, gpio_value);  // 0x7F00 (GPIO 8-14)
 }
 
-#elif defined(BOARD_NED_SYS7)
+#elif BOARD_TYPE == BOARD_NED_SYS7
 // ----------------------------------------------------------------------------
 // Ned's System 7 Board - Full 16-bit address bus (16 address lines)
 // A0-A15 → GPIO 8-23 (contiguous mapping)

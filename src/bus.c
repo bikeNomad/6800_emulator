@@ -25,7 +25,7 @@ void bus_init(void) {
     }
 
     // Configure address bus (board-specific GPIO assignments)
-#if defined(BOARD_PICO2)
+#if BOARD_TYPE == BOARD_PICO2
     // PICO2: GPIO 8-14 for A0,A1,A10-A14 (7 pins, non-contiguous)
     for (int i = 8; i <= 14; i++) {
         gpio_init(i);
@@ -68,7 +68,7 @@ void bus_init(void) {
     gpio_pull_up(GPIO_RESET);
 
     // Initialize unused GPIO pins as inputs with pull-ups to prevent floating
-#if defined(BOARD_PICO2)
+#if BOARD_TYPE == BOARD_PICO2
     // PICO2 unused pins: 15, 20, 24, 25, 26
     const int unused_pins[] = {15, 20, 24, 25, 26};
     for (int i = 0; i < 5; i++) {
@@ -106,7 +106,7 @@ void bus_init(void) {
 
     printf("Bus interface initialized for %s\n", BOARD_NAME);
     printf("  Data:  GPIO %d-%d\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
-#if defined(BOARD_PICO2)
+#if BOARD_TYPE == BOARD_PICO2
     printf("  Addr:  GPIO 8-14 -> MC6800 A{0,1,10-14} (%d lines, %d addresses)\n",
            ADDR_LINES, ADDR_SPACE_SIZE);
     printf("  Addr mask: 0x%04X (non-contiguous address space)\n", ADDR_MASK);
