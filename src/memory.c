@@ -16,39 +16,29 @@
 #include <string.h>
 
 // LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
-// GPIO 34-36 are high pins, so we use SIO register access for masked writes
+// GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (supporting >32 GPIOs)
 #if BOARD_TYPE == BOARD_NED_SYS7
-#include "hardware/structs/sio.h"
-
-// LED bit mask for GPIO 34-36 (subtract 32 for high GPIO register offset)
-#define LED_MASK_HI ((1u << (GPIO_LED_ROM - 32)) | (1u << (GPIO_LED_RAM - 32)) | (1u << (GPIO_LED_UNMAPPED - 32)))
-#define LED_ROM_ON_HI ((1u << (GPIO_LED_RAM - 32)) | (1u << (GPIO_LED_UNMAPPED - 32)))  // ROM=0, others=1
-#define LED_RAM_ON_HI ((1u << (GPIO_LED_ROM - 32)) | (1u << (GPIO_LED_UNMAPPED - 32)))  // RAM=0, others=1
-#define LED_UNMAPPED_ON_HI ((1u << (GPIO_LED_ROM - 32)) | (1u << (GPIO_LED_RAM - 32)))  // UNMAPPED=0, others=1
-#define LED_ALL_OFF_HI LED_MASK_HI  // All LEDs off (all=1)
-
-// Helper to write masked values to high GPIO pins (32-47)
-static inline void gpio_put_masked_hi(uint32_t mask, uint32_t value) {
-    // Atomic masked write using SIO registers
-    // Clear bits where mask is 1, then set bits where value is 1
-    sio_hw->gpio_hi_clr = mask & ~value;  // Clear bits that should be 0
-    sio_hw->gpio_hi_set = mask & value;   // Set bits that should be 1
-}
+// LED GPIO values for masked writes: bit positions correspond to GPIO numbers
+#define LED_MASK ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))
+#define LED_ROM_ON ((0ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))  // ROM=0, others=1
+#define LED_RAM_ON ((1ULL << GPIO_LED_ROM) | (0ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))  // RAM=0, others=1
+#define LED_UNMAPPED_ON ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (0ULL << GPIO_LED_UNMAPPED))  // UNMAPPED=0, others=1
+#define LED_ALL_OFF ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))  // All LEDs off (all=1)
 
 static inline void led_set_rom(void) {
-    gpio_put_masked_hi(LED_MASK_HI, LED_ROM_ON_HI);
+    gpio_put_masked64(LED_MASK, LED_ROM_ON);
 }
 
 static inline void led_set_ram(void) {
-    gpio_put_masked_hi(LED_MASK_HI, LED_RAM_ON_HI);
+    gpio_put_masked64(LED_MASK, LED_RAM_ON);
 }
 
 static inline void led_set_unmapped(void) {
-    gpio_put_masked_hi(LED_MASK_HI, LED_UNMAPPED_ON_HI);
+    gpio_put_masked64(LED_MASK, LED_UNMAPPED_ON);
 }
 
 static inline void led_all_off_inline(void) {
-    gpio_put_masked_hi(LED_MASK_HI, LED_ALL_OFF_HI);
+    gpio_put_masked64(LED_MASK, LED_ALL_OFF);
 }
 #endif
 
