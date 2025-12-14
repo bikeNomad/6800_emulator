@@ -76,18 +76,18 @@ static inline void drive_address_bus(uint16_t address) {
 
 static inline void drive_control_read(void) {
     // VMA=1, R/W=1 (read)
-    gpio_put_masked(0x00600000, (1u << GPIO_VMA) | (1u << GPIO_RW));
+    gpio_put_masked((1u << GPIO_VMA) | (1u << GPIO_RW), (1u << GPIO_VMA) | (1u << GPIO_RW));
 }
 
 static inline void drive_control_write(uint8_t data) {
     // Data + VMA=1, R/W=0 (write)
     uint32_t data_ctrl = data | (1u << GPIO_VMA) | (0u << GPIO_RW);
-    gpio_put_masked(0x006000FF, data_ctrl);
+    gpio_put_masked(0xFF | (1u << GPIO_VMA) | (1u << GPIO_RW), data_ctrl);
 }
 
 static inline void deassert_vma(void) {
     // VMA=0, R/W=1 (inactive)
-    gpio_put_masked(0x00600000, (0u << GPIO_VMA) | (1u << GPIO_RW));
+    gpio_put_masked((1u << GPIO_VMA) | (1u << GPIO_RW), (0u << GPIO_VMA) | (1u << GPIO_RW));
 }
 
 // Initialize bus interface (configure GPIO)
