@@ -19,7 +19,6 @@
 #if BOARD_TYPE == BOARD_PICO2
   // Raspberry Pi Pico 2 W - Limited GPIO (26 pins)
   // Address bus uses only A0, A1, A10-A14 (7 pins for PIA access)
-  // GPIO 16-17 reserved for UART debug
 
   #define BOARD_NAME "Raspberry Pi Pico 2 W"
   #define ADDR_LINES 7
@@ -33,8 +32,13 @@
   #define GPIO_RW     23  // R/W (Read/Write) output
 
   // SPI debug pins
+  #define GPIO_SPI_CS 17
   #define GPIO_SPI_SCK 18
   #define GPIO_SPI_MOSI 19
+
+  // UART debug pins
+  #define GPIO_UART_TX 24  // TX
+  #define GPIO_UART_RX 25  // RX
 
 #elif BOARD_TYPE == BOARD_NED_SYS7
   // Ned's System 7 Board - Full GPIO (48 pins)
@@ -53,8 +57,13 @@
   #define GPIO_RW     26  // R/W (Read/Write) output
 
   // SPI debug pins
-  #define GPIO_SPI_SCK 33
-  #define GPIO_SPI_MOSI 34
+  #define GPIO_SPI_CS 33
+  #define GPIO_SPI_SCK 34
+  #define GPIO_SPI_MOSI 35
+
+  // UART debug pins
+  #define GPIO_UART_TX 40 // TX
+  #define GPIO_UART_RX 41 // RX
 
   // LED indicators (active low)
   #define GPIO_LED_ROM 37      // (GREEN) Indicates ROM access
@@ -64,6 +73,8 @@
   #warning "Using GPIO 36 for UNMAPPED LED instead of GPIO 39 to avoid conflict with Waveshare RP2350 board"
   #define GPIO_LED_UNMAPPED 36 // (YELLOW) Indicates unmapped/bus access
 
+  // PSRAM chip select (shared QSPI interface)
+  #define GPIO_PSRAM_CS    47  // PSRAM chip select
 #else
   #error "Invalid BOARD_TYPE defined. Must be BOARD_PICO2 or BOARD_NED_SYS7"
 #endif
@@ -77,12 +88,8 @@
 #define GPIO_NMI    28  // /NMI input (active low)
 #define GPIO_RESET  29  // /RESET input (active low)
 
-  // PSRAM chip select (shared QSPI interface)
-  #define GPIO_PSRAM_CS    47  // PSRAM chip select
 
-  // UART debug pins (defined by CMake based on board type)
-  // BOARD_PICO2: GPIO 16-17 (available)
-  // BOARD_WAVESHARE: GPIO 32-33 (GPIO 16-17 used by address bus)
+// UART debug pins (defined by CMake based on board type)
 #ifndef PICO_DEFAULT_UART_TX_PIN
   #error "PICO_DEFAULT_UART_TX_PIN not defined by CMake"
 #endif

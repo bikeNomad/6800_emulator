@@ -72,13 +72,13 @@ pico_enable_stdio_uart(mc6800_emulator 1)
 
 # Set UART pins based on board type (defined in board_config.h)
 if(BOARD_TYPE STREQUAL "BOARD_PICO2")
-    set(UART_TX_PIN 16)
-    set(UART_RX_PIN 17)
-    set(UART_INSTANCE 0)  # UART0 for Pico 2
+    set(UART_TX_PIN 24)
+    set(UART_RX_PIN 25)
+    set(UART_INSTANCE 1)  # UART1 for Pico 2
 elseif(BOARD_TYPE STREQUAL "BOARD_NED_SYS7")
     set(UART_TX_PIN 40)
     set(UART_RX_PIN 41)
-    set(UART_INSTANCE 1)  # UART1 for NED_SYS7 (GPIO40/41 require UART1)
+    set(UART_INSTANCE 1)  # UART1 for NED_SYS7
 else()
     message(FATAL_ERROR "Unknown BOARD_TYPE: ${BOARD_TYPE}")
 endif()

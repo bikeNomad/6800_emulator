@@ -42,9 +42,17 @@ PIN_MAPPING = {
     34: {"gpio": 26, "name": "R/W", "dir": machine.Pin.OUT},     # Pin 34: R/W (output)
     37: {"gpio": 25, "name": "E", "dir": machine.Pin.OUT},       # Pin 37: E (Φ2) (output)
     40: {"gpio": 29, "name": "/RESET", "dir": machine.Pin.OUT},   # Pin 40: /RESET (drive for testing)
+
+    # Debug interface pins (not MC6800 CPU pins)
+    100: {"gpio": 33, "name": "SPI_CS", "dir": machine.Pin.OUT},    # Debug SPI chip select
+    101: {"gpio": 34, "name": "SPI_SCK", "dir": machine.Pin.OUT},   # Debug SPI clock
+    102: {"gpio": 35, "name": "SPI_MOSI", "dir": machine.Pin.OUT},  # Debug SPI data
 }
 
 def test_gpio(pin_num, pin_config):
+    if pin_num > 40:
+        return
+
     """Test a single GPIO pin by pulsing it HIGH for 10µs"""
     gpio_num = pin_config["gpio"]
     name = pin_config["name"]
@@ -77,19 +85,35 @@ def test_spi_debug():
     """Test SPI debug interface using MicroPython SPI object"""
     print("Testing SPI Debug Interface:")
     try:
-        # SPI debug pins for NED_SYS7 board - GPIO 33 (SCK), GPIO 34 (MOSI)
-        # Using SPI peripheral that corresponds to these pins
-        spi = machine.SPI(1, baudrate=1000000, polarity=0, phase=0,
-                         sck=machine.Pin(33), mosi=machine.Pin(34))
+        # SPI debug pins: GPIO 33 (CS), 34 (SCK), 35 (MOSI) for NED_SYS7 board
+        # Create CS pin for manual control (active low)
+        cs_pin = machine.Pin(33, machine.Pin.OUT)
+        cs_pin.value(1)  # Start with CS high (inactive)
 
-        # Send test bytes using SPI.write()
+        # Initialize SPI with SCK and MOSI pins (no hardware CS)
+        spi = machine.SPI(0, baudrate=1000000, polarity=0, phase=0,
+                         sck=machine.Pin(34), mosi=machine.Pin(35))
+
+        # Test SPI communication with manual CS handling
+        # Send test data 4 times to simulate typical debug output
         test_data = b'\x55\xAA\xF0\x0F'  # Test patterns: alternating bits, then nibble patterns
-        bytes_written = spi.write(test_data)
 
-        # Clean up SPI object
+        for i in range(4):
+            # Assert CS (active low)
+            cs_pin.value(0)
+            time.sleep_us(1)  # Brief setup time
+
+            # Send 4-byte debug packet
+            bytes_written = spi.write(test_data)
+
+            # De-assert CS
+            cs_pin.value(1)
+            time.sleep_us(5)  # Brief delay between transactions
+
+        # Clean up
         spi.deinit()
 
-        print("  SPI Debug: Wrote {} bytes (0x55, 0xAA, 0xF0, 0x0F) ✓".format(bytes_written))
+        print("  SPI Debug: Sent 4 debug packets with proper CS handling ✓")
 
     except Exception as e:
         print("  SPI Debug ERROR: {}".format(e))

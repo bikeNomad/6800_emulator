@@ -128,17 +128,19 @@ Accessible addresses (128 total):
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
+| SPI_CS | Output | 17 | Debug SPI chip select |
 | SPI_SCK | Output | 18 | Debug SPI clock |
 | SPI_MOSI | Output | 19 | Debug SPI data |
-| UART_TX | Output | 16 | Debug UART output |
-| UART_RX | Input | 17 | Debug UART input |
+| UART_TX | Output | 24 | Debug UART output |
+| UART_RX | Input | 25 | Debug UART input |
 
 #### BOARD_NED_SYS7
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
-| SPI_SCK | Output | 33 | Debug SPI clock |
-| SPI_MOSI | Output | 34 | Debug SPI data |
+| SPI_CS | Output | 33 | Debug SPI chip select |
+| SPI_SCK | Output | 34 | Debug SPI clock |
+| SPI_MOSI | Output | 35 | Debug SPI data |
 | UART_TX | Output | 40 | Debug UART output (UART1) |
 | UART_RX | Input | 41 | Debug UART input (UART1) |
 
