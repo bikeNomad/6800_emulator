@@ -14,8 +14,6 @@
 #define SPI_BAUDRATE (30 * 1000 * 1000)  // 30 MHz
 
 static bool debug_enabled = false;  // Disabled by default (enable via USB "debug on")
-static uint8_t last_data_bus = 0;
-static bool last_rw = true;
 
 // Initialize debug SPI
 void debug_spi_init(void) {
@@ -37,20 +35,16 @@ void debug_spi_log(void) {
         return;
     }
 
-    // Prepare 4-byte debug packet:
+    // Prepare 2-byte debug packet:
     // Byte 0: PC high byte
     // Byte 1: PC low byte
-    // Byte 2: R/W flag (bit 7) + reserved
-    // Byte 3: Data bus value
     uint8_t packet[4];
 
     packet[0] = (cpu.pc >> 8) & 0xFF;
     packet[1] = cpu.pc & 0xFF;
-    packet[2] = (last_rw ? 0x80 : 0x00);
-    packet[3] = last_data_bus;
 
     // Send packet via SPI
-    spi_write_blocking(DEBUG_SPI_INST, packet, 4);
+    spi_write_blocking(DEBUG_SPI_INST, packet, 2);
 }
 
 // Enable/disable debug output
