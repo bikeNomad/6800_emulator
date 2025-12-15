@@ -6,6 +6,7 @@
 #include "instructions.h"
 #include "cpu_state.h"
 #include "memory.h"
+#include "pico.h"
 #include "clock.h"
 #include <stdio.h>
 
@@ -163,7 +164,7 @@ static inline void sub_with_carry(uint8_t *dest, uint8_t operand) {
 }
 
 // Execute one instruction (placed in RAM for maximum performance)
-void __attribute__((section(".time_critical.instruction_execute"))) instruction_execute(void) {
+void __time_critical_func(instruction_execute)(void) {
     // Fetch opcode using fast path (no GPIO polling)
     uint8_t opcode = memory_read_fast(cpu.pc++);
 

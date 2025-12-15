@@ -6,6 +6,7 @@
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
+#include "pico.h"
 #include "clock.pio.h"
 #include <stdio.h>
 
@@ -27,7 +28,7 @@ int32_t cycle_overage = 0;
 static uint32_t last_pio_cycles = 0;
 
 // Last known E clock state
-static volatile bool last_e_state = false;
+static bool last_e_state = false;
 
 // Initialize E clock
 void eclock_init(void) {
@@ -108,7 +109,7 @@ void eclock_wait_low(void) {
 }
 
 // Get real elapsed E clock cycles from PIO
-uint32_t eclock_get_pio_cycles(void) {
+uint32_t __time_critical_func(eclock_get_pio_cycles)(void) {
     // Check if state machine is enabled (check CTRL register bit)
     bool sm_enabled = (pio->ctrl & (1u << sm)) != 0;
 
@@ -141,7 +142,7 @@ void eclock_reset_pio_counter(void) {
 }
 
 // Check timing and wait if emulator is ahead of real-time
-void eclock_check_timing(void) {
+void __time_critical_func(eclock_check_timing)(void) {
     // Get real elapsed cycles from PIO
     uint32_t pio_cycles = eclock_get_pio_cycles();
 

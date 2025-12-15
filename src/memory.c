@@ -12,6 +12,7 @@
 #include "hardware/sync.h"
 #include "hardware/gpio.h"
 #include "pico/time.h"
+#include "pico.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -156,7 +157,7 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
 }
 
 // Get memory type for address
-memory_type_t memory_get_type(uint16_t address) {
+memory_type_t __time_critical_func(memory_get_type)(uint16_t address) {
     // Translate address for missing A15 decode
     uint16_t physical_addr = address & ADDR_MASK_A15;
 
@@ -177,7 +178,7 @@ memory_type_t memory_get_type(uint16_t address) {
 }
 
 // Read byte from address via bus
-uint8_t memory_read(uint16_t address) {
+uint8_t __time_critical_func(memory_read)(uint16_t address) {
     // If CPU is not running, use fast path (for diagnostic/init access)
     if (!cpu_is_running()) {
         return memory_read_fast(address);
@@ -243,7 +244,7 @@ uint8_t memory_read(uint16_t address) {
 }
 
 // Fast-path read (no GPIO polling for ROM/RAM)
-uint8_t memory_read_fast(uint16_t address) {
+uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
     memory_type_t type = memory_get_type(address);
 
     // Read from ROM shadow (RAM copy) - fast path
