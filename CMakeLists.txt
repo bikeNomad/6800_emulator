@@ -110,7 +110,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
     PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
     SYS_CLOCK_MHZ=${SYS_CLOCK_MHZ}
     QSPI_CLOCK_DIVISOR=${QSPI_CLOCK_DIVISOR}
-    DEBUG_INTERRUPTS=1  # Set to 0 to disable interrupt debug output
+    DEBUG_INTERRUPTS=0  # Set to 0 to disable interrupt debug output
 )
 
 # Add compile options for optimization and warnings
