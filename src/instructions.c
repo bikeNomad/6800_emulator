@@ -109,7 +109,7 @@ static const char* mnemonics[256] = {
     [0xC0] = "SUBB (IMM)",
     [0xC1] = "CMPB (IMM)",
     [0xC4] = "ANDB (IMM)",
-    [0xC5] = "BITB (DIR)",
+    [0xC5] = "BITB (IMM)",
     [0xC6] = "LDAB (IMM)",
     [0xCA] = "ORAB (IMM)",
     [0xCB] = "ADDB (IMM)",
@@ -1802,11 +1802,10 @@ void __time_critical_func(instruction_execute)(void) {
             break;
         }
 
-        // BITB - Bit Test B (Direct)
+        // BITB - Bit Test B (Immediate)
         case 0xC5: {
-            uint8_t addr = memory_read_fast(cpu.pc++);
-            uint8_t mem_val = memory_read_fast(addr);
-            uint8_t result = cpu.b & mem_val;
+            uint8_t operand = memory_read_fast(cpu.pc++);
+            uint8_t result = cpu.b & operand;
             cpu_update_nz(result);
             cpu_set_flag(CCR_V, false);
             break;
