@@ -47,6 +47,14 @@ void eclock_init(void) {
     // Reset cached PIO cycles to 0
     last_pio_cycles = 0;
 
+#if ECLOCK_RESYNC_TEST_PIN
+    // Initialize test pin for re-synchronization indicator
+    gpio_init(GPIO_ECLOCK_RESYNC_TEST);
+    gpio_set_dir(GPIO_ECLOCK_RESYNC_TEST, GPIO_OUT);
+    gpio_put(GPIO_ECLOCK_RESYNC_TEST, 0);  // Start low
+    printf("E clock re-sync test pin initialized on GPIO %d\n", GPIO_ECLOCK_RESYNC_TEST);
+#endif
+
     // Verify SM is actually stopped
     bool is_enabled = (pio->ctrl & (1u << sm)) != 0;
     printf("E clock initialized on GPIO %d (%s)\n", GPIO_ECLOCK,
@@ -155,11 +163,19 @@ void __time_critical_func(eclock_check_timing)(void) {
         diff -= cycle_overage;
 
         if (diff > 0) {
+#if ECLOCK_RESYNC_TEST_PIN
+            // Set test pin high during re-synchronization
+            gpio_put(GPIO_ECLOCK_RESYNC_TEST, 1);
+#endif
             // Still need to wait for additional cycles
             for (int32_t i = 0; i < diff; i++) {
                 eclock_wait_low();
             }
             cycle_overage = 0;
+#if ECLOCK_RESYNC_TEST_PIN
+            // Clear test pin after re-synchronization
+            gpio_put(GPIO_ECLOCK_RESYNC_TEST, 0);
+#endif
         } else {
             // Overage covers the difference
             cycle_overage = -diff;

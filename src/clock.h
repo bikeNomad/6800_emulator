@@ -12,6 +12,15 @@
 
 // E clock output pin is defined in board_config.h as GPIO_ECLOCK
 
+// Test pin for E clock re-synchronization indicator
+// Set to 1 to enable GPIO42 as a test indicator (goes high during re-sync)
+// Set to 0 to disable for production builds
+#define ECLOCK_RESYNC_TEST_PIN 1
+
+#if ECLOCK_RESYNC_TEST_PIN
+  #define GPIO_ECLOCK_RESYNC_TEST 42
+#endif
+
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
 extern uint32_t pending_cycles;
