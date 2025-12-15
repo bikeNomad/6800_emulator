@@ -17,8 +17,18 @@
 // Set to 0 to disable for production builds
 #define ECLOCK_RESYNC_TEST_PIN 1
 
+// Safety check: GPIO42 only exists on boards with 48 GPIOs (BOARD_NED_SYS7)
+// Automatically disable on PICO2 which only has GPIO 0-25
 #if ECLOCK_RESYNC_TEST_PIN
-  #define GPIO_ECLOCK_RESYNC_TEST 42
+  #if BOARD_TYPE == BOARD_NED_SYS7
+    #define GPIO_ECLOCK_RESYNC_TEST 42
+    #define ECLOCK_RESYNC_TEST_ENABLED 1
+  #else
+    #define ECLOCK_RESYNC_TEST_ENABLED 0
+    #warning "ECLOCK_RESYNC_TEST_PIN requested but GPIO42 not available on this board"
+  #endif
+#else
+  #define ECLOCK_RESYNC_TEST_ENABLED 0
 #endif
 
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)

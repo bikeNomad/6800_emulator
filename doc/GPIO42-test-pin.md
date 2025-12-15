@@ -29,10 +29,14 @@ Re-synchronization happens in the `eclock_check_timing()` function when:
 2. The cycle overage credit is insufficient to cover the difference
 3. The emulator must wait for the hardware E clock to catch up
 
-## Pin Location
-- **GPIO42** is available on the NED_SYS7 board (48 GPIO RP2350)
-- Can be monitored with an oscilloscope or logic analyzer
-- Note: GPIO42 is not available on the BOARD_PICO2 (26 GPIO) but the code will compile safely with conditionals
+## Board Compatibility
+- **BOARD_NED_SYS7**: GPIO42 is available and will be enabled when `ECLOCK_RESYNC_TEST_PIN` is set to 1
+- **BOARD_PICO2**: GPIO42 does not exist on this board (only GPIO 0-25)
+  - The code automatically disables the test pin on PICO2
+  - Compiler warning will be shown: `"ECLOCK_RESYNC_TEST_PIN requested but GPIO42 not available on this board"`
+  - Build will complete successfully - no GPIO42 code is compiled for PICO2
+
+The safety mechanism uses conditional compilation to check the `BOARD_TYPE` and automatically sets `ECLOCK_RESYNC_TEST_ENABLED` to 0 on incompatible boards.
 
 ## Implementation Details
 - Initialization: `eclock_init()` sets up GPIO42 as output, starting LOW
