@@ -6,6 +6,7 @@
 #include "cpu_state.h"
 #include "bus.h"
 #include "memory.h"
+#include "clock.h"
 #include "board_config.h"
 #include "hardware/gpio.h"
 #include <stdio.h>
@@ -76,6 +77,9 @@ void interrupt_service_reset(void) {
     cpu.running = false;
     cpu.wai_state = false;  // Clear WAI state
     cpu.instruction_count = 0;  // Reset instruction counter
+
+    // Stop E clock when halted
+    eclock_stop();
 
     // Turn off all LEDs during reset
     led_all_off();

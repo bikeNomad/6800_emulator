@@ -221,10 +221,9 @@ static void process_command(char *cmd) {
         usb_cdc_send("OK: CPU halted, CMOS saved\r\n");
 
     } else if (strcmp(cmd, "reset") == 0) {
-        // Save CMOS and reset CPU
-        memory_save_cmos();
+        // Reset CPU (CMOS will be auto-saved by background task if needed)
         interrupt_service_reset();
-        usb_cdc_send("OK: CMOS saved, CPU reset\r\n");
+        usb_cdc_send("OK: CPU reset\r\n");
 
     } else if (strcmp(cmd, "bootloader") == 0 || strcmp(cmd, "boot") == 0) {
         // Enter bootloader mode
