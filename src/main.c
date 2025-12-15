@@ -174,14 +174,19 @@ int main() {
 
         // If CPU is running (not halted), execute instructions
         if (cpu_is_running()) {
-            // Check for interrupt requests
+            // Check for interrupt requests (always check, even during WAI)
             interrupt_check();
 
-            // Execute one instruction (cycle-accurate)
-            instruction_execute();
+            // Only execute instructions if not in WAI state
+            if (!cpu.wai_state) {
+                // Execute one instruction (cycle-accurate)
+                instruction_execute();
 
-            // Log execution to debug SPI
-            debug_spi_log();
+                // Log execution to debug SPI
+                debug_spi_log();
+            }
+            // If in WAI state, we continue looping to check for interrupts
+            // but don't execute instructions until an interrupt wakes us
         } else {
             // CPU halted, yield to reduce power consumption
             __wfi(); // Wait for interrupt

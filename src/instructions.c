@@ -528,13 +528,14 @@ void __attribute__((section(".time_critical.instruction_execute"))) instruction_
         // WAI - Wait for Interrupt
         case 0x3E:
             eclock_consume_cycles(1);  // Internal: setup
-            cpu.halted = true;
-            // Push registers
+            // Push registers onto stack (saved for when interrupt arrives)
             cpu_push16(cpu.pc);
             cpu_push16(cpu.x);
             cpu_push(cpu.a);
             cpu_push(cpu.b);
             cpu_push(cpu.ccr);
+            // Enter WAI state - continue emulating but wait for interrupt
+            cpu.wai_state = true;
             break;
 
         // SWI - Software Interrupt

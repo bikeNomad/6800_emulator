@@ -74,6 +74,7 @@ void interrupt_service_reset(void) {
     cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
     cpu.halted = true;   // Start halted, waiting for 'run' command
     cpu.running = false;
+    cpu.wai_state = false;  // Clear WAI state
     cpu.instruction_count = 0;  // Reset instruction counter
 
     // Turn off all LEDs during reset
@@ -91,12 +92,18 @@ void interrupt_service_reset(void) {
 void interrupt_service_nmi(void) {
     DEBUG_INT_PRINTF("*** NMI at PC=$%04X ***\n", cpu.pc);
 
-    // Push registers onto stack (12 cycles total)
-    cpu_push16(cpu.pc);    // Push PC
-    cpu_push16(cpu.x);     // Push X
-    cpu_push(cpu.a);       // Push A
-    cpu_push(cpu.b);       // Push B
-    cpu_push(cpu.ccr);     // Push CCR
+    // If coming from WAI, registers are already on stack
+    if (!cpu.wai_state) {
+        // Push registers onto stack (12 cycles total)
+        cpu_push16(cpu.pc);    // Push PC
+        cpu_push16(cpu.x);     // Push X
+        cpu_push(cpu.a);       // Push A
+        cpu_push(cpu.b);       // Push B
+        cpu_push(cpu.ccr);     // Push CCR
+    }
+
+    // Clear WAI state if we were waiting
+    cpu.wai_state = false;
 
     // Set interrupt mask
     cpu_set_flag(CCR_I, true);
@@ -113,12 +120,18 @@ void interrupt_service_nmi(void) {
 void interrupt_service_irq(void) {
     DEBUG_INT_PRINTF("*** IRQ at PC=$%04X ***\n", cpu.pc);
 
-    // Push registers onto stack (12 cycles total)
-    cpu_push16(cpu.pc);    // Push PC
-    cpu_push16(cpu.x);     // Push X
-    cpu_push(cpu.a);       // Push A
-    cpu_push(cpu.b);       // Push B
-    cpu_push(cpu.ccr);     // Push CCR
+    // If coming from WAI, registers are already on stack
+    if (!cpu.wai_state) {
+        // Push registers onto stack (12 cycles total)
+        cpu_push16(cpu.pc);    // Push PC
+        cpu_push16(cpu.x);     // Push X
+        cpu_push(cpu.a);       // Push A
+        cpu_push(cpu.b);       // Push B
+        cpu_push(cpu.ccr);     // Push CCR
+    }
+
+    // Clear WAI state if we were waiting
+    cpu.wai_state = false;
 
     // Set interrupt mask
     cpu_set_flag(CCR_I, true);

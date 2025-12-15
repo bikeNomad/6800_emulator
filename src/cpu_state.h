@@ -27,8 +27,9 @@ typedef struct {
     uint16_t x;       // Index register
     uint16_t sp;      // Stack pointer
     uint8_t ccr;      // Condition code register
-    bool halted;      // CPU halt state (WAI instruction or waiting for EPROM)
+    bool halted;      // CPU halt state (waiting for EPROM or manual halt)
     bool running;     // CPU running state (set by USB RUN command)
+    bool wai_state;   // CPU waiting for interrupt (WAI instruction)
     bool irq_pending; // IRQ request pending
     bool nmi_pending; // NMI request pending
     uint64_t instruction_count; // Total instructions executed since reset
