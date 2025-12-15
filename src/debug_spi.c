@@ -51,3 +51,8 @@ void debug_spi_log(void) {
 void debug_spi_enable(bool enable) {
     debug_enabled = enable;
 }
+
+// Get debug output status
+bool debug_spi_is_enabled(void) {
+    return debug_enabled;
+}

@@ -77,6 +77,7 @@ static void process_command(char *cmd) {
                        ram_base, ram_base + ram_size - 1,
                        ram_size, ram_size / 1024);
         usb_cdc_send("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
+        usb_cdc_printf("  Debug SPI: %s\r\n", debug_spi_is_enabled() ? "ON" : "OFF");
 
     } else if (strncmp(cmd, "config rom", 10) == 0) {
         // Configure ROM region: config rom <base> <size>

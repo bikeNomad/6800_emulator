@@ -7,6 +7,7 @@
 #include "memory.h"
 #include "clock.h"
 #include "instructions.h"
+#include "usb_cdc.h"
 #include "hardware/clocks.h"
 #include <stdio.h>
 #include <string.h>
@@ -26,9 +27,9 @@ static uint32_t sys_clk_freq = 0;
 static void timing_init(void) {
     if (sys_clk_freq == 0) {
         sys_clk_freq = clock_get_hz(clk_sys);
-        printf("System clock: %lu Hz\n", (unsigned long)sys_clk_freq);
-        printf("E clock: %.2f Hz\n", E_CLOCK_HZ);
-        printf("Ratio: %.2f sys cycles per E cycle\n", (float)sys_clk_freq / E_CLOCK_HZ);
+        usb_cdc_printf("System clock: %lu Hz\r\n", (unsigned long)sys_clk_freq);
+        usb_cdc_printf("E clock: %.2f Hz\r\n", E_CLOCK_HZ);
+        usb_cdc_printf("Ratio: %.2f sys cycles per E cycle\r\n", (float)sys_clk_freq / E_CLOCK_HZ);
     }
 }
 
@@ -167,7 +168,7 @@ void cycle_test_instruction(uint8_t opcode) {
 
     // Print result with both timing measurements
     if (mnemonic && strcmp(mnemonic, "???") != 0) {
-        printf("$%02X %-8s : %lu E cycles | %lu sys cycles (%.2f E equiv) | diff: %+.2f\n",
+        usb_cdc_printf("$%02X %-8s : %lu E cycles | %lu sys cycles (%.2f E equiv) | diff: %+.2f\r\n",
                opcode, mnemonic,
                (unsigned long)eclock_cycles,
                (unsigned long)sysclock_cycles,
@@ -181,19 +182,19 @@ void cycle_test_instruction(uint8_t opcode) {
 
 // Test all implemented instructions
 void cycle_test_all(void) {
-    printf("\n");
-    printf("========================================\n");
-    printf("MC6800 Instruction Cycle Count Test\n");
-    printf("========================================\n");
-    printf("\n");
+    usb_cdc_send("\r\n");
+    usb_cdc_send("========================================\r\n");
+    usb_cdc_send("MC6800 Instruction Cycle Count Test\r\n");
+    usb_cdc_send("========================================\r\n");
+    usb_cdc_send("\r\n");
 
     // Initialize timing system
     timing_init();
     enable_cycle_counter();
 
-    printf("\n");
-    printf("Format: $XX MNEMONIC : E cycles | sys cycles (E equiv) | diff\n");
-    printf("\n");
+    usb_cdc_send("\r\n");
+    usb_cdc_send("Format: $XX MNEMONIC : E cycles | sys cycles (E equiv) | diff\r\n");
+    usb_cdc_send("\r\n");
 
     // Test all 256 possible opcodes
     for (uint16_t opcode = 0; opcode < 256; opcode++) {
@@ -205,9 +206,9 @@ void cycle_test_all(void) {
         }
     }
 
-    printf("\n");
-    printf("========================================\n");
-    printf("Test Complete\n");
-    printf("========================================\n");
-    printf("\n");
+    usb_cdc_send("\r\n");
+    usb_cdc_send("========================================\r\n");
+    usb_cdc_send("Test Complete\r\n");
+    usb_cdc_send("========================================\r\n");
+    usb_cdc_send("\r\n");
 }
