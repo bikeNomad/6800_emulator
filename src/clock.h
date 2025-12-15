@@ -80,6 +80,12 @@ static inline void eclock_sync_instruction(void) {
     // (PIO continues to generate E-clock in background for external hardware)
     cycle_count += pending_cycles;
     pending_cycles = 0;
+
+    // Periodically check timing to prevent running too far ahead
+    // Check every 32 cycles (approx 32us)
+    if ((cycle_count & 0x1F) == 0) {
+        eclock_check_timing();
+    }
 }
 
 // Consume N internal cycles - fast-path: accumulate without GPIO polling (inline for performance)

@@ -89,8 +89,8 @@ void interrupt_service_reset(void) {
     led_all_off();
 
     // Load PC from reset vector
-    uint8_t pch = memory_read(VECTOR_RESET);
-    uint8_t pcl = memory_read(VECTOR_RESET + 1);
+    uint8_t pch = memory_read_fast(VECTOR_RESET);
+    uint8_t pcl = memory_read_fast(VECTOR_RESET + 1);
     cpu.pc = (pch << 8) | pcl;
 
     DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
@@ -117,8 +117,8 @@ void interrupt_service_nmi(void) {
     cpu_set_flag(CCR_I, true);
 
     // Load PC from NMI vector
-    uint8_t pch = memory_read(VECTOR_NMI);
-    uint8_t pcl = memory_read(VECTOR_NMI + 1);
+    uint8_t pch = memory_read_fast(VECTOR_NMI);
+    uint8_t pcl = memory_read_fast(VECTOR_NMI + 1);
     cpu.pc = (pch << 8) | pcl;
 
     DEBUG_INT_PRINTF("NMI vector: $%04X\n", cpu.pc);
@@ -145,8 +145,8 @@ void interrupt_service_irq(void) {
     cpu_set_flag(CCR_I, true);
 
     // Load PC from IRQ vector
-    uint8_t pch = memory_read(VECTOR_IRQ);
-    uint8_t pcl = memory_read(VECTOR_IRQ + 1);
+    uint8_t pch = memory_read_fast(VECTOR_IRQ);
+    uint8_t pcl = memory_read_fast(VECTOR_IRQ + 1);
     cpu.pc = (pch << 8) | pcl;
 
     DEBUG_INT_PRINTF("IRQ vector: $%04X\n", cpu.pc);
