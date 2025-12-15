@@ -117,15 +117,11 @@ uint32_t eclock_get_pio_cycles(void) {
         return last_pio_cycles;
     }
 
-    // Read PIO X register by temporarily moving it to ISR and pushing to FIFO
-    // Move X to ISR (in source, bits = 32)
-    pio_sm_exec(pio, sm, pio_encode_in(pio_x, 32));
-
-    // Push ISR to FIFO
-    pio_sm_exec(pio, sm, pio_encode_push(false, false));
-
-    // Read from FIFO (this is the X value, counting down from 0xFFFFFFFF)
-    uint32_t x_value = pio_sm_get_blocking(pio, sm);
+    // Read PIO X register directly from rxf_putget register
+    // The PIO program continuously updates rxfifo[0] with the X value
+    // using: mov isr, x; push noblock
+    // The .fifo txput directive enables rxf_putget access
+    uint32_t x_value = pio->rxf_putget[sm][0];
 
     // Invert to get elapsed cycles (0xFFFFFFFF - x_value)
     uint32_t pio_cycles = ~x_value;

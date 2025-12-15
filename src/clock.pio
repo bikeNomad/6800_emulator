@@ -8,13 +8,17 @@
 
 .program eclock
 
+.fifo txput             ; Enable rxf_putget registers for direct FIFO access
+
 public entry_point:
     mov x, ~null        ; Initialize X to 0xFFFFFFFF (count down)
 
 .wrap_target
 loop:
-    set pins, 1 [31]    ; E clock high, delay 32 cycles
-    set pins, 0 [31]    ; E clock low, delay 32 cycles
+    set pins, 1 [30]    ; E clock high, delay 31 cycles
+    set pins, 0 [30]    ; E clock low, delay 31 cycles
+    mov isr, x          ; Move X to ISR (1 cycle)
+    mov rxfifo[0], isr  ; Write ISR directly to rxfifo[0] (1 cycle)
     jmp x-- loop        ; Decrement X each cycle and loop
 .wrap
 
