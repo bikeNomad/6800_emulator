@@ -8,6 +8,7 @@
 #include "interrupts.h"
 #include "board_config.h"
 #include "hardware/gpio.h"
+#include "hardware/sync.h"
 #include <stdio.h>
 
 // Global CPU state
@@ -63,6 +64,7 @@ void cpu_start(void) {
 // Halt CPU execution
 void cpu_halt(void) {
     cpu.halted = true;
+    __mem_fence_release();  // Memory barrier - ensure Core 0 sees halt flag immediately
     eclock_stop();  // Stop E clock PIO
 
     // Turn off all LEDs when halted

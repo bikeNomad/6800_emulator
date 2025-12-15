@@ -3,6 +3,7 @@
  */
 
 #include "clock.h"
+#include "cpu_state.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
@@ -77,17 +78,8 @@ void eclock_start(void) {
 
 // Stop E clock generation
 void eclock_stop(void) {
-    // Check if state machine is enabled (check CTRL register bit)
-    bool sm_enabled = (pio->ctrl & (1u << sm)) != 0;
-
-    // Cache current PIO cycles before stopping
-    if (sm_enabled) {
-        // Read current value before stopping
-        pio_sm_exec(pio, sm, pio_encode_in(pio_x, 32));
-        pio_sm_exec(pio, sm, pio_encode_push(false, false));
-        uint32_t x_value = pio_sm_get_blocking(pio, sm);
-        last_pio_cycles = ~x_value;
-    }
+    // Cache current PIO cycles before stopping (non-blocking)
+    eclock_get_pio_cycles();  // Updates last_pio_cycles
 
     pio_sm_set_enabled(pio, sm, false);
     printf("E clock stopped (PIO cycles: %lu)\n", (unsigned long)last_pio_cycles);
@@ -96,7 +88,8 @@ void eclock_stop(void) {
 // Wait for E clock rising edge
 void eclock_wait_high(void) {
     // Poll E clock pin until it goes high
-    while (!gpio_get(GPIO_ECLOCK)) {
+    // Exit early if CPU is halted to prevent hanging
+    while (!gpio_get(GPIO_ECLOCK) && !cpu.halted) {
         tight_loop_contents();
     }
     last_e_state = true;
@@ -105,11 +98,13 @@ void eclock_wait_high(void) {
 // Wait for E clock falling edge
 void eclock_wait_low(void) {
     // Wait until E is high (if not already)
-    while (!gpio_get(GPIO_ECLOCK)) {
+    // Exit early if CPU is halted to prevent hanging
+    while (!gpio_get(GPIO_ECLOCK) && !cpu.halted) {
         tight_loop_contents();
     }
     // Now wait for the falling edge
-    while (gpio_get(GPIO_ECLOCK)) {
+    // Exit early if CPU is halted to prevent hanging
+    while (gpio_get(GPIO_ECLOCK) && !cpu.halted) {
         tight_loop_contents();
     }
     last_e_state = false;

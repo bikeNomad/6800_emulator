@@ -9,6 +9,7 @@
 #include "clock.h"
 #include "board_config.h"
 #include "hardware/gpio.h"
+#include "hardware/sync.h"
 #include <stdio.h>
 
 // Previous interrupt line states (for edge detection)
@@ -77,6 +78,9 @@ void interrupt_service_reset(void) {
     cpu.running = false;
     cpu.wai_state = false;  // Clear WAI state
     cpu.instruction_count = 0;  // Reset instruction counter
+
+    // Memory barrier - ensure Core 0 sees halt flag immediately
+    __mem_fence_release();
 
     // Stop E clock when halted
     eclock_stop();

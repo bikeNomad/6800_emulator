@@ -189,7 +189,7 @@ int main() {
             // but don't execute instructions until an interrupt wakes us
         } else {
             // CPU halted, yield to reduce power consumption
-            __wfi(); // Wait for interrupt
+            tight_loop_contents();
         }
 
         // Check if CMOS needs auto-save (deferred write after idle period)
