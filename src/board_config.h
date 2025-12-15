@@ -40,6 +40,9 @@
   // #define GPIO_UART_TX 24  // TX
   // #define GPIO_UART_RX 25  // RX
 
+  // No timing test pin available on PICO2 (only 26 GPIOs)
+  #define TIMING_TEST_ENABLED 0
+
 #elif BOARD_TYPE == BOARD_NED_SYS7
   // Ned's System 7 Board - Full GPIO (48 pins)
   // Full 16-bit address bus (64KB address space)
@@ -73,6 +76,11 @@
 
   // PSRAM chip select (shared QSPI interface)
   #define GPIO_PSRAM_CS    47  // PSRAM chip select
+
+  // Test pin for timing diagnostics (available on NED_SYS7 only)
+  #define GPIO_TIMING_TEST 42  // Test pin for timing measurements
+  #define TIMING_TEST_ENABLED 1
+
 #else
   #error "Invalid BOARD_TYPE defined. Must be BOARD_PICO2 or BOARD_NED_SYS7"
 #endif

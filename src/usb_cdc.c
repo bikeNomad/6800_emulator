@@ -121,6 +121,16 @@ static void process_command(char *cmd) {
             }
         }
 
+    } else if (strcmp(cmd, "cmos autosave on") == 0) {
+        // Enable CMOS autosave
+        memory_set_cmos_autosave_enabled(true);
+        usb_cdc_send("OK: CMOS autosave enabled\r\n");
+
+    } else if (strcmp(cmd, "cmos autosave off") == 0) {
+        // Disable CMOS autosave
+        memory_set_cmos_autosave_enabled(false);
+        usb_cdc_send("OK: CMOS autosave disabled\r\n");
+
     } else if (strncmp(cmd, "read", 4) == 0) {
         // Read memory: read <addr> <len>
         // Use fast path for diagnostic reads (no E clock waiting)
@@ -265,6 +275,7 @@ static void process_command(char *cmd) {
             "  config ram <b> <s>        - Configure RAM region\r\n"
             "  cmos save                 - Manually save CMOS to flash\r\n"
             "  cmos dump                 - Display CMOS RAM contents\r\n"
+            "  cmos autosave on/off      - Enable/disable CMOS autosave\r\n"
             "  read <addr> <len>         - Read memory\r\n"
             "  write <addr> <data>       - Write memory\r\n"
             "  status                    - Display CPU status\r\n"

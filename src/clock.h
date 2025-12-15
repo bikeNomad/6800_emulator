@@ -21,24 +21,9 @@ static inline bool eclock_read_outtopad(void) {
     return (iobank0_hw->io[GPIO_ECLOCK].status & IO_BANK0_GPIO0_STATUS_OUTTOPAD_BITS) != 0;
 }
 
-// Test pin for E clock re-synchronization indicator
-// Set to 1 to enable GPIO42 as a test indicator (goes high during re-sync)
-// Set to 0 to disable for production builds
-#define ECLOCK_RESYNC_TEST_PIN 1
-
-// Safety check: GPIO42 only exists on boards with 48 GPIOs (BOARD_NED_SYS7)
-// Automatically disable on PICO2 which only has GPIO 0-25
-#if ECLOCK_RESYNC_TEST_PIN
-  #if BOARD_TYPE == BOARD_NED_SYS7
-    #define GPIO_ECLOCK_RESYNC_TEST 42
-    #define ECLOCK_RESYNC_TEST_ENABLED 1
-  #else
-    #define ECLOCK_RESYNC_TEST_ENABLED 0
-    #warning "ECLOCK_RESYNC_TEST_PIN requested but GPIO42 not available on this board"
-  #endif
-#else
-  #define ECLOCK_RESYNC_TEST_ENABLED 0
-#endif
+// Test pin definitions are now in board_config.h:
+// - GPIO_TIMING_TEST (GPIO 42 on NED_SYS7)
+// - TIMING_TEST_ENABLED (1 on NED_SYS7, 0 on PICO2)
 
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
