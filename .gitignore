@@ -1,2 +1,4 @@
 build_*/
 ~.*
+__pycache__/*
+*/__pycache__

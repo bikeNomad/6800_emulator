@@ -54,12 +54,13 @@ pico2: build_pico2
 ned_sys7: build_ned_sys7
 
 # Clean all build directories and images
-clean:
-	rm -rf $(BUILD_PICO2_DIR) $(BUILD_NED_SYS7_DIR) $(IMAGES_DIR)
+clean: clean-images
+	rm -rf $(BUILD_PICO2_DIR) $(BUILD_NED_SYS7_DIR)
 
 # Clean images only
 clean-images:
-	rm -rf $(IMAGES_DIR)
+	rm -rf $(IMAGES_DIR)/BOARD_*.uf2
+
 
 # Help target
 help:
