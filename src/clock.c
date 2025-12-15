@@ -87,9 +87,10 @@ void eclock_stop(void) {
 
 // Wait for E clock rising edge
 void eclock_wait_high(void) {
-    // Poll E clock pin until it goes high
+    // Poll E clock OUTTOPAD (what PIO is driving) until it goes high
+    // Using OUTTOPAD instead of gpio_get() makes this independent of external pin loading
     // Exit early if CPU is halted to prevent hanging
-    while (!gpio_get(GPIO_ECLOCK) && !cpu.halted) {
+    while (!eclock_read_outtopad() && !cpu.halted) {
         tight_loop_contents();
     }
     last_e_state = true;
@@ -98,13 +99,14 @@ void eclock_wait_high(void) {
 // Wait for E clock falling edge
 void eclock_wait_low(void) {
     // Wait until E is high (if not already)
+    // Using OUTTOPAD instead of gpio_get() makes this independent of external pin loading
     // Exit early if CPU is halted to prevent hanging
-    while (!gpio_get(GPIO_ECLOCK) && !cpu.halted) {
+    while (!eclock_read_outtopad() && !cpu.halted) {
         tight_loop_contents();
     }
     // Now wait for the falling edge
     // Exit early if CPU is halted to prevent hanging
-    while (gpio_get(GPIO_ECLOCK) && !cpu.halted) {
+    while (eclock_read_outtopad() && !cpu.halted) {
         tight_loop_contents();
     }
     last_e_state = false;

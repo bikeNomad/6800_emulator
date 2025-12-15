@@ -9,8 +9,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "board_config.h"
+#include "hardware/structs/iobank0.h"
 
 // E clock output pin is defined in board_config.h as GPIO_ECLOCK
+
+// Read E clock state from OUTTOPAD register (what PIO is driving)
+// This is independent of external pin loading or shorting
+static inline bool eclock_read_outtopad(void) {
+    // Read GPIO STATUS register OUTTOPAD bit (bit 9)
+    // This shows what the PIO is driving, not what the pin voltage is
+    return (iobank0_hw->io[GPIO_ECLOCK].status & IO_BANK0_GPIO0_STATUS_OUTTOPAD_BITS) != 0;
+}
 
 // Test pin for E clock re-synchronization indicator
 // Set to 1 to enable GPIO42 as a test indicator (goes high during re-sync)
