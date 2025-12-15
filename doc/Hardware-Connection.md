@@ -145,10 +145,24 @@ Accessible addresses (128 total):
 | SPI_MISO | Input | 36 | Debug SPI data in |
 | UART_TX | Output | 40 | Debug UART output |
 | UART_RX | Input | 41 | Debug UART input (unused) |
+| LED_ROM | Output | 37 | ROM access indicator (active low, green) |
+| LED_RAM | Output | 38 | RAM access indicator (active low, red) |
+| LED_UNMAPPED | Output | 39 | Unmapped access indicator (active low, yellow) |
+| PSRAM_CS | Output | 47 | PSRAM chip select |
 
 **Note**: UART pins differ by board:
 - PICO2 uses GPIO 24-25 on UART0 (available pins)
 - NED_SYS7 uses GPIO 40-41 on UART1 (address bus uses 8-23, UART0 pins occupied)
+
+**LED Indicators**:
+- Active low outputs (LED lights when GPIO is low)
+- GREEN: Illuminates during ROM access cycles
+- RED: Illuminates during RAM/CMOS access cycles
+- YELLOW: Illuminates during unmapped/external bus access cycles
+
+**PSRAM Interface**:
+- Shared with QSPI bus on RP2350
+- Used for extended memory in future implementations
 
 ### USB Interface
 
@@ -275,38 +289,45 @@ config ram 0000 1400
 
 5. **Level shifters required** for all signals
 
-**Pinout Reference - MC6800 40-Pin DIP**:
+**Pinout Reference - MC6808 40-Pin DIP**:
 ```
          ┌──────────────┐
     VSS ─│1          40│─ /RESET
-   /IRQ ─│2          39│─ TSC
-    VMA ─│3          38│─ /HALT
-   /NMI ─│4          37│─ E (Φ2)
-     BA ─│5          36│─ DBE
-    VCC ─│6          35│─ Φ1
-     A0 ─│7          34│─ R/W
-     A1 ─│8          33│─ D0
-     A2 ─│9          32│─ D1
-     A3 ─│10         31│─ D2
-     A4 ─│11         30│─ D3
-     A5 ─│12         29│─ D4
-     A6 ─│13         28│─ D5
-     A7 ─│14         27│─ D6
-     A8 ─│15         26│─ D7
-     A9 ─│16         25│─ A15
-    A10 ─│17         24│─ A14
-    A11 ─│18         23│─ A13
-    VSS ─│19         22│─ A12
-    A20 ─│20         21│─ VSS
+  /HALT ─│2          39│─ EXTAL
+     MR ─│3          38│─ XTAL
+   /IRQ ─│4          37│─ E
+    VMA ─│5          36│─ RE
+   /NMI ─│6          35│─ VCCST
+     BA ─│7          34│─ R/W
+    VCC ─│8          33│─ D0
+     A0 ─│9          32│─ D1
+     A1 ─│10         31│─ D2
+     A2 ─│11         30│─ D3
+     A3 ─│12         29│─ D4
+     A4 ─│13         28│─ D5
+     A5 ─│14         27│─ D6
+     A6 ─│15         26│─ D7
+     A7 ─│16         25│─ A15
+     A8 ─│17         24│─ A14
+     A9 ─│18         23│─ A13
+    A10 ─│19         22│─ A12
+    A11 ─│20         21│─ VSS
          └──────────────┘
 ```
 
-**Unused Signals**:
-- BA (Bus Available): Not implemented
-- TSC (Three-State Control): Tie to VCC (always enabled)
-- /HALT: Controlled via USB command
-- DBE (Data Bus Enable): Tie to VCC
-- Φ1: Not needed (internal to emulator)
+**Key MC6808 Features**:
+- **RE (Ready Enable)**: Enables automatic wait state generation for slow memories (pin 36)
+- **MR (Memory Ready)**: Input for synchronizing with external memory (pin 3)
+- **BA (Bus Available)**: Indicates DMA bus available (pin 7, outputs low during DMA)
+- **VCCST (Standby Power)**: Standby power supply pin (pin 35, not used in emulation)
+- **XTAL/EXTAL**: Crystal oscillator connections (pins 38-39, leave unconnected)
+
+**Emulator Notes**:
+- /HALT (pin 2): Controlled via USB command (normally active low input)
+- MR (pin 3): Tied low (no external wait state control needed)
+- RE (pin 36): Tied high (enable all wait states)
+- /IRQ (pin 4), /NMI (pin 6): Software controlled interrupts
+- Crystal pins XTAL/EXTAL: Leave unconnected in emulation
 
 ### Scenario 4: Williams System 7 Pinball
 
@@ -315,46 +336,54 @@ config ram 0000 1400
 **Recommended Board**: BOARD_NED_SYS7
 
 **System Details**:
-- CPU: MC6800 @ 894.886 kHz
+- CPU: MC6808 @ 894.886 kHz
 - PIAs: Three 6821s at $2100-$21FF
 - Memory: 5KB RAM, 12KB EPROM
 
 **Connections (BOARD_NED_SYS7)**:
 ```
-J1 Connector (CPU Board)
+IC1 Connector (CPU Board)
 Pin  Signal      RP2350 GPIO    Notes
 1    GND         GND             Common ground
-2    +5V         (via USB)       RP2350 powered separately
-3    E           29              894.886 kHz
-4    R/W         25              Read/Write
-5    D0          0               Data bus
-6    D1          1
-7    D2          2
-8    D3          3
-9    D4          4
-10   D5          5
-11   D6          6
-12   D7          7
-13   A0          8               Address bus (full 16-bit)
-14   A1          9
-15   A2          10
-16   A3          11
-17   A4          12
-18   A5          13
-19   A6          14
-20   A7          15
-21   A8          16
-22   A9          17
-23   A10         18
-24   A11         19
-25   A12         20
-26   A13         21
-27   A14         22
-28   A15         23
-29   /RESET      28
-30   /IRQ        26
-31   /NMI        27
-32   VMA         24
+2    -           -               (not used)
+3    -           -               (not used)
+4    /IRQ        27              Interrupt request (active low)
+5    VMA         24              Valid memory address
+6    /NMI        28              Non-maskable interrupt (active low)
+7    -           -               (not used)
+8    -           -               (not used)
+9    A0          8               Address bus (full 16-bit)
+10   A1          9
+11   A2          10
+12   A3          11
+13   A4          12
+14   A5          13
+15   A6          14
+16   A7          15
+17   A8          16
+18   A9          17
+19   A10         18
+20   A11         19
+21   GND         GND             Ground (duplicate)
+22   A12         20
+23   A13         21
+24   A14         22
+25   A15         23
+26   D7          7
+27   D6          6
+28   D5          5
+29   D4          4
+30   D3          3
+31   D2          2
+32   D1          1
+33   D0          0
+34   R/W         26              Read/Write
+35   -           -               (not used)
+36   -           -               (not used)
+37   E           25              E clock (894.886 kHz)
+38   -           -               (not used)
+39   -           -               (not used)
+40   /RESET      29              Reset (active low)
 ```
 
 **Configuration**:
