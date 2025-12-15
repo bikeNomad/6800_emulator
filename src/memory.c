@@ -239,6 +239,8 @@ uint8_t __time_critical_func(memory_read)(uint16_t address) {
 #if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();  // Unmapped LED on, others off
 #endif
+    // Check timing before bus operation to stay synchronized with hardware
+    eclock_check_timing();
     uint8_t data = bus_read_cycle(address);
     return data;
 }
@@ -345,6 +347,8 @@ void memory_write(uint16_t address, uint8_t value) {
 #if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();  // Unmapped LED on, others off
 #endif
+    // Check timing before bus operation to stay synchronized with hardware
+    eclock_check_timing();
     bus_write_cycle(address, value);
 }
 
