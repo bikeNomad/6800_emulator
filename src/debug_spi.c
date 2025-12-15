@@ -41,10 +41,10 @@ void debug_spi_log(void) {
     // Word 1: CPU CCR 
     uint8_t packet[4];
 
-    packet[0] = (cpu.pc >> 8) & 0xFF;
-    packet[1] = cpu.pc & 0xFF;
-    packet[2] = 0;  // Reserved
-    packet[3] = cpu.ccr;
+    packet[1] = (cpu.pc >> 8) & 0xFF;
+    packet[0] = cpu.pc & 0xFF;
+    packet[3] = 0;  // Reserved
+    packet[2] = cpu.ccr;
 
     // Send packet via SPI
     spi_write16_blocking(DEBUG_SPI_INST, (uint16_t *)packet, 2);
