@@ -73,8 +73,14 @@ void eclock_stop(void) {
     // Cache current PIO cycles before stopping (non-blocking)
     eclock_get_pio_cycles();  // Updates last_pio_cycles
 
+    // Force E output LOW before stopping (PIO owns the pin)
+    // Execute instruction to set pin LOW: set pindirs, 1; set pins, 0
+    pio_sm_exec(pio, sm, pio_encode_set(pio_pindirs, 1));  // Set pin to output
+    pio_sm_exec(pio, sm, pio_encode_set(pio_pins, 0));     // Set pin LOW
+
     pio_sm_set_enabled(pio, sm, false);
-    printf("E clock stopped (PIO cycles: %lu)\n", (unsigned long)last_pio_cycles);
+
+    printf("E clock stopped (PIO cycles: %lu, E forced LOW)\n", (unsigned long)last_pio_cycles);
 }
 
 // Wait for E clock rising edge

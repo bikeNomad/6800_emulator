@@ -183,18 +183,52 @@ static void process_command(char *cmd) {
 
     } else if (strncmp(cmd, "read", 4) == 0) {
         // Read memory: read <addr> <len>
-        // Use fast path for diagnostic reads (no E clock waiting)
+        // Use fast path for mapped memory, bus access for unmapped
         unsigned int addr, len;
         if (sscanf(cmd + 4, "%x %x", &addr, &len) == 2) {
-            usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
-            for (uint32_t i = 0; i < len; i++) {
-                if (i % 16 == 0) {
-                    usb_cdc_printf("%04X: ", addr + i);
+            if (addr > MAX_ADDRESS) {
+                usb_cdc_send("ERROR: Address out of range\r\n");
+            } else if (len == 0 || len > 1024) {
+                usb_cdc_send("ERROR: Length must be 1-1024\r\n");
+            } else if (addr + len > MAX_ADDRESS + 1) {
+                usb_cdc_send("ERROR: Block exceeds address space\r\n");
+            } else {
+                usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
+
+                // Check if any addresses in range are unmapped (require bus access)
+                bool has_unmapped = false;
+                for (uint32_t i = 0; i < len; i++) {
+                    if (memory_get_type((uint16_t)(addr + i)) == MEM_TYPE_UNMAPPED) {
+                        has_unmapped = true;
+                        break;
+                    }
                 }
-                uint8_t value = memory_read_fast(addr + i);
-                usb_cdc_printf("%02X ", value);
-                if (i % 16 == 15 || i == len - 1) {
-                    usb_cdc_send("\r\n");
+
+                if (has_unmapped) {
+                    // Use bus access with E clock management for unmapped addresses
+                    uint8_t buffer[1024];  // Max block size
+                    bus_read_block_with_eclock((uint16_t)addr, (uint16_t)len, buffer);
+                    for (uint32_t i = 0; i < len; i++) {
+                        if (i % 16 == 0) {
+                            usb_cdc_printf("%04X: ", addr + i);
+                        }
+                        usb_cdc_printf("%02X ", buffer[i]);
+                        if (i % 16 == 15 || i == len - 1) {
+                            usb_cdc_send("\r\n");
+                        }
+                    }
+                } else {
+                    // Fast path for mapped memory only
+                    for (uint32_t i = 0; i < len; i++) {
+                        if (i % 16 == 0) {
+                            usb_cdc_printf("%04X: ", addr + i);
+                        }
+                        uint8_t value = memory_read_fast(addr + i);
+                        usb_cdc_printf("%02X ", value);
+                        if (i % 16 == 15 || i == len - 1) {
+                            usb_cdc_send("\r\n");
+                        }
+                    }
                 }
             }
         } else {
@@ -203,12 +237,17 @@ static void process_command(char *cmd) {
 
     } else if (strncmp(cmd, "write", 5) == 0) {
         // Write memory: write <addr> <data...>
+        // Same as bus_write_block for all addresses
         unsigned int addr;
         char *addr_str = cmd + 5;
         // Skip leading whitespace
         while (*addr_str == ' ') addr_str++;
         // Parse address
         if (sscanf(addr_str, "%x", &addr) == 1) {
+            if (addr > MAX_ADDRESS) {
+                usb_cdc_send("ERROR: Address out of range\r\n");
+                return;
+            }
             // Skip past the address hex digits
             while (*addr_str && *addr_str != ' ') addr_str++;
             // Now find the data bytes
@@ -216,18 +255,48 @@ static void process_command(char *cmd) {
             while (*data_str == ' ') data_str++;  // Skip spaces
 
             if (*data_str) {
-                while (*data_str) {
+                // Parse data into buffer first
+                uint8_t buffer[1024];  // Max block size
+                uint32_t count = 0;
+                while (*data_str && count < 1024) {
                     unsigned int value;
-                    if (sscanf(data_str, "%x", &value) == 1) {
-                        memory_write(addr++, value);
+                    if (sscanf(data_str, "%x", &value) == 1 && value <= 255) {
+                        if (addr + count > MAX_ADDRESS) {
+                            usb_cdc_send("ERROR: Block exceeds address space\r\n");
+                            return;
+                        }
+                        buffer[count] = (uint8_t)value;
+                        count++;
                         // Skip to next hex value
                         while (*data_str && *data_str != ' ') data_str++;
                         while (*data_str && *data_str == ' ') data_str++;
                     } else {
+                        usb_cdc_send("ERROR: Invalid hex data\r\n");
+                        return;
+                    }
+                }
+
+                // Check if any addresses in range are unmapped (require bus access)
+                bool has_unmapped = false;
+                for (uint32_t i = 0; i < count; i++) {
+                    if (memory_get_type((uint16_t)(addr + i)) == MEM_TYPE_UNMAPPED) {
+                        has_unmapped = true;
                         break;
                     }
                 }
+
+                if (has_unmapped) {
+                    // Use bus access with E clock management for unmapped addresses
+                    bus_write_block_with_eclock((uint16_t)addr, buffer, (uint16_t)count);
+                } else {
+                    // Fast path for mapped memory only
+                    for (uint32_t i = 0; i < count; i++) {
+                        memory_write(addr + i, buffer[i]);
+                    }
+                }
                 usb_cdc_send("OK\r\n");
+            } else {
+                usb_cdc_send("ERROR: No data provided\r\n");
             }
         } else {
             usb_cdc_send("ERROR: Usage: write <addr_hex> <byte_hex> ...\r\n");

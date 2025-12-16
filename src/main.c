@@ -191,7 +191,7 @@ int main() {
                 if (cpu_check_breakpoint(cpu.pc)) {
                     // Breakpoint hit - halt CPU
                     cpu_halt();
-                    printf("Breakpoint hit at PC=$%04X\n", cpu.pc);
+                    usb_cdc_printf("CPU halted at breakpoint at PC=$%04X\n", cpu.pc);
                     continue;  // Skip instruction execution
                 }
 
