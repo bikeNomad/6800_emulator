@@ -6,7 +6,7 @@ Runs directly on the RP2350 board under MicroPython.
 
 import machine
 import time
-import gc
+from hexdump import hexdump
 
 
 # Board types (matching board_config.h)
@@ -114,6 +114,7 @@ class BusTester:
         self.nmi_pin = None
         self.reset_pin = None
         self.e_clock_pin = None
+        self.init()
 
     def init(self):
         """Initialize the bus interface hardware"""
@@ -172,8 +173,8 @@ class BusTester:
     def _drive_address_bus(self, address):
         """Drive the address bus with the specified address"""
         gpio_mask = self._addr_to_gpio_mask(address)
-        for i in range(len(self.addr_pins)):
-            self.addr_pins[i].value((gpio_mask >> (GPIO_ADDR_BASE + i)) & 1)
+        for i, pin in enumerate(self.addr_pins):
+            pin.value((gpio_mask >> (GPIO_ADDR_BASE + i)) & 1)
 
     def _drive_control_read(self):
         """Set control signals for read operation"""
@@ -201,13 +202,23 @@ class BusTester:
         for i in range(8):
             self.data_pins[i].init(machine.Pin.IN, machine.Pin.PULL_UP)
 
-    def _wait_e_clock_edge(self):
-        """Wait for the next E clock edge (simplified - just delay for now)"""
-        # In a real implementation, this would synchronize with the actual E clock
-        # For now, use a fixed delay that approximates one E clock cycle
-        time.sleep_us(1)
+    def _eclock_low(self):
+        """Set E clock LOW"""
+        self.e_clock_pin.value(0)
+        time.sleep_us(1)  # Small delay for signal stability
 
-    def bus_read_cycle(self, address):
+    def _eclock_high(self):
+        """Set E clock HIGH"""
+        self.e_clock_pin.value(1)
+        time.sleep_us(1)  # Small delay for signal stability
+
+    def _eclock_pulse(self):
+        """Complete E clock pulse: LOW -> HIGH -> LOW"""
+        self._eclock_low()
+        self._eclock_high()
+        self._eclock_low()
+
+    def bus_read_cycle(self, address) -> int:
         """
         Perform one read bus cycle (address -> data)
         Synchronized to E clock
@@ -221,8 +232,8 @@ class BusTester:
         if not (0 <= address <= MAX_ADDRESS):
             raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
 
-        # Wait for E clock low (beginning of cycle)
-        self._wait_e_clock_edge()
+        # E clock LOW (beginning of cycle)
+        self._eclock_low()
 
         # Set data bus to input mode
         self._data_bus_to_input()
@@ -233,8 +244,8 @@ class BusTester:
         # Assert VMA and R/W (read = 1)
         self._drive_control_read()
 
-        # Wait for E clock high (data valid time)
-        self._wait_e_clock_edge()
+        # E clock HIGH (data valid time)
+        self._eclock_high()
 
         # Read data bus
         data = 0
@@ -242,8 +253,8 @@ class BusTester:
             if self.data_pins[i].value():
                 data |= (1 << i)
 
-        # Wait for E clock low (end of cycle)
-        self._wait_e_clock_edge()
+        # E clock LOW (end of cycle)
+        self._eclock_low()
 
         # De-assert VMA (R/W stays high)
         self._deassert_vma()
@@ -259,13 +270,13 @@ class BusTester:
             address: Address to write to (0-65535)
             data: Data to write (0-255)
         """
-        if not (0 <= address <= MAX_ADDRESS):
-            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
-        if not (0 <= data <= 255):
+        if not 0 <= address <= MAX_ADDRESS:
+            raise ValueError(f"Address must be 0-{MAX_ADDRESS}")
+        if not 0 <= data <= 255:
             raise ValueError("Data must be 0-255")
 
-        # Wait for E clock low (beginning of cycle)
-        self._wait_e_clock_edge()
+        # E clock LOW (beginning of cycle)
+        self._eclock_low()
 
         # Set data bus to output mode and drive data
         self._drive_control_write(data)
@@ -273,11 +284,11 @@ class BusTester:
         # Drive address bus
         self._drive_address_bus(address)
 
-        # Wait for E clock high (data latches)
-        self._wait_e_clock_edge()
+        # E clock HIGH (data latches)
+        self._eclock_high()
 
-        # Wait for E clock low (end of cycle)
-        self._wait_e_clock_edge()
+        # E clock LOW (end of cycle)
+        self._eclock_low()
 
         # De-assert VMA and return R/W to read
         self._deassert_vma()
@@ -313,24 +324,19 @@ class BusTester:
 
         Args:
             address: Starting address
-            length: Number of bytes to read (max 1024)
+            length: Number of bytes to read
 
         Returns:
             List of byte values
         """
         if not (0 <= address <= MAX_ADDRESS):
-            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
-        if not (1 <= length <= 1024):
-            raise ValueError("Length must be 1-1024")
+            raise ValueError(f"Address must be 0-{MAX_ADDRESS}")
         if address + length > MAX_ADDRESS + 1:
             raise ValueError("Block exceeds address space")
 
-        data = []
+        data = bytearray(length)
         for i in range(length):
-            data.append(self.bus_read_cycle(address + i))
-            # Allow other tasks to run
-            if i % 100 == 0:
-                gc.collect()
+            data[i] = self.bus_read_cycle(address + i)
 
         return data
 
@@ -342,12 +348,8 @@ class BusTester:
             address: Starting address
             data: Data to write (list of bytes or bytes object)
         """
-        if not (0 <= address <= MAX_ADDRESS):
-            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
-        if isinstance(data, bytes):
-            data = list(data)
-        if not (1 <= len(data) <= 1024):
-            raise ValueError("Data length must be 1-1024")
+        if not 0 <= address <= MAX_ADDRESS:
+            raise ValueError(f"Address must be 0-{MAX_ADDRESS}")
         if not all(isinstance(b, int) and 0 <= b <= 255 for b in data):
             raise ValueError("All data values must be 0-255")
         if address + len(data) > MAX_ADDRESS + 1:
@@ -355,9 +357,6 @@ class BusTester:
 
         for i, byte in enumerate(data):
             self.bus_write_cycle(address + i, byte)
-            # Allow other tasks to run
-            if i % 100 == 0:
-                gc.collect()
 
     def get_bus_info(self):
         """
@@ -386,35 +385,15 @@ class BusTester:
         Returns:
             True if ROM matches expected data
         """
-        if isinstance(expected_data, bytes):
-            expected_data = list(expected_data)
-
         actual_data = self.read_block(address, len(expected_data))
         return actual_data == expected_data
-
-    def dump_memory(self, address, length, width=16):
+    
+    def checksum(self, address, length) -> int:
         """
-        Create a hex dump of memory contents.
-
-        Args:
-            address: Starting address
-            length: Number of bytes to dump
-            width: Bytes per line
-
-        Returns:
-            Formatted hex dump string
+        Produce a simple checksum of given address range, compatible
+        with those from IPDB, etc.
         """
-        data = self.read_block(address, length)
-        lines = []
-
-        for i in range(0, len(data), width):
-            chunk = data[i:i + width]
-            hex_part = " ".join("{:02X}".format(b) for b in chunk)
-            ascii_part = "".join(chr(b) if 32 <= b <= 126 else "." for b in chunk)
-
-            lines.append("{:04X}: {:<{}s} {}".format(address + i, hex_part, width*3-1, ascii_part))
-
-        return "\n".join(lines)
+        return hex(sum(self.read_block(address, length)) & 0xFFFF)
 
     def read_irq(self):
         """Read IRQ line (active low)"""
@@ -428,56 +407,6 @@ class BusTester:
         """Read RESET line (active low)"""
         return not self.reset_pin.value()
 
-
-# Convenience functions for quick access
-_default_tester = None
-
-def init():
-    """Initialize the default bus tester"""
-    global _default_tester
-    _default_tester = BusTester()
-    _default_tester.init()
-
-def cleanup():
-    """Clean up the default bus tester"""
-    global _default_tester
-    _default_tester = None
-
-def read(address):
-    """Read a byte using the default tester"""
-    if not _default_tester:
-        raise BusError("Bus tester not initialized. Call init() first.")
-    return _default_tester.read_byte(address)
-
-def write(address, data):
-    """Write a byte using the default tester"""
-    if not _default_tester:
-        raise BusError("Bus tester not initialized. Call init() first.")
-    _default_tester.write_byte(address, data)
-
-def read_block(address, length):
-    """Read a block using the default tester"""
-    if not _default_tester:
-        raise BusError("Bus tester not initialized. Call init() first.")
-    return _default_tester.read_block(address, length)
-
-def write_block(address, data):
-    """Write a block using the default tester"""
-    if not _default_tester:
-        raise BusError("Bus tester not initialized. Call init() first.")
-    _default_tester.write_block(address, data)
-
-
-if __name__ == "__main__":
-    # Example usage
-    print("MC6800 Bus Test Module for MicroPython")
-    print("Example usage:")
-    print()
-    print("import bus_test")
-    print("bus_test.init()  # Initialize hardware")
-    print("data = bus_test.read(0x0000)  # Read from address 0")
-    print("bus_test.write(0x0000, 0xAA)  # Write 0xAA to address 0")
-    print()
-    print("Direct bus cycle functions:")
-    print("data = bus_test.bus_read_cycle(0x0000)")
-    print("bus_test.bus_write_cycle(0x0000, 0xAA)")
+    def dump_block(self, address, length):
+        data = self.read_block(address, length)
+        hexdump(data, address)
