@@ -40,6 +40,7 @@ typedef struct {
     // Breakpoint system
     uint16_t breakpoints[MAX_BREAKPOINTS];
     uint8_t breakpoint_count;
+    bool stopped_at_breakpoint;  // True when halted at breakpoint, skip next breakpoint check
 } cpu_state_t;
 
 // Global CPU state (defined in cpu_state.c)

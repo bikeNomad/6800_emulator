@@ -57,6 +57,10 @@ void eclock_init(void) {
 
 // Start E clock generation
 void eclock_start(void) {
+    // Ensure PIO has control of the pin (in case GPIO took control during stop)
+    pio_gpio_init(pio, GPIO_ECLOCK);
+    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_ECLOCK, 1, true);
+
     // Reset PIO cycle counter before starting
     eclock_reset_pio_counter();
 
@@ -73,12 +77,13 @@ void eclock_stop(void) {
     // Cache current PIO cycles before stopping (non-blocking)
     eclock_get_pio_cycles();  // Updates last_pio_cycles
 
-    // Force E output LOW before stopping (PIO owns the pin)
-    // Execute instruction to set pin LOW: set pindirs, 1; set pins, 0
-    pio_sm_exec(pio, sm, pio_encode_set(pio_pindirs, 1));  // Set pin to output
-    pio_sm_exec(pio, sm, pio_encode_set(pio_pins, 0));     // Set pin LOW
-
+    // Disable PIO state machine
     pio_sm_set_enabled(pio, sm, false);
+
+    // Configure GPIO to drive E clock LOW
+    gpio_init(GPIO_ECLOCK);
+    gpio_set_dir(GPIO_ECLOCK, GPIO_OUT);
+    gpio_put(GPIO_ECLOCK, 0);  // Force LOW
 
     printf("E clock stopped (PIO cycles: %lu, E forced LOW)\n", (unsigned long)last_pio_cycles);
 }

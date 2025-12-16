@@ -188,10 +188,11 @@ int main() {
             // Only execute instructions if not in WAI state
             if (!cpu.wai_state) {
                 // Check for breakpoints before executing instruction
-                if (cpu_check_breakpoint(cpu.pc)) {
-                    // Breakpoint hit - halt CPU
+                if (cpu_check_breakpoint(cpu.pc) && !cpu.stopped_at_breakpoint) {
+                    // Breakpoint hit - halt CPU and set flag to skip check on next run
                     cpu_halt();
-                    usb_cdc_printf("CPU halted at breakpoint at PC=$%04X\n", cpu.pc);
+                    cpu.stopped_at_breakpoint = true;
+                    usb_cdc_printf("CPU halted at breakpoint at PC=$%04X\r\n", cpu.pc);
                     continue;  // Skip instruction execution
                 }
 
@@ -201,6 +202,13 @@ int main() {
 #endif
                 // Execute one instruction (cycle-accurate)
                 instruction_execute();
+
+                // If we just executed an instruction while stopped at a breakpoint,
+                // clear the flag so breakpoint checking resumes
+                if (cpu.stopped_at_breakpoint) {
+                    cpu.stopped_at_breakpoint = false;
+                }
+
 #if TIMING_TEST_ENABLED
                 // Set test pin low during overhead
                 gpio_put(GPIO_TIMING_TEST, 0);

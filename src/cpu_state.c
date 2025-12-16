@@ -35,6 +35,7 @@ void cpu_init(void) {
     for (int i = 0; i < MAX_BREAKPOINTS; i++) {
         cpu.breakpoints[i] = 0xFFFF;  // Invalid address
     }
+    cpu.stopped_at_breakpoint = false;
 
     // Turn off all LEDs at startup
     led_all_off();
