@@ -143,9 +143,87 @@ The test runs continuously until interrupted with Ctrl+C.
 
 ## Installation and Setup
 
-1. Copy the desired `.py` files to your MicroPython board
-2. Import and use as shown in the examples above
-3. For bus testing, ensure the MC6800 emulator hardware is properly connected
+### Loading MicroPython Firmware
+
+Before using the MicroPython modules, you need to load the MicroPython firmware onto your RP2350 board:
+
+1. **Enter Bootloader Mode**: Put your RP2350 board into bootloader mode by pressing and holding the BOOTSEL button while plugging it in, or by resetting the board while holding BOOTSEL.
+
+2. **Copy UF2 File**: The board will appear as a USB drive. Copy the `micropython.uf2` file from this directory to the USB drive.
+
+3. **Board Reboots**: The board will automatically reboot with MicroPython firmware loaded.
+
+**Note**: This replaces the MC6800 emulator firmware. To return to emulator mode, flash one of the emulator UF2 images from the `images/` directory (e.g., `BOARD_NED_SYS7.uf2`).
+
+### Using the Modules
+
+#### Option 1: Using mpremote (Recommended)
+
+mpremote is a command-line tool for interacting with MicroPython devices. Install it with:
+
+```bash
+pip install mpremote
+```
+
+**Copy modules to the board:**
+```bash
+# Copy bus_test.py to the MicroPython board
+mpremote cp bus_test.py :
+
+# Copy gpio_test.py to the board
+mpremote cp gpio_test.py :
+```
+
+**Run code directly:**
+```bash
+# Run GPIO test
+mpremote run gpio_test.py
+
+# Run bus test interactively
+mpremote
+>>> import bus_test
+>>> bus_test.init()
+>>> data = bus_test.read(0x0000)
+>>> print("Read:", hex(data))
+```
+
+**Access REPL:**
+```bash
+mpremote repl
+```
+
+#### Option 2: Using Thonny IDE
+
+1. Install [Thonny IDE](https://thonny.org/)
+2. Connect your MicroPython board
+3. Use Thonny's file browser to copy `bus_test.py` and `gpio_test.py` to the board
+4. Use the REPL or create/run scripts
+
+#### Option 3: Using rshell or ampy
+
+Alternative command-line tools:
+
+```bash
+# Install rshell
+pip install rshell
+
+# Connect and copy files
+rshell -p /dev/ttyACM0 cp bus_test.py /pyboard/
+rshell -p /dev/ttyACM0 cp gpio_test.py /pyboard/
+
+# Install ampy
+pip install adafruit-ampy
+
+# Copy files with ampy
+ampy -p /dev/ttyACM0 put bus_test.py
+ampy -p /dev/ttyACM0 put gpio_test.py
+```
+
+#### Running Tests
+
+1. Connect to the board using one of the methods above
+2. For bus testing, ensure the MC6800 emulator hardware is properly connected
+3. Import and use as shown in the examples above
 
 ## Dependencies
 
