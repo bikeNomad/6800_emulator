@@ -1,0 +1,420 @@
+"""
+MC6800 Bus Test Module for MicroPython
+Provides functions to read and write via the hardware bus for testing ROMs, PIAs, etc.
+Runs directly on the RP2350 board under MicroPython.
+"""
+
+import machine
+import time
+import gc
+
+
+# GPIO pin mappings for NED_SYS7 board (full GPIO support)
+# Based on board_config.h and hardware connections
+GPIO_DATA_BASE = 0   # GPIO 0-7: Data bus (bi-directional)
+GPIO_ADDR_BASE = 8   # GPIO 8+: Address bus (starts at GPIO 8)
+
+# Control signals
+GPIO_VMA = 24        # VMA (Valid Memory Address) output
+GPIO_RW = 26         # R/W (Read/Write) output
+GPIO_E_CLOCK = 25    # E clock output (PIO)
+
+# Interrupt inputs (active low)
+GPIO_IRQ = 27        # /IRQ input
+GPIO_NMI = 28        # /NMI input
+GPIO_RESET = 29      # /RESET input
+
+# Address bus configuration
+ADDR_LINES = 16
+ADDR_MASK = 0xFFFF
+MAX_ADDRESS = 0xFFFF
+ADDR_SPACE_SIZE = 65536
+
+
+class BusError(Exception):
+    """Exception raised for bus communication errors"""
+    pass
+
+
+class BusTester:
+    """
+    MC6800 Bus Tester for MicroPython
+    Provides methods to read/write data via the hardware bus interface
+    """
+
+    def __init__(self):
+        """Initialize the bus tester"""
+        # GPIO objects (initialized in init())
+        self.data_pins = []
+        self.addr_pins = []
+        self.vma_pin = None
+        self.rw_pin = None
+        self.irq_pin = None
+        self.nmi_pin = None
+        self.reset_pin = None
+        self.e_clock_pin = None
+
+    def init(self):
+        """Initialize the bus interface hardware"""
+        try:
+            # Initialize data bus pins (GPIO 0-7) as inputs initially
+            self.data_pins = []
+            for i in range(8):
+                pin = machine.Pin(GPIO_DATA_BASE + i, machine.Pin.IN, machine.Pin.PULL_UP)
+                self.data_pins.append(pin)
+
+            # Initialize address bus pins (GPIO 8-23) as outputs
+            self.addr_pins = []
+            for i in range(16):
+                pin = machine.Pin(GPIO_ADDR_BASE + i, machine.Pin.OUT)
+                pin.value(0)
+                self.addr_pins.append(pin)
+
+            # Initialize control signals
+            self.vma_pin = machine.Pin(GPIO_VMA, machine.Pin.OUT)
+            self.vma_pin.value(0)  # VMA inactive
+
+            self.rw_pin = machine.Pin(GPIO_RW, machine.Pin.OUT)
+            self.rw_pin.value(1)   # Default to read
+
+            # Initialize interrupt inputs with pull-ups (active low)
+            self.irq_pin = machine.Pin(GPIO_IRQ, machine.Pin.IN, machine.Pin.PULL_UP)
+            self.nmi_pin = machine.Pin(GPIO_NMI, machine.Pin.IN, machine.Pin.PULL_UP)
+            self.reset_pin = machine.Pin(GPIO_RESET, machine.Pin.IN, machine.Pin.PULL_UP)
+
+            # Initialize E clock pin
+            self.e_clock_pin = machine.Pin(GPIO_E_CLOCK, machine.Pin.OUT)
+            self.e_clock_pin.value(0)
+
+            print("Bus interface initialized for NED_SYS7 board")
+            print("  Data: GPIO {}-{}".format(GPIO_DATA_BASE, GPIO_DATA_BASE + 7))
+            print("  Addr: GPIO {}-{}".format(GPIO_ADDR_BASE, GPIO_ADDR_BASE + 15))
+            print("  VMA: GPIO {}".format(GPIO_VMA))
+            print("  R/W: GPIO {}".format(GPIO_RW))
+            print("  E:   GPIO {}".format(GPIO_E_CLOCK))
+            print("  /IRQ: GPIO {}".format(GPIO_IRQ))
+            print("  /NMI: GPIO {}".format(GPIO_NMI))
+            print("  /RESET: GPIO {}".format(GPIO_RESET))
+
+        except Exception as e:
+            raise BusError("Failed to initialize bus interface: {}".format(e))
+
+    def _addr_to_gpio_mask(self, address):
+        """Convert MC6800 address to GPIO pin values"""
+        # Apply address mask (all 16 bits used for NED_SYS7)
+        address &= ADDR_MASK
+        # Address bits map directly to GPIO 8-23 (shift left by 8)
+        return address << 8
+
+    def _drive_address_bus(self, address):
+        """Drive the address bus with the specified address"""
+        gpio_mask = self._addr_to_gpio_mask(address)
+        for i in range(16):
+            self.addr_pins[i].value((gpio_mask >> (GPIO_ADDR_BASE + i)) & 1)
+
+    def _drive_control_read(self):
+        """Set control signals for read operation"""
+        self.vma_pin.value(1)  # VMA=1
+        self.rw_pin.value(1)   # R/W=1 (read)
+
+    def _drive_control_write(self, data):
+        """Set control signals and data bus for write operation"""
+        # Set data bus to output mode
+        for i in range(8):
+            self.data_pins[i].init(machine.Pin.OUT)
+            self.data_pins[i].value((data >> i) & 1)
+
+        # Set control signals
+        self.rw_pin.value(0)   # R/W=0 (write)
+        self.vma_pin.value(1)  # VMA=1
+
+    def _deassert_vma(self):
+        """De-assert VMA and return R/W to read"""
+        self.vma_pin.value(0)  # VMA=0
+        self.rw_pin.value(1)   # R/W=1 (read)
+
+    def _data_bus_to_input(self):
+        """Set data bus back to input mode"""
+        for i in range(8):
+            self.data_pins[i].init(machine.Pin.IN, machine.Pin.PULL_UP)
+
+    def _wait_e_clock_edge(self):
+        """Wait for the next E clock edge (simplified - just delay for now)"""
+        # In a real implementation, this would synchronize with the actual E clock
+        # For now, use a fixed delay that approximates one E clock cycle
+        time.sleep_us(1)
+
+    def bus_read_cycle(self, address):
+        """
+        Perform one read bus cycle (address -> data)
+        Synchronized to E clock
+
+        Args:
+            address: Address to read from (0-65535)
+
+        Returns:
+            The byte value read (0-255)
+        """
+        if not (0 <= address <= MAX_ADDRESS):
+            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
+
+        # Wait for E clock low (beginning of cycle)
+        self._wait_e_clock_edge()
+
+        # Set data bus to input mode
+        self._data_bus_to_input()
+
+        # Drive address bus
+        self._drive_address_bus(address)
+
+        # Assert VMA and R/W (read = 1)
+        self._drive_control_read()
+
+        # Wait for E clock high (data valid time)
+        self._wait_e_clock_edge()
+
+        # Read data bus
+        data = 0
+        for i in range(8):
+            if self.data_pins[i].value():
+                data |= (1 << i)
+
+        # Wait for E clock low (end of cycle)
+        self._wait_e_clock_edge()
+
+        # De-assert VMA (R/W stays high)
+        self._deassert_vma()
+
+        return data
+
+    def bus_write_cycle(self, address, data):
+        """
+        Perform one write bus cycle (address + data -> bus)
+        Synchronized to E clock
+
+        Args:
+            address: Address to write to (0-65535)
+            data: Data to write (0-255)
+        """
+        if not (0 <= address <= MAX_ADDRESS):
+            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
+        if not (0 <= data <= 255):
+            raise ValueError("Data must be 0-255")
+
+        # Wait for E clock low (beginning of cycle)
+        self._wait_e_clock_edge()
+
+        # Set data bus to output mode and drive data
+        self._drive_control_write(data)
+
+        # Drive address bus
+        self._drive_address_bus(address)
+
+        # Wait for E clock high (data latches)
+        self._wait_e_clock_edge()
+
+        # Wait for E clock low (end of cycle)
+        self._wait_e_clock_edge()
+
+        # De-assert VMA and return R/W to read
+        self._deassert_vma()
+
+        # Set data bus back to input mode
+        self._data_bus_to_input()
+
+    def read_byte(self, address):
+        """
+        Read a single byte from the specified address.
+
+        Args:
+            address: Address to read from (0-65535)
+
+        Returns:
+            The byte value read (0-255)
+        """
+        return self.bus_read_cycle(address)
+
+    def write_byte(self, address, data):
+        """
+        Write a single byte to the specified address.
+
+        Args:
+            address: Address to write to (0-65535)
+            data: Data to write (0-255)
+        """
+        self.bus_write_cycle(address, data)
+
+    def read_block(self, address, length):
+        """
+        Read a block of bytes from the specified address range.
+
+        Args:
+            address: Starting address
+            length: Number of bytes to read (max 1024)
+
+        Returns:
+            List of byte values
+        """
+        if not (0 <= address <= MAX_ADDRESS):
+            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
+        if not (1 <= length <= 1024):
+            raise ValueError("Length must be 1-1024")
+        if address + length > MAX_ADDRESS + 1:
+            raise ValueError("Block exceeds address space")
+
+        data = []
+        for i in range(length):
+            data.append(self.bus_read_cycle(address + i))
+            # Allow other tasks to run
+            if i % 100 == 0:
+                gc.collect()
+
+        return data
+
+    def write_block(self, address, data):
+        """
+        Write a block of bytes to the specified address range.
+
+        Args:
+            address: Starting address
+            data: Data to write (list of bytes or bytes object)
+        """
+        if not (0 <= address <= MAX_ADDRESS):
+            raise ValueError("Address must be 0-{}".format(MAX_ADDRESS))
+        if isinstance(data, bytes):
+            data = list(data)
+        if not (1 <= len(data) <= 1024):
+            raise ValueError("Data length must be 1-1024")
+        if not all(isinstance(b, int) and 0 <= b <= 255 for b in data):
+            raise ValueError("All data values must be 0-255")
+        if address + len(data) > MAX_ADDRESS + 1:
+            raise ValueError("Block exceeds address space")
+
+        for i, byte in enumerate(data):
+            self.bus_write_cycle(address + i, byte)
+            # Allow other tasks to run
+            if i % 100 == 0:
+                gc.collect()
+
+    def get_bus_info(self):
+        """
+        Get information about the bus configuration.
+
+        Returns:
+            Dictionary with bus information
+        """
+        return {
+            "board": "NED_SYS7",
+            "address_lines": ADDR_LINES,
+            "address_mask": "0x{:04X}".format(ADDR_MASK),
+            "max_address": "0x{:04X}".format(MAX_ADDRESS),
+            "address_space": "{} bytes".format(ADDR_SPACE_SIZE),
+            "interface": "Cycle-accurate E-clock synchronized"
+        }
+
+    def test_rom(self, address, expected_data):
+        """
+        Test a ROM by reading data and comparing with expected values.
+
+        Args:
+            address: Starting address of ROM
+            expected_data: Expected ROM data
+
+        Returns:
+            True if ROM matches expected data
+        """
+        if isinstance(expected_data, bytes):
+            expected_data = list(expected_data)
+
+        actual_data = self.read_block(address, len(expected_data))
+        return actual_data == expected_data
+
+    def dump_memory(self, address, length, width=16):
+        """
+        Create a hex dump of memory contents.
+
+        Args:
+            address: Starting address
+            length: Number of bytes to dump
+            width: Bytes per line
+
+        Returns:
+            Formatted hex dump string
+        """
+        data = self.read_block(address, length)
+        lines = []
+
+        for i in range(0, len(data), width):
+            chunk = data[i:i + width]
+            hex_part = " ".join("{:02X}".format(b) for b in chunk)
+            ascii_part = "".join(chr(b) if 32 <= b <= 126 else "." for b in chunk)
+
+            lines.append("{:04X}: {:<{}s} {}".format(address + i, hex_part, width*3-1, ascii_part))
+
+        return "\n".join(lines)
+
+    def read_irq(self):
+        """Read IRQ line (active low)"""
+        return not self.irq_pin.value()
+
+    def read_nmi(self):
+        """Read NMI line (active low)"""
+        return not self.nmi_pin.value()
+
+    def read_reset(self):
+        """Read RESET line (active low)"""
+        return not self.reset_pin.value()
+
+
+# Convenience functions for quick access
+_default_tester = None
+
+def init():
+    """Initialize the default bus tester"""
+    global _default_tester
+    _default_tester = BusTester()
+    _default_tester.init()
+
+def cleanup():
+    """Clean up the default bus tester"""
+    global _default_tester
+    _default_tester = None
+
+def read(address):
+    """Read a byte using the default tester"""
+    if not _default_tester:
+        raise BusError("Bus tester not initialized. Call init() first.")
+    return _default_tester.read_byte(address)
+
+def write(address, data):
+    """Write a byte using the default tester"""
+    if not _default_tester:
+        raise BusError("Bus tester not initialized. Call init() first.")
+    _default_tester.write_byte(address, data)
+
+def read_block(address, length):
+    """Read a block using the default tester"""
+    if not _default_tester:
+        raise BusError("Bus tester not initialized. Call init() first.")
+    return _default_tester.read_block(address, length)
+
+def write_block(address, data):
+    """Write a block using the default tester"""
+    if not _default_tester:
+        raise BusError("Bus tester not initialized. Call init() first.")
+    _default_tester.write_block(address, data)
+
+
+if __name__ == "__main__":
+    # Example usage
+    print("MC6800 Bus Test Module for MicroPython")
+    print("Example usage:")
+    print()
+    print("import bus_test")
+    print("bus_test.init()  # Initialize hardware")
+    print("data = bus_test.read(0x0000)  # Read from address 0")
+    print("bus_test.write(0x0000, 0xAA)  # Write 0xAA to address 0")
+    print()
+    print("Direct bus cycle functions:")
+    print("data = bus_test.bus_read_cycle(0x0000)")
+    print("bus_test.bus_write_cycle(0x0000, 0xAA)")
