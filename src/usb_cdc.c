@@ -266,6 +266,91 @@ static void process_command(char *cmd) {
         debug_spi_enable(false);
         usb_cdc_send("OK: Debug SPI disabled\r\n");
 
+    } else if (strncmp(cmd, "break", 5) == 0) {
+        // Breakpoint commands: break <addr>, break clear, break clear <addr>, break list
+        char *subcmd = cmd + 5;
+        while (*subcmd == ' ') subcmd++;
+
+        if (strncmp(subcmd, "clear", 5) == 0) {
+            char *addr_str = subcmd + 5;
+            while (*addr_str == ' ') addr_str++;
+
+            if (*addr_str == '\0') {
+                // Clear all breakpoints
+                cpu_clear_breakpoints();
+                usb_cdc_send("OK: All breakpoints cleared\r\n");
+            } else {
+                // Clear specific breakpoint
+                unsigned int addr;
+                if (sscanf(addr_str, "%x", &addr) == 1) {
+                    if (cpu_remove_breakpoint((uint16_t)addr)) {
+                        usb_cdc_printf("OK: Breakpoint at $%04X cleared\r\n", addr);
+                    } else {
+                        usb_cdc_printf("ERROR: No breakpoint at $%04X\r\n", addr);
+                    }
+                } else {
+                    usb_cdc_send("ERROR: Usage: break clear <addr_hex>\r\n");
+                }
+            }
+        } else if (strcmp(subcmd, "list") == 0) {
+            // List all breakpoints
+            uint8_t count = cpu_get_breakpoint_count();
+            if (count == 0) {
+                usb_cdc_send("No breakpoints set\r\n");
+            } else {
+                usb_cdc_send("Breakpoints:\r\n");
+                const uint16_t* breakpoints = cpu_get_breakpoints();
+                for (uint8_t i = 0; i < count; i++) {
+                    usb_cdc_printf("  $%04X\r\n", breakpoints[i]);
+                }
+            }
+        } else {
+            // Set breakpoint: break <addr>
+            unsigned int addr;
+            if (sscanf(subcmd, "%x", &addr) == 1) {
+                if (cpu_add_breakpoint((uint16_t)addr)) {
+                    usb_cdc_printf("OK: Breakpoint set at $%04X\r\n", addr);
+                } else {
+                    usb_cdc_printf("ERROR: Failed to set breakpoint at $%04X (max %d breakpoints)\r\n", addr, MAX_BREAKPOINTS);
+                }
+            } else {
+                usb_cdc_send("ERROR: Usage: break <addr_hex>\r\n");
+            }
+        }
+
+    } else if (strncmp(cmd, "reg", 3) == 0) {
+        // Register setting commands: reg pc <val>, reg a <val>, etc.
+        char *reg_cmd = cmd + 3;
+        while (*reg_cmd == ' ') reg_cmd++;
+
+        unsigned int value;
+        if (sscanf(reg_cmd + 3, "%x", &value) != 1) {
+            usb_cdc_send("ERROR: Invalid register value\r\n");
+            return;
+        }
+
+        if (strncmp(reg_cmd, "pc ", 3) == 0) {
+            cpu.pc = (uint16_t)value;
+            usb_cdc_printf("OK: PC set to $%04X\r\n", cpu.pc);
+        } else if (strncmp(reg_cmd, "a ", 2) == 0) {
+            cpu.a = (uint8_t)value;
+            usb_cdc_printf("OK: A set to $%02X\r\n", cpu.a);
+        } else if (strncmp(reg_cmd, "b ", 2) == 0) {
+            cpu.b = (uint8_t)value;
+            usb_cdc_printf("OK: B set to $%02X\r\n", cpu.b);
+        } else if (strncmp(reg_cmd, "x ", 2) == 0) {
+            cpu.x = (uint16_t)value;
+            usb_cdc_printf("OK: X set to $%04X\r\n", cpu.x);
+        } else if (strncmp(reg_cmd, "sp ", 3) == 0) {
+            cpu.sp = (uint16_t)value;
+            usb_cdc_printf("OK: SP set to $%04X\r\n", cpu.sp);
+        } else if (strncmp(reg_cmd, "ccr ", 4) == 0) {
+            cpu.ccr = ((uint8_t)value & 0x3F) | CCR_FIXED;  // Preserve bits 7-6
+            usb_cdc_printf("OK: CCR set to $%02X\r\n", cpu.ccr);
+        } else {
+            usb_cdc_send("ERROR: Usage: reg pc|a|b|x|sp|ccr <value_hex>\r\n");
+        }
+
     } else if (strncmp(cmd, "bus_read", 8) == 0) {
         // Bus read: bus_read <address>
         unsigned int address;
@@ -392,6 +477,16 @@ static void process_command(char *cmd) {
             "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
             "  cycletest                 - Test instruction cycle counts\r\n"
             "  debug on/off              - Enable/disable SPI debug output\r\n"
+            "  break <addr>              - Set breakpoint at address\r\n"
+            "  break clear               - Clear all breakpoints\r\n"
+            "  break clear <addr>        - Clear specific breakpoint\r\n"
+            "  break list                - List all breakpoints\r\n"
+            "  reg pc <val>              - Set program counter\r\n"
+            "  reg a <val>               - Set accumulator A\r\n"
+            "  reg b <val>               - Set accumulator B\r\n"
+            "  reg x <val>               - Set index register X\r\n"
+            "  reg sp <val>              - Set stack pointer\r\n"
+            "  reg ccr <val>             - Set condition code register\r\n"
             "  bus_read <addr>           - Read byte from hardware bus\r\n"
             "  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
             "  bus_read_block <addr> <len> - Read block from hardware bus\r\n"

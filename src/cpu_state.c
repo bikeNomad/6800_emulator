@@ -30,6 +30,12 @@ void cpu_init(void) {
     cpu.nmi_pending = false;
     cpu.instruction_count = 0;
 
+    // Initialize breakpoints
+    cpu.breakpoint_count = 0;
+    for (int i = 0; i < MAX_BREAKPOINTS; i++) {
+        cpu.breakpoints[i] = 0xFFFF;  // Invalid address
+    }
+
     // Turn off all LEDs at startup
     led_all_off();
 
@@ -71,6 +77,63 @@ void cpu_halt(void) {
     led_all_off();
 
     printf("CPU halted at PC=$%04X\n", cpu.pc);
+}
+
+// Breakpoint functions
+bool cpu_add_breakpoint(uint16_t address) {
+    if (cpu.breakpoint_count >= MAX_BREAKPOINTS) {
+        return false;  // No space for more breakpoints
+    }
+
+    // Check if breakpoint already exists
+    for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
+        if (cpu.breakpoints[i] == address) {
+            return false;  // Already exists
+        }
+    }
+
+    // Add new breakpoint
+    cpu.breakpoints[cpu.breakpoint_count++] = address;
+    return true;
+}
+
+bool cpu_remove_breakpoint(uint16_t address) {
+    for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
+        if (cpu.breakpoints[i] == address) {
+            // Shift remaining breakpoints down
+            for (uint8_t j = i; j < cpu.breakpoint_count - 1; j++) {
+                cpu.breakpoints[j] = cpu.breakpoints[j + 1];
+            }
+            cpu.breakpoint_count--;
+            cpu.breakpoints[cpu.breakpoint_count] = 0xFFFF;  // Clear last slot
+            return true;
+        }
+    }
+    return false;  // Not found
+}
+
+void cpu_clear_breakpoints(void) {
+    cpu.breakpoint_count = 0;
+    for (int i = 0; i < MAX_BREAKPOINTS; i++) {
+        cpu.breakpoints[i] = 0xFFFF;
+    }
+}
+
+bool cpu_check_breakpoint(uint16_t address) {
+    for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
+        if (cpu.breakpoints[i] == address) {
+            return true;
+        }
+    }
+    return false;
+}
+
+uint8_t cpu_get_breakpoint_count(void) {
+    return cpu.breakpoint_count;
+}
+
+const uint16_t* cpu_get_breakpoints(void) {
+    return cpu.breakpoints;
 }
 
 // Note: cpu_get_flag, cpu_set_flag, cpu_update_nz, cpu_update_nzv,

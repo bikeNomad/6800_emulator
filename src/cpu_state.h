@@ -19,6 +19,9 @@
 #define CCR_H  0x20  // Half-carry
 #define CCR_FIXED 0xC0  // Bits 7-6 always set to 1
 
+// Breakpoint system
+#define MAX_BREAKPOINTS 16
+
 // MC6800 CPU state
 typedef struct {
     uint16_t pc;      // Program counter
@@ -33,6 +36,10 @@ typedef struct {
     bool irq_pending; // IRQ request pending
     bool nmi_pending; // NMI request pending
     uint64_t instruction_count; // Total instructions executed since reset
+
+    // Breakpoint system
+    uint16_t breakpoints[MAX_BREAKPOINTS];
+    uint8_t breakpoint_count;
 } cpu_state_t;
 
 // Global CPU state (defined in cpu_state.c)
@@ -49,6 +56,14 @@ void cpu_start(void);
 
 // Halt CPU execution
 void cpu_halt(void);
+
+// Breakpoint functions
+bool cpu_add_breakpoint(uint16_t address);
+bool cpu_remove_breakpoint(uint16_t address);
+void cpu_clear_breakpoints(void);
+bool cpu_check_breakpoint(uint16_t address);
+uint8_t cpu_get_breakpoint_count(void);
+const uint16_t* cpu_get_breakpoints(void);
 
 // Get CCR flag (inline for performance)
 static inline bool cpu_get_flag(uint8_t flag) {

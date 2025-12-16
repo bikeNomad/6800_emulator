@@ -187,6 +187,14 @@ int main() {
 
             // Only execute instructions if not in WAI state
             if (!cpu.wai_state) {
+                // Check for breakpoints before executing instruction
+                if (cpu_check_breakpoint(cpu.pc)) {
+                    // Breakpoint hit - halt CPU
+                    cpu_halt();
+                    printf("Breakpoint hit at PC=$%04X\n", cpu.pc);
+                    continue;  // Skip instruction execution
+                }
+
 #if TIMING_TEST_ENABLED
                 // Set test pin high during instruction execution
                 gpio_put(GPIO_TIMING_TEST, 1);
