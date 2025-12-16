@@ -5,6 +5,7 @@
 #include "usb_cdc.h"
 #include "cpu_state.h"
 #include "memory.h"
+#include "bus.h"
 #include "ihex_parser.h"
 #include "interrupts.h"
 #include "cycle_test.h"
@@ -265,6 +266,113 @@ static void process_command(char *cmd) {
         debug_spi_enable(false);
         usb_cdc_send("OK: Debug SPI disabled\r\n");
 
+    } else if (strncmp(cmd, "bus_read", 8) == 0) {
+        // Bus read: bus_read <address>
+        unsigned int address;
+        if (sscanf(cmd + 8, "%x", &address) == 1) {
+            if (address > MAX_ADDRESS) {
+                usb_cdc_send("ERROR: Address out of range\r\n");
+            } else {
+                uint8_t data = bus_read_cycle((uint16_t)address);
+                usb_cdc_printf("%02X\r\n", data);
+            }
+        } else {
+            usb_cdc_send("ERROR: Usage: bus_read <address_hex>\r\n");
+        }
+
+    } else if (strncmp(cmd, "bus_write", 9) == 0) {
+        // Bus write: bus_write <address> <data>
+        unsigned int address, data;
+        if (sscanf(cmd + 9, "%x %x", &address, &data) == 2) {
+            if (address > MAX_ADDRESS) {
+                usb_cdc_send("ERROR: Address out of range\r\n");
+            } else if (data > 255) {
+                usb_cdc_send("ERROR: Data must be 0-255\r\n");
+            } else {
+                bus_write_cycle((uint16_t)address, (uint8_t)data);
+                usb_cdc_send("OK\r\n");
+            }
+        } else {
+            usb_cdc_send("ERROR: Usage: bus_write <address_hex> <data_hex>\r\n");
+        }
+
+    } else if (strncmp(cmd, "bus_read_block", 14) == 0) {
+        // Bus read block: bus_read_block <address> <length>
+        unsigned int address, length;
+        if (sscanf(cmd + 14, "%x %x", &address, &length) == 2) {
+            if (address > MAX_ADDRESS) {
+                usb_cdc_send("ERROR: Address out of range\r\n");
+            } else if (length == 0 || length > 1024) {
+                usb_cdc_send("ERROR: Length must be 1-1024\r\n");
+            } else if (address + length > MAX_ADDRESS + 1) {
+                usb_cdc_send("ERROR: Block exceeds address space\r\n");
+            } else {
+                // Read and send data as space-separated hex bytes
+                for (uint32_t i = 0; i < length; i++) {
+                    if (i > 0) usb_cdc_send(" ");
+                    uint8_t data = bus_read_cycle((uint16_t)(address + i));
+                    usb_cdc_printf("%02X", data);
+                }
+                usb_cdc_send("\r\n");
+            }
+        } else {
+            usb_cdc_send("ERROR: Usage: bus_read_block <address_hex> <length_hex>\r\n");
+        }
+
+    } else if (strncmp(cmd, "bus_write_block", 15) == 0) {
+        // Bus write block: bus_write_block <address> <hex_data...>
+        unsigned int address;
+        char *addr_str = cmd + 15;
+        // Skip leading whitespace
+        while (*addr_str == ' ') addr_str++;
+        // Parse address
+        if (sscanf(addr_str, "%x", &address) == 1) {
+            if (address > MAX_ADDRESS) {
+                usb_cdc_send("ERROR: Address out of range\r\n");
+                return;
+            }
+            // Skip past the address hex digits
+            while (*addr_str && *addr_str != ' ') addr_str++;
+            // Now find the data bytes
+            char *data_str = addr_str;
+            while (*data_str == ' ') data_str++;  // Skip spaces
+
+            if (*data_str) {
+                uint32_t count = 0;
+                while (*data_str && count < 1024) {
+                    unsigned int value;
+                    if (sscanf(data_str, "%x", &value) == 1 && value <= 255) {
+                        if (address + count > MAX_ADDRESS) {
+                            usb_cdc_send("ERROR: Block exceeds address space\r\n");
+                            return;
+                        }
+                        bus_write_cycle((uint16_t)(address + count), (uint8_t)value);
+                        count++;
+                        // Skip to next hex value
+                        while (*data_str && *data_str != ' ') data_str++;
+                        while (*data_str && *data_str == ' ') data_str++;
+                    } else {
+                        usb_cdc_send("ERROR: Invalid hex data\r\n");
+                        return;
+                    }
+                }
+                usb_cdc_send("OK\r\n");
+            } else {
+                usb_cdc_send("ERROR: No data provided\r\n");
+            }
+        } else {
+            usb_cdc_send("ERROR: Usage: bus_write_block <address_hex> <byte_hex> ...\r\n");
+        }
+
+    } else if (strcmp(cmd, "bus_info") == 0) {
+        // Bus information
+        usb_cdc_printf("Board: %s\r\n", BOARD_NAME);
+        usb_cdc_printf("Address Lines: %d\r\n", ADDR_LINES);
+        usb_cdc_printf("Address Mask: 0x%04X\r\n", ADDR_MASK);
+        usb_cdc_printf("Max Address: 0x%04X\r\n", MAX_ADDRESS);
+        usb_cdc_printf("Address Space: %d bytes\r\n", ADDR_SPACE_SIZE);
+        usb_cdc_send("Bus Interface: Cycle-accurate E-clock synchronized\r\n");
+
     } else if (strcmp(cmd, "help") == 0) {
         // Send as single string to avoid buffer overflow
         usb_cdc_send(
@@ -284,6 +392,11 @@ static void process_command(char *cmd) {
             "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
             "  cycletest                 - Test instruction cycle counts\r\n"
             "  debug on/off              - Enable/disable SPI debug output\r\n"
+            "  bus_read <addr>           - Read byte from hardware bus\r\n"
+            "  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
+            "  bus_read_block <addr> <len> - Read block from hardware bus\r\n"
+            "  bus_write_block <addr> <data...> - Write block to hardware bus\r\n"
+            "  bus_info                  - Show bus configuration\r\n"
             "  bootloader                - Enter bootloader mode\r\n"
             "  help                      - Show this help\r\n"
         );
