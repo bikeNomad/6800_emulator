@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
- // LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
+// LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
 // GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (supporting >32 GPIOs)
 #if BOARD_TYPE == BOARD_NED_SYS7
 // LED GPIO values for masked writes: bit positions correspond to GPIO numbers
@@ -279,8 +279,14 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
         return (ram_offset < mem_config.ram_size) ? ram_shadow[ram_offset] : 0xFF;
     }
 
-    // Unmapped - use slow path (keeps GPIO sync for peripherals)
-    return memory_read(address);
+    // Unmapped - route to physical bus directly (avoid recursion)
+    // E clock management is handled by the caller (e.g., usb_cdc.c)
+#if BOARD_TYPE == BOARD_NED_SYS7
+    led_set_unmapped();
+#endif
+    eclock_check_timing();
+    uint8_t data = bus_read_cycle(address);
+    return data;
 }
 
 // Write byte to address via bus
@@ -393,8 +399,13 @@ void memory_write_fast(uint16_t address, uint8_t value) {
         return;
     }
 
-    // Unmapped - use slow path (keeps GPIO sync for peripherals)
-    memory_write(address, value);
+    // Unmapped - route to physical bus directly (avoid recursion)
+    // E clock management is handled by the caller (e.g., usb_cdc.c)
+#if BOARD_TYPE == BOARD_NED_SYS7
+    led_set_unmapped();
+#endif
+    eclock_check_timing();
+    bus_write_cycle(address, value);
 }
 
 // Load Intel HEX data into ROM load buffer
