@@ -71,12 +71,18 @@ print("Address space:", info['address_space'])
 
 ##### Module-Level Functions
 
+- `set_board_type(board_type)` - Set board type (BOARD_PICO2 or BOARD_NED_SYS7)
 - `init()` - Initialize the default bus tester instance
 - `cleanup()` - Clean up the default bus tester instance
 - `read(address)` - Read a byte using the default tester
 - `write(address, data)` - Write a byte using the default tester
 - `read_block(address, length)` - Read a block using the default tester
 - `write_block(address, data)` - Write a block using the default tester
+
+##### Constants
+
+- `BOARD_PICO2` - Board type constant for Raspberry Pi Pico 2 W
+- `BOARD_NED_SYS7` - Board type constant for Ned's System 7 Board (default)
 
 ##### BusTester Class Methods
 
@@ -235,9 +241,33 @@ ampy -p /dev/ttyACM0 put gpio_test.py
 
 ## Hardware Compatibility
 
-- **Primary**: NED_SYS7 board (full 16-bit address bus)
-- **Alternative**: PICO2 board (7-bit address bus subset)
-- Both boards use the same GPIO pin assignments where applicable
+The module supports multiple RP2350-based boards with different GPIO configurations:
+
+### NED_SYS7 Board (Default)
+- **Address Bus**: 16-bit (A0-A15, 64KB address space)
+- **GPIO Pins**: 48-pin version with full address bus support
+- **Features**: Full 16-bit address decoding, LED indicators
+
+### PICO2 Board
+- **Address Bus**: 7-bit (A0-A1, A10-A14, 128-byte address space)
+- **GPIO Pins**: 26-pin version with limited GPIO count
+- **Features**: Compact form factor, reduced address space
+
+### Board Configuration
+
+To use a different board than the default (NED_SYS7):
+
+```python
+import bus_test
+
+# Set board type before initialization
+bus_test.set_board_type(bus_test.BOARD_PICO2)  # or BOARD_NED_SYS7
+
+# Then initialize as normal
+bus_test.init()
+```
+
+**Note**: Board type must be set before calling `init()`. The default is NED_SYS7 for maximum compatibility.
 
 ## Notes
 

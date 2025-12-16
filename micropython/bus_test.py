@@ -9,26 +9,87 @@ import time
 import gc
 
 
-# GPIO pin mappings for NED_SYS7 board (full GPIO support)
-# Based on board_config.h and hardware connections
+# Board types (matching board_config.h)
+BOARD_PICO2 = 1      # Raspberry Pi Pico 2 W - Limited GPIO (26 pins)
+BOARD_NED_SYS7 = 2   # Ned's System 7 Board - Full GPIO (48 pins)
+
+# Default to NED_SYS7 if not specified
+BOARD_TYPE = BOARD_NED_SYS7
+
+# GPIO pin mappings - common across boards
 GPIO_DATA_BASE = 0   # GPIO 0-7: Data bus (bi-directional)
-GPIO_ADDR_BASE = 8   # GPIO 8+: Address bus (starts at GPIO 8)
 
-# Control signals
-GPIO_VMA = 24        # VMA (Valid Memory Address) output
-GPIO_RW = 26         # R/W (Read/Write) output
-GPIO_E_CLOCK = 25    # E clock output (PIO)
+# Control signals - common across boards
+GPIO_IRQ = 27        # /IRQ input (active low)
+GPIO_NMI = 28        # /NMI input (active low)
+GPIO_RESET = 29      # /RESET input (active low)
 
-# Interrupt inputs (active low)
-GPIO_IRQ = 27        # /IRQ input
-GPIO_NMI = 28        # /NMI input
-GPIO_RESET = 29      # /RESET input
+# Board-specific configurations
+def _get_board_config(board_type):
+    """Get board-specific configuration"""
+    if board_type == BOARD_PICO2:
+        return {
+            'name': 'Raspberry Pi Pico 2 W',
+            'addr_lines': 7,
+            'addr_mask': 0x7C03,  # Bits 0,1,10-14
+            'addr_space_size': 128,
+            'max_address': 0x007F,
+            'addr_gpio_mask': 0x7F00,  # GPIO 8-14
+            'gpio_vma': 21,
+            'gpio_rw': 23,
+            'gpio_e_clock': 22,
+            'addr_base': 8,
+            'has_leds': False
+        }
+    else:  # BOARD_NED_SYS7 (default)
+        return {
+            'name': 'Ned\'s System 7 Board',
+            'addr_lines': 16,
+            'addr_mask': 0xFFFF,
+            'addr_space_size': 65536,
+            'max_address': 0xFFFF,
+            'addr_gpio_mask': 0xFFFF00,  # GPIO 8-23
+            'gpio_vma': 24,
+            'gpio_rw': 26,
+            'gpio_e_clock': 25,
+            'addr_base': 8,
+            'has_leds': True
+        }
 
-# Address bus configuration
-ADDR_LINES = 16
-ADDR_MASK = 0xFFFF
-MAX_ADDRESS = 0xFFFF
-ADDR_SPACE_SIZE = 65536
+# Get current board configuration
+_board_config = _get_board_config(BOARD_TYPE)
+ADDR_LINES = _board_config['addr_lines']
+ADDR_MASK = _board_config['addr_mask']
+MAX_ADDRESS = _board_config['max_address']
+ADDR_SPACE_SIZE = _board_config['addr_space_size']
+GPIO_ADDR_BASE = _board_config['addr_base']
+GPIO_VMA = _board_config['gpio_vma']
+GPIO_RW = _board_config['gpio_rw']
+GPIO_E_CLOCK = _board_config['gpio_e_clock']
+
+def set_board_type(board_type):
+    """
+    Set the board type for the bus tester.
+
+    Args:
+        board_type: BOARD_PICO2 or BOARD_NED_SYS7
+
+    Note:
+        Must be called before init() if using a different board type than default.
+    """
+    global BOARD_TYPE, _board_config, ADDR_LINES, ADDR_MASK, MAX_ADDRESS, ADDR_SPACE_SIZE
+    global GPIO_ADDR_BASE, GPIO_VMA, GPIO_RW, GPIO_E_CLOCK
+
+    BOARD_TYPE = board_type
+    _board_config = _get_board_config(BOARD_TYPE)
+    ADDR_LINES = _board_config['addr_lines']
+    ADDR_MASK = _board_config['addr_mask']
+    MAX_ADDRESS = _board_config['max_address']
+    ADDR_SPACE_SIZE = _board_config['addr_space_size']
+    GPIO_ADDR_BASE = _board_config['addr_base']
+    GPIO_VMA = _board_config['gpio_vma']
+    GPIO_RW = _board_config['gpio_rw']
+    GPIO_E_CLOCK = _board_config['gpio_e_clock']
 
 
 class BusError(Exception):
@@ -63,9 +124,10 @@ class BusTester:
                 pin = machine.Pin(GPIO_DATA_BASE + i, machine.Pin.IN, machine.Pin.PULL_UP)
                 self.data_pins.append(pin)
 
-            # Initialize address bus pins (GPIO 8-23) as outputs
+            # Initialize address bus pins (board-specific number)
             self.addr_pins = []
-            for i in range(16):
+            addr_gpio_end = GPIO_ADDR_BASE + _board_config['addr_lines'] - 1
+            for i in range(_board_config['addr_lines']):
                 pin = machine.Pin(GPIO_ADDR_BASE + i, machine.Pin.OUT)
                 pin.value(0)
                 self.addr_pins.append(pin)
@@ -86,30 +148,31 @@ class BusTester:
             self.e_clock_pin = machine.Pin(GPIO_E_CLOCK, machine.Pin.OUT)
             self.e_clock_pin.value(0)
 
-            print("Bus interface initialized for NED_SYS7 board")
+            print("Bus interface initialized for {} board".format(_board_config['name']))
             print("  Data: GPIO {}-{}".format(GPIO_DATA_BASE, GPIO_DATA_BASE + 7))
-            print("  Addr: GPIO {}-{}".format(GPIO_ADDR_BASE, GPIO_ADDR_BASE + 15))
+            print("  Addr: GPIO {}-{} ({} lines)".format(GPIO_ADDR_BASE, addr_gpio_end, _board_config['addr_lines']))
             print("  VMA: GPIO {}".format(GPIO_VMA))
             print("  R/W: GPIO {}".format(GPIO_RW))
             print("  E:   GPIO {}".format(GPIO_E_CLOCK))
             print("  /IRQ: GPIO {}".format(GPIO_IRQ))
             print("  /NMI: GPIO {}".format(GPIO_NMI))
             print("  /RESET: GPIO {}".format(GPIO_RESET))
+            print("  Address space: {} bytes (0x{:04X})".format(_board_config['addr_space_size'], _board_config['max_address']))
 
         except Exception as e:
             raise BusError("Failed to initialize bus interface: {}".format(e))
 
     def _addr_to_gpio_mask(self, address):
         """Convert MC6800 address to GPIO pin values"""
-        # Apply address mask (all 16 bits used for NED_SYS7)
+        # Apply address mask (board-specific)
         address &= ADDR_MASK
-        # Address bits map directly to GPIO 8-23 (shift left by 8)
-        return address << 8
+        # Address bits map directly to GPIO pins starting at GPIO_ADDR_BASE
+        return address << GPIO_ADDR_BASE
 
     def _drive_address_bus(self, address):
         """Drive the address bus with the specified address"""
         gpio_mask = self._addr_to_gpio_mask(address)
-        for i in range(16):
+        for i in range(len(self.addr_pins)):
             self.addr_pins[i].value((gpio_mask >> (GPIO_ADDR_BASE + i)) & 1)
 
     def _drive_control_read(self):
@@ -304,11 +367,11 @@ class BusTester:
             Dictionary with bus information
         """
         return {
-            "board": "NED_SYS7",
-            "address_lines": ADDR_LINES,
-            "address_mask": "0x{:04X}".format(ADDR_MASK),
-            "max_address": "0x{:04X}".format(MAX_ADDRESS),
-            "address_space": "{} bytes".format(ADDR_SPACE_SIZE),
+            "board": _board_config['name'],
+            "address_lines": _board_config['addr_lines'],
+            "address_mask": "0x{:04X}".format(_board_config['addr_mask']),
+            "max_address": "0x{:04X}".format(_board_config['max_address']),
+            "address_space": "{} bytes".format(_board_config['addr_space_size']),
             "interface": "Cycle-accurate E-clock synchronized"
         }
 
