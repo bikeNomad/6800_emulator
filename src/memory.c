@@ -8,6 +8,7 @@
 #include "cpu_state.h"
 #include "interrupts.h"
 #include "board_config.h"
+#include "debug_spi.h"
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include "hardware/gpio.h"
@@ -242,6 +243,10 @@ uint8_t __time_critical_func(memory_read)(uint16_t address) {
     // Check timing before bus operation to stay synchronized with hardware
     eclock_check_timing();
     uint8_t data = bus_read_cycle(address);
+    
+    // Log bus access to SPI debug trace
+    debug_spi_log_bus(address, true, data);
+    
     return data;
 }
 
@@ -356,6 +361,9 @@ void memory_write(uint16_t address, uint8_t value) {
     // Check timing before bus operation to stay synchronized with hardware
     eclock_check_timing();
     bus_write_cycle(address, value);
+    
+    // Log bus access to SPI debug trace
+    debug_spi_log_bus(address, false, value);
 }
 
 // Fast-path write (no GPIO polling for ROM/RAM)

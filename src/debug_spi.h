@@ -15,6 +15,9 @@ void debug_spi_init(void);
 // Log instruction execution
 void debug_spi_log(void);
 
+// Log external bus access (unmapped addresses)
+void debug_spi_log_bus(uint16_t address, bool is_read, uint8_t data);
+
 // Enable/disable debug output
 void debug_spi_enable(bool enable);
 

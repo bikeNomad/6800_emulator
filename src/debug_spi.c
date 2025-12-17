@@ -50,6 +50,28 @@ void debug_spi_log(void) {
     spi_write16_blocking(DEBUG_SPI_INST, (uint16_t *)packet, 2);
 }
 
+// Log external bus access (unmapped addresses)
+void debug_spi_log_bus(uint16_t address, bool is_read, uint8_t data) {
+    if (!debug_enabled) {
+        return;
+    }
+
+    // Prepare 4-byte bus access packet:
+    // Word 0: Address (16 bits)
+    // Word 1: R/W bit (bit 8) + Data byte (bits 0-7)
+    //   - Read:  bit 8 = 1 (0x01xx)
+    //   - Write: bit 8 = 0 (0x00xx)
+    uint8_t packet[4];
+
+    packet[1] = (address >> 8) & 0xFF;  // Address high byte
+    packet[0] = address & 0xFF;          // Address low byte
+    packet[3] = is_read ? 0x01 : 0x00;   // R/W flag in high byte
+    packet[2] = data;                     // Data byte in low byte
+
+    // Send packet via SPI
+    spi_write16_blocking(DEBUG_SPI_INST, (uint16_t *)packet, 2);
+}
+
 // Enable/disable debug output
 void debug_spi_enable(bool enable) {
     debug_enabled = enable;
