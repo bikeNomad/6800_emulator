@@ -107,6 +107,35 @@ This provides a complete execution trace showing both instruction flow and I/O o
 - Only affects unmapped addresses (external bus), not ROM/RAM accesses
 - Time-critical paths remain unaffected when debug is disabled
 
+## Extracting and Analyzing SPI Data
+
+The `tools/extract_spi_data.py` script processes SPI trace CSV files and automatically distinguishes between PC/CCR instruction traces and bus access traces.
+
+### Usage
+
+```bash
+python3 tools/extract_spi_data.py input.csv [output.txt]
+```
+
+### Output Format
+
+The script detects packet type based on the address value (addresses < 0x5000 are bus accesses):
+
+**Bus Access Traces** (address < 0x5000):
+```
+2100 W AA    # Write 0xAA to address 0x2100
+2100 R 55    # Read 0x55 from address 0x2100
+2400 W FF    # Write 0xFF to address 0x2400
+```
+
+**Instruction Traces** (address >= 0x5000):
+```
+C000 4       # PC=0xC000, CCR=0x04
+E801 D0      # PC=0xE801, CCR=0xD0
+```
+
+This automatic detection makes it easy to analyze both instruction execution flow and peripheral I/O operations in a single trace.
+
 ## Future Enhancements
 
 Possible future additions:

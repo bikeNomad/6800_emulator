@@ -291,6 +291,10 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 #endif
     eclock_check_timing();
     uint8_t data = bus_read_cycle(address);
+    
+    // Log bus access to SPI debug trace
+    debug_spi_log_bus(address, true, data);
+    
     return data;
 }
 
@@ -414,6 +418,9 @@ void memory_write_fast(uint16_t address, uint8_t value) {
 #endif
     eclock_check_timing();
     bus_write_cycle(address, value);
+    
+    // Log bus access to SPI debug trace
+    debug_spi_log_bus(address, false, value);
 }
 
 // Load Intel HEX data into ROM load buffer
