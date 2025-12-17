@@ -180,6 +180,19 @@ int main() {
     while (1) {
         // Core 1 handles all USB CDC processing
 
+        // Check for hardware /RESET assertion (active LOW)
+        // bus_read_reset() returns true when /RESET is asserted (LOW)
+        if (bus_read_reset()) {
+            // /RESET is asserted - force halt if running
+            if (cpu_is_running()) {
+                cpu_halt();
+                usb_cdc_printf("CPU halted by /RESET assertion\r\n");
+            }
+            // Stay halted while /RESET is LOW
+            tight_loop_contents();
+            continue;
+        }
+
         // If CPU is running (not halted), execute instructions
         if (cpu_is_running()) {
             // Check for interrupt requests (always check, even during WAI)

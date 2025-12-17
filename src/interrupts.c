@@ -74,19 +74,8 @@ void interrupt_service_reset(void) {
     cpu.x = 0x0000;
     cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
     cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
-    cpu.halted = true;   // Start halted, waiting for 'run' command
-    cpu.running = false;
     cpu.wai_state = false;  // Clear WAI state
     cpu.instruction_count = 0;  // Reset instruction counter
-
-    // Memory barrier - ensure Core 0 sees halt flag immediately
-    __mem_fence_release();
-
-    // Stop E clock when halted
-    eclock_stop();
-
-    // Turn off all LEDs during reset
-    led_all_off();
 
     // Load PC from reset vector
     uint8_t pch = memory_read_fast(VECTOR_RESET);
@@ -94,6 +83,26 @@ void interrupt_service_reset(void) {
     cpu.pc = (pch << 8) | pcl;
 
     DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
+
+    // Check if /RESET line is HIGH (released)
+    // bus_read_reset() returns true when /RESET is LOW (asserted)
+    if (!bus_read_reset()) {
+        // /RESET is HIGH - automatically start execution (MC6800 behavior)
+        cpu.running = true;
+        cpu.halted = false;
+        eclock_start();
+        DEBUG_INT_PRINTF("CPU started after RESET release\n");
+    } else {
+        // /RESET still LOW - stay halted
+        cpu.halted = true;
+        cpu.running = false;
+        eclock_stop();
+        led_all_off();
+        DEBUG_INT_PRINTF("CPU halted while /RESET asserted\n");
+    }
+
+    // Memory barrier - ensure Core 0 sees updated flags immediately
+    __mem_fence_release();
 }
 
 // Service NMI interrupt

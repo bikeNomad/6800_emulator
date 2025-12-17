@@ -4,6 +4,7 @@
 
 #include "cpu_state.h"
 #include "memory.h"
+#include "bus.h"
 #include "clock.h"
 #include "interrupts.h"
 #include "board_config.h"
@@ -62,6 +63,12 @@ bool cpu_is_running(void) {
 
 // Start CPU execution
 void cpu_start(void) {
+    // Check if /RESET is asserted (bus_read_reset() returns true when LOW)
+    if (bus_read_reset()) {
+        printf("WARNING: Cannot start CPU while /RESET is asserted\n");
+        return;  // Don't start
+    }
+
     cpu.running = true;
     cpu.halted = false;
     eclock_start();  // Start E clock PIO (also resets PIO counter)
