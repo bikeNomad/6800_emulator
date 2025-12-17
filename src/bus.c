@@ -5,6 +5,7 @@
 #include "bus.h"
 #include "clock.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include "hardware/gpio.h"
 #include <stdio.h>
 
@@ -78,9 +79,10 @@ void bus_init(void) {
     }
 #else
     // NED_SYS7: Initialize unused GPIO pins as inputs with pull-ups
-    // Unused: 30-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
+    // Unused: 30-32 (after control signals), 35-36 (old UART pins), 43-47 (after LEDs/UART)
+    // Note: Pin 42 is used for timing test if TIMING_TEST_ENABLED
     // Allow for either 36 or 39 to be used for yellow LED.
-    const int unused_pins[] = {30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
+    const int unused_pins[] = {30, 31, 32, 35, 36, 39, 43, 44, 45, 46, 47};
     for (int i = 0; i < 11; i++) {
         gpio_init(unused_pins[i]);
         gpio_set_dir(unused_pins[i], GPIO_IN);
@@ -102,6 +104,14 @@ void bus_init(void) {
     gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
     gpio_set_drive_strength(GPIO_LED_UNMAPPED, GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
     gpio_put(GPIO_LED_UNMAPPED, 1);  // Off
+
+#if TIMING_TEST_ENABLED
+    // Initialize timing test pin for PIA read debugging
+    gpio_init(GPIO_TIMING_TEST);
+    gpio_set_dir(GPIO_TIMING_TEST, GPIO_OUT);
+    gpio_set_drive_strength(GPIO_TIMING_TEST, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_put(GPIO_TIMING_TEST, 0);  // Start low
+#endif
 #endif
 
     printf("Bus interface initialized for %s\n", BOARD_NAME);
@@ -140,9 +150,26 @@ uint8_t bus_read_cycle(uint16_t address) {
     // Wait for E clock high (data valid time)
     eclock_wait_high();
 
+    // PIA timing: add 300ns setup time after E rises for PIA reads
+    // PIAs (MC6821) need time to drive the data bus after E goes high
+    bool is_pia = (address >= 0x2000 && address <= 0x4FFF);
+    if (is_pia) {
+#if TIMING_TEST_ENABLED
+        gpio_put(GPIO_TIMING_TEST, 1);  // Mark start of PIA read sample window
+#endif
+        // 300ns delay = ~45 cycles at 150MHz RP2350 clock
+        busy_wait_at_least_cycles(45);
+    }
+
     // Read data bus using bulk read
     uint32_t all_gpios = gpio_get_all();
     uint8_t data = all_gpios & DATA_MASK;
+
+#if TIMING_TEST_ENABLED
+    if (is_pia) {
+        gpio_put(GPIO_TIMING_TEST, 0);  // Mark end of PIA read sample window
+    }
+#endif
 
     // Wait for E clock low (end of cycle)
     eclock_wait_low();
