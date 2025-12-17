@@ -127,10 +127,9 @@ uint8_t bus_read_cycle(uint16_t address) {
     // Wait for E clock low (beginning of cycle)
     bus_sync();
 
-    // Set data bus to input mode
-    for (int i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + 8; i++) {
-        gpio_set_dir(i, GPIO_IN);
-    }
+    // Set data bus to input mode (bulk operation)
+    // Drive strength already configured in bus_init()
+    gpio_set_dir_masked(DATA_MASK, 0);
 
     // Drive address bus using board-specific mapping
     drive_address_bus(address);
