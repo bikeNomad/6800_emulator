@@ -209,10 +209,6 @@ int main() {
                     continue;  // Skip instruction execution
                 }
 
-#if TIMING_TEST_ENABLED
-                // Set test pin high during instruction execution
-                gpio_put(GPIO_TIMING_TEST, 1);
-#endif
                 // Execute one instruction (cycle-accurate)
                 instruction_execute();
 
@@ -221,11 +217,6 @@ int main() {
                 if (cpu.stopped_at_breakpoint) {
                     cpu.stopped_at_breakpoint = false;
                 }
-
-#if TIMING_TEST_ENABLED
-                // Set test pin low during overhead
-                gpio_put(GPIO_TIMING_TEST, 0);
-#endif
 
                 // Log execution to debug SPI
                 debug_spi_log();

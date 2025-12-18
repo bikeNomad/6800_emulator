@@ -79,7 +79,7 @@
 
   // Test pin for timing diagnostics (available on NED_SYS7 only)
   #define GPIO_TIMING_TEST 42  // Test pin for timing measurements
-  #define TIMING_TEST_ENABLED 0
+  #define TIMING_TEST_ENABLED 1
 
 #else
   #error "Invalid BOARD_TYPE defined. Must be BOARD_PICO2 or BOARD_NED_SYS7"

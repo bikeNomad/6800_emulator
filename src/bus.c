@@ -126,6 +126,11 @@ void bus_init(void) {
 
 // Perform one read bus cycle
 uint8_t bus_read_cycle(uint16_t address) {
+#if TIMING_TEST_ENABLED
+    // Set test pin high during external bus read cycle
+    gpio_put(GPIO_TIMING_TEST, 1);
+#endif
+
     // Wait for E clock low (beginning of cycle)
     bus_sync();
 
@@ -152,11 +157,21 @@ uint8_t bus_read_cycle(uint16_t address) {
     // De-assert VMA (R/W stays high)
     deassert_vma();
 
+#if TIMING_TEST_ENABLED
+    // Set test pin low after external bus read cycle completes
+    gpio_put(GPIO_TIMING_TEST, 0);
+#endif
+
     return data;
 }
 
 // Perform one write bus cycle
 void bus_write_cycle(uint16_t address, uint8_t data) {
+#if TIMING_TEST_ENABLED
+    // Set test pin high during external bus write cycle
+    gpio_put(GPIO_TIMING_TEST, 1);
+#endif
+
     // Wait for E clock low (beginning of cycle)
     bus_sync();
 
@@ -181,6 +196,11 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
 
     // Set data bus back to input mode (bulk operation)
     gpio_set_dir_masked(DATA_MASK, 0);
+
+#if TIMING_TEST_ENABLED
+    // Set test pin low after external bus write cycle completes
+    gpio_put(GPIO_TIMING_TEST, 0);
+#endif
 }
 
 // Wait for next E clock edge (with real-time tracking)
