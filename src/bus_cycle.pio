@@ -1,0 +1,109 @@
+; PIO programs for MC6800 bus cycle timing
+; Provides precise hardware-timed bus read/write operations
+;
+; Pin Configuration (NED_SYS7):
+;   GPIO 0-7:   Data bus (IN pins)
+;   GPIO 24:    E clock (WAIT source, controlled by SM0)
+;   GPIO 25-26: VMA + R/W (SIDE-SET, 2 bits consecutive)
+;
+; Clock: 266 MHz system clock (no divider) for ~3.76ns resolution
+; Data setup delay: 40 cycles = 150.4ns (exceeds MC6800 100ns requirement)
+
+.program bus_read_cycle
+
+.side_set 2         ; GPIO 25=VMA, GPIO 26=R/W (2 bits consecutive)
+
+; Entry point for read cycle
+; Software must set up address bus and data direction before triggering
+; Returns: 8-bit data in RX FIFO
+public read_cycle:
+    wait 0 gpio 24      side 0b10       ; Sync: Wait for E low, VMA=0, R/W=1 (idle)
+    nop                 side 0b11       ; Assert VMA=1, R/W=1 (read mode)
+    wait 1 gpio 24      side 0b11       ; Wait for E high, keep signals
+    ; Data setup delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
+    ; MC6821 PIA worst-case data delay is 290ns, so use 300ns+ for margin
+    set x, 9            side 0b11       ; Initialize loop counter (1 cycle)
+read_delay:
+    jmp x-- read_delay [7] side 0b11   ; Loop 10 times x 8 cycles = 80 cycles
+    in pins, 8          side 0b11       ; Sample data (now stable!), keep signals
+    push noblock        side 0b11       ; Push to RX FIFO, keep signals
+    wait 0 gpio 24      side 0b11       ; Wait for E low, keep signals
+    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle)
+
+.wrap
+
+.program bus_write_cycle
+
+.side_set 2         ; GPIO 25=VMA, GPIO 26=R/W
+
+; Entry point for write cycle
+; Software must set up address bus, data bus, and direction before triggering
+public write_cycle:
+    wait 0 gpio 24      side 0b10       ; Sync: Wait for E low, VMA=0, R/W=1 (idle)
+    nop                 side 0b01       ; Assert VMA=1, R/W=0 (write mode)
+    wait 1 gpio 24      side 0b01       ; Wait for E high (latch), keep signals
+    ; Hold time delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
+    ; (max delay is 7 with 2-bit side-set)
+    set x, 9            side 0b01       ; Initialize loop counter (1 cycle)
+write_delay:
+    jmp x-- write_delay [7] side 0b01  ; Loop 10 times x 8 cycles = 80 cycles
+    wait 0 gpio 24      side 0b01       ; Wait for E low, keep signals
+    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle)
+
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "board_config.h"
+
+// Initialize bus read cycle PIO state machine
+static inline void bus_read_cycle_program_init(PIO pio, uint sm, uint offset) {
+    // Get default configuration
+    pio_sm_config c = bus_read_cycle_program_get_default_config(offset);
+
+    // Configure IN pins: GPIO 0-7 (data bus)
+    sm_config_set_in_pins(&c, GPIO_DATA_BASE);
+    sm_config_set_in_shift(&c, false, false, 8);  // Shift left, no autopush, 8 bits
+
+    // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
+    sm_config_set_sideset_pins(&c, GPIO_VMA);
+    sm_config_set_sideset(&c, 2, false, false);  // 2 bits, not optional, no pindirs
+
+    // Use full system clock speed (no divider) for finest timing control
+    // At 266 MHz: 1 cycle = 3.759ns
+    sm_config_set_clkdiv(&c, 1.0f);
+
+    // Initialize GPIO for PIO control (VMA and R/W)
+    pio_gpio_init(pio, GPIO_VMA);
+    pio_gpio_init(pio, GPIO_RW);
+
+    // Set VMA and R/W as outputs (consecutive pins starting at GPIO_VMA)
+    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_VMA, 2, true);
+
+    // Initialize state machine
+    pio_sm_init(pio, sm, offset, &c);
+}
+
+// Initialize bus write cycle PIO state machine
+static inline void bus_write_cycle_program_init(PIO pio, uint sm, uint offset) {
+    // Get default configuration
+    pio_sm_config c = bus_write_cycle_program_get_default_config(offset);
+
+    // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
+    sm_config_set_sideset_pins(&c, GPIO_VMA);
+    sm_config_set_sideset(&c, 2, false, false);  // 2 bits, not optional, no pindirs
+
+    // Use full system clock speed (no divider)
+    sm_config_set_clkdiv(&c, 1.0f);
+
+    // Initialize GPIO for PIO control (VMA and R/W)
+    pio_gpio_init(pio, GPIO_VMA);
+    pio_gpio_init(pio, GPIO_RW);
+
+    // Set VMA and R/W as outputs
+    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_VMA, 2, true);
+
+    // Initialize state machine
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}

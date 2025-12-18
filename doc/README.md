@@ -33,6 +33,19 @@ Complete architectural overview:
 
 **Best for**: Understanding how it works, developers, contributors
 
+### ⚡ [PIO Bus Cycles](PIO-Bus-Cycles.md)
+**Hardware-timed bus operations using PIO**
+
+PIO-based bus cycle implementation:
+- Problem: Software polling timing issues
+- Solution: Hardware-timed data sampling
+- PIO state machine configuration
+- Timing analysis (150ns data setup)
+- API usage and debugging
+- Comparison: polling vs PIO
+
+**Best for**: Understanding bus timing, debugging data stability issues
+
 ### 🔌 [Hardware Connection](Hardware-Connection.md)
 **Physical interfacing with target systems**
 
@@ -259,6 +272,7 @@ read 7FF8 8
 |----------|--------------|---------|
 | Getting Started | 2024-12-05 | 1.0 |
 | Architecture | 2024-12-05 | 1.0 |
+| PIO Bus Cycles | 2024-12-18 | 1.0 |
 | Hardware Connection | 2024-12-05 | 1.0 |
 | Memory Map | 2024-12-05 | 1.0 |
 | Web Interface | 2024-12-09 | 1.0 |

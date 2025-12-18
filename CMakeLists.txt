@@ -44,8 +44,9 @@ add_executable(mc6800_emulator
     src/cycle_test.c
 )
 
-# Create the PIO header for clock generation
+# Create the PIO headers for clock generation and bus cycles
 pico_generate_pio_header(mc6800_emulator ${CMAKE_CURRENT_LIST_DIR}/src/clock.pio)
+pico_generate_pio_header(mc6800_emulator ${CMAKE_CURRENT_LIST_DIR}/src/bus_cycle.pio)
 
 # Add include directory for tusb_config.h
 target_include_directories(mc6800_emulator PRIVATE
