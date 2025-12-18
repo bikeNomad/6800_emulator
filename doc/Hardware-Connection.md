@@ -104,8 +104,8 @@ Accessible addresses (128 total):
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
-| VMA | Output | 21 | Valid Memory Address |
-| E | Output | 22 | E Clock (894.886 kHz) |
+| VMA | Output | 22 | Valid Memory Address |
+| E | Output | 21 | E Clock (894.886 kHz) |
 | R/W | Output | 23 | Read/Write (1=Read, 0=Write) |
 | /IRQ | Input | 27 | Interrupt Request (active low) |
 | /NMI | Input | 28 | Non-Maskable Interrupt (active low) |
@@ -115,8 +115,8 @@ Accessible addresses (128 total):
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
-| VMA | Output | 24 | Valid Memory Address |
-| E | Output | 25 | E Clock (894.886 kHz) |
+| VMA | Output | 25 | Valid Memory Address |
+| E | Output | 24 | E Clock (894.886 kHz) |
 | R/W | Output | 26 | Read/Write (1=Read, 0=Write) |
 | /IRQ | Input | 27 | Interrupt Request (active low) |
 | /NMI | Input | 28 | Non-Maskable Interrupt (active low) |
@@ -505,7 +505,7 @@ Before full connection:
 
 ### Recommended Test Signals
 
-1. **E Clock (GPIO 22 PICO2 / GPIO 25 NED_SYS7)**
+1. **E Clock (GPIO 21 PICO2 / GPIO 24 NED_SYS7)**
    - Frequency: 894.886 kHz
    - Duty cycle: 50%
    - Amplitude: 3.3V
@@ -515,7 +515,7 @@ Before full connection:
    - Active read: Input mode
    - Active write: Output mode, 0V or 3.3V
 
-3. **VMA (GPIO 21 PICO2 / GPIO 24 NED_SYS7)**
+3. **VMA (GPIO 22 PICO2 / GPIO 25 NED_SYS7)**
    - Asserted during bus cycles
    - De-asserted between cycles
 

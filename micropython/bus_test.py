@@ -35,9 +35,9 @@ def _get_board_config(board_type):
             'addr_space_size': 128,
             'max_address': 0x007F,
             'addr_gpio_mask': 0x7F00,  # GPIO 8-14
-            'gpio_vma': 21,
+            'gpio_vma': 22,
             'gpio_rw': 23,
-            'gpio_e_clock': 22,
+            'gpio_e_clock': 21,
             'addr_base': 8,
             'has_leds': False
         }
@@ -49,9 +49,9 @@ def _get_board_config(board_type):
             'addr_space_size': 65536,
             'max_address': 0xFFFF,
             'addr_gpio_mask': 0xFFFF00,  # GPIO 8-23
-            'gpio_vma': 24,
+            'gpio_vma': 25,
             'gpio_rw': 26,
-            'gpio_e_clock': 25,
+            'gpio_e_clock': 24,
             'addr_base': 8,
             'has_leds': True
         }

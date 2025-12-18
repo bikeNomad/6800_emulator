@@ -140,14 +140,14 @@ bool eclock_read_q(void);
 Remap pins for MC6809:
 ```c
 #if CPU_TYPE == CPU_MC6800
-  #define GPIO_VMA    21  // Valid Memory Address
+  #define GPIO_VMA    22  // Valid Memory Address
   #define GPIO_NMI    28  // /NMI input
 #elif CPU_TYPE == CPU_MC6809
-  #define GPIO_QCLOCK 21  // Q clock output (was VMA)
+  #define GPIO_QCLOCK 22  // Q clock output (was VMA)
   #define GPIO_FIRQ   28  // /FIRQ input (was /NMI)
 #endif
 
-#define GPIO_ECLOCK 22  // E clock (same for both)
+#define GPIO_ECLOCK 21  // E clock (same for both)
 #define GPIO_RW     23  // R/W (same)
 #define GPIO_IRQ    27  // /IRQ (same)
 #define GPIO_RESET  29  // /RESET (same)

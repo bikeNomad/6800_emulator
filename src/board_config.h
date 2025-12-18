@@ -27,8 +27,8 @@
   #define ADDR_GPIO_MASK 0x7F00  // GPIO 8-14 for address bus
 
   // Control signal pins (adjusted for fewer GPIOs)
-  #define GPIO_VMA    21  // VMA (Valid Memory Address) output
-  #define GPIO_ECLOCK 22  // E clock output (PIO)
+  #define GPIO_VMA    22  // VMA (Valid Memory Address) output
+  #define GPIO_ECLOCK 21  // E clock output (PIO)
   #define GPIO_RW     23  // R/W (Read/Write) output
 
   // SPI debug pins
@@ -55,8 +55,8 @@
   #define ADDR_GPIO_MASK 0xFFFF00  // GPIO 8-23 for address bus
 
   // Control signal pins
-  #define GPIO_VMA    24  // VMA (Valid Memory Address) output
-  #define GPIO_ECLOCK 25  // E clock output (PIO)
+  #define GPIO_VMA    25  // VMA (Valid Memory Address) output
+  #define GPIO_ECLOCK 24  // E clock output (PIO)
   #define GPIO_RW     26  // R/W (Read/Write) output
 
   // SPI debug pins
