@@ -200,6 +200,8 @@ class DynamicPIOBusTester:
                 out_shiftdir=PIO.SHIFT_LEFT,
                 autopush=False,
                 push_thresh=32,
+                autopull=False,
+                pull_thresh=32,
                 fifo_join=PIO.JOIN_NONE
             )(read_program_src)
 
@@ -208,6 +210,8 @@ class DynamicPIOBusTester:
                 out_init=[PIO.OUT_LOW] * 8,
                 set_init=[PIO.OUT_LOW] * 8,
                 out_shiftdir=PIO.SHIFT_LEFT,
+                autopush=False,
+                push_thresh=32,
                 autopull=False,
                 pull_thresh=32,
                 fifo_join=PIO.JOIN_NONE

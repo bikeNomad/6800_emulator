@@ -172,7 +172,9 @@ class PIOBusError(Exception):
     in_shiftdir=PIO.SHIFT_LEFT,
     out_shiftdir=PIO.SHIFT_LEFT,
     autopush=False,
+    autopull=False,
     push_thresh=32,
+    pull_thresh=32,
     fifo_join=PIO.JOIN_NONE
 )
 def pio_bus_read_cycle():

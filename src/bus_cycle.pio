@@ -19,12 +19,12 @@
 ; Returns: 8-bit data in RX FIFO
 public read_cycle:
     wait 0 gpio 24      side 0b10       ; Sync: Wait for E low, VMA=0, R/W=1 (idle)
-    nop                 side 0b11       ; Assert VMA=1, R/W=1 (read mode)
-    wait 1 gpio 24      side 0b11       ; Wait for E high, keep signals
-        ; Data setup delay: Configurable based on system clock
+    wait 1 gpio 24      side 0b11       ; Assert VMA=1, R/W=1 (read mode), Wait for E high
+    ; Data setup delay:
     ; Target: 300ns for MC6821 PIA worst-case data delay (290ns + margin)
-    ; Actual delay calculated at runtime based on SYS_CLOCK_MHZ
+    ; TODO: Actual delay calculated at runtime based on SYS_CLOCK_MHZ
     ; Default: 81 cycles = 304.5ns @ 266MHz
+public set_loop_count:
     set x, 9            side 0b11       ; Initialize loop counter (1 cycle)
 read_delay:
     jmp x-- read_delay [7] side 0b11   ; Loop 10 times x 8 cycles = 80 cycles
@@ -40,7 +40,7 @@ read_delay:
 .side_set 2         ; GPIO 25=VMA, GPIO 26=R/W
 
 ; Entry point for write cycle
-; Software must set up address bus before triggering
+; Software must set up address bus and data direction before triggering
 ; Write is triggered by pushing data to TX FIFO
 ; Note: Write cycles only need to wait for E clock edges - no delay loop needed
 ; The peripheral latches data on E rising edge, then cycle ends on E falling edge

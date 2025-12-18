@@ -7,6 +7,7 @@
 #define BUS_TIMING_H
 
 #include <stdint.h>
+#include <stdio.h>
 #include "hardware/clocks.h"
 
 // Target timing requirements (in nanoseconds)

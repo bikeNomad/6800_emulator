@@ -132,31 +132,36 @@ uint8_t bus_read_cycle(uint16_t address) {
     gpio_put(GPIO_TIMING_TEST, 1);
 #endif
 
-    // Wait for E clock low (beginning of cycle)
-    bus_sync();
+    // Use PIO-based bus cycle if available for precise timing
+    if (bus_cycle_pio_is_enabled()) {
+        return bus_read_cycle_pio(address);
+    } else {
+        // Wait for E clock low (beginning of cycle)
+        bus_sync();
 
-    // Set data bus to input mode (bulk operation)
-    // Drive strength already configured in bus_init()
-    gpio_set_dir_masked(DATA_MASK, 0);
+        // Set data bus to input mode (bulk operation)
+        // Drive strength already configured in bus_init()
+        gpio_set_dir_masked(DATA_MASK, 0);
 
-    // Drive address bus using board-specific mapping
-    drive_address_bus(address);
+        // Drive address bus using board-specific mapping
+        drive_address_bus(address);
 
-    // Assert VMA and R/W (read = 1)
-    drive_control_read();
+        // Assert VMA and R/W (read = 1)
+        drive_control_read();
 
-    // Wait for E clock high (data valid time)
-    eclock_wait_high();
+        // Wait for E clock high (data valid time)
+        eclock_wait_high();
 
-    // Read data bus using bulk read
-    uint32_t all_gpios = gpio_get_all();
-    uint8_t data = all_gpios & DATA_MASK;
+        // Read data bus using bulk read
+        uint32_t all_gpios = gpio_get_all();
+        uint8_t data = all_gpios & DATA_MASK;
 
-    // Wait for E clock low (end of cycle)
-    eclock_wait_low();
+        // Wait for E clock low (end of cycle)
+        eclock_wait_low();
 
-    // De-assert VMA (R/W stays high)
-    deassert_vma();
+        // De-assert VMA (R/W stays high)
+        deassert_vma();
+    }
 
 #if TIMING_TEST_ENABLED
     // Set test pin low after external bus read cycle completes
@@ -173,30 +178,36 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
     gpio_put(GPIO_TIMING_TEST, 1);
 #endif
 
-    // Wait for E clock low (beginning of cycle)
-    bus_sync();
+    // Use PIO-based bus cycle if available for precise timing
+    if (bus_cycle_pio_is_enabled()) {
+        bus_write_cycle_pio(address, data);
+    } else {
+        // Wait for E clock low (beginning of cycle)
+        bus_sync();
 
-    // Set data bus to output mode (bulk operation)
-    // Drive strength already configured in bus_init()
-    gpio_set_dir_masked(DATA_MASK, DATA_MASK);
+        // Set data bus to output mode (bulk operation)
+        // Drive strength already configured in bus_init()
+        gpio_set_dir_masked(DATA_MASK, DATA_MASK);
 
-    // Drive address bus using board-specific mapping
-    drive_address_bus(address);
+        // Drive address bus using board-specific mapping
+        drive_address_bus(address);
 
-    // Drive data bus, VMA, and R/W
-    drive_control_write(data);
+        // Drive data bus, VMA, and R/W
+        drive_control_write(data);
 
-    // Wait for E clock high (data latches)
-    eclock_wait_high();
+        // Wait for E clock high (data latches)
+        eclock_wait_high();
 
-    // Wait for E clock low (end of cycle)
-    eclock_wait_low();
+        // Wait for E clock low (end of cycle)
+        eclock_wait_low();
 
-    // De-assert VMA and return R/W to read
-    deassert_vma();
+        // De-assert VMA and return R/W to read
+        deassert_vma();
 
-    // Set data bus back to input mode (bulk operation)
-    gpio_set_dir_masked(DATA_MASK, 0);
+        // Set data bus back to input mode (bulk operation)
+        gpio_set_dir_masked(DATA_MASK, 0);
+
+    }
 
 #if TIMING_TEST_ENABLED
     // Set test pin low after external bus write cycle completes
