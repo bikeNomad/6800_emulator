@@ -56,29 +56,61 @@ E rises ──┐
           └──► Sample data ──► DATA IS STABLE
 ```
 
-The implementation uses two PIO state machines on `pio0`:
+The implementation uses **three dedicated PIO state machines** on `pio0`:
 
-| State Machine | Function           | Pin Control           |
-|---------------|--------------------|-----------------------|
-| SM0           | E clock generation | GPIO 24 (E)           |
-| SM1           | Bus cycle timing   | GPIO 25-26 (VMA, R/W) |
+| State Machine | Function           | Program              | Pin Control           |
+|---------------|--------------------|----------------------|-----------------------|
+| SM0           | E clock generation | `eclock_program`     | GPIO 24 (E)           |
+| SM1           | Read cycles        | `bus_read_cycle`     | GPIO 25-26 (VMA, R/W) |
+| SM2           | Write cycles       | `bus_write_cycle`    | GPIO 25-26 (VMA, R/W) |
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│                        pio0                              │
-│                                                          │
-│  ┌──────────────┐          ┌──────────────────────────┐ │
-│  │     SM0      │          │          SM1             │ │
-│  │              │          │                          │ │
-│  │  E Clock     │──GPIO24──│  Bus Cycle Timing        │ │
-│  │  Generator   │  (WAIT)  │                          │ │
-│  │              │          │  • VMA control (GPIO25)  │ │
-│  │  894.886 kHz │          │  • R/W control (GPIO26)  │ │
-│  │  50% duty    │          │  • Data sampling (0-7)   │ │
-│  └──────────────┘          └──────────────────────────┘ │
-│                                                          │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                            pio0                                  │
+│                                                                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────────┐ │
+│  │     SM0      │  │     SM1      │  │          SM2            │ │
+│  │              │  │              │  │                         │ │
+│  │  E Clock     │  │  Read Cycles │  │  Write Cycles           │ │
+│  │  Generator   │  │              │  │                         │ │
+│  │              │  │              │  │                         │ │
+│  │  894.886 kHz │  │  PIO-trigger │  │  FIFO-triggered         │ │
+│  │  50% duty    │  │  (RX FIFO)   │  │  (TX FIFO)              │ │
+│  │              │  │              │  │                         │ │
+│  └──────────────┘  └──────────────┘  └─────────────────────────┘ │
+│               │               │               │                 │
+│               └───┬───┬───────┘               │                 │
+│                   │   │                       │                 │
+│               GPIO 24 │                       │                 │
+│               (E)     │                       │                 │
+│                       │                       │                 │
+│                   GPIO 25-26 (VMA, R/W)       │                 │
+│                                               │                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
+
+### Three-State-Machine Architecture
+
+**Key Benefits:**
+- **No state machine switching**: Each SM runs its dedicated program permanently
+- **FIFO-triggered writes**: Write operations triggered by pushing data to TX FIFO
+- **Always ready**: Read SM waits for enable trigger, Write SM waits for TX FIFO data
+- **Simplified control**: Eliminates complex program switching logic
+
+**Operation Flow:**
+
+**Read Operations:**
+1. Software sets up address bus and data direction
+2. Software enables SM1 (read state machine)
+3. SM1 waits for E low, executes read cycle, pushes data to RX FIFO
+4. Software reads data from SM1's RX FIFO
+5. SM1 returns to waiting state
+
+**Write Operations:**
+1. Software sets up address bus and data bus
+2. Software pushes data byte to SM2's TX FIFO
+3. SM2 detects data, executes write cycle automatically
+4. SM2 returns to waiting for next TX FIFO data
 
 ## Pin Configuration
 
@@ -137,35 +169,43 @@ read_delay:
 .side_set 2         ; GPIO 25=VMA, GPIO 26=R/W
 
 public write_cycle:
-    wait 0 gpio 24      side 0b10       ; Sync: Wait for E low, VMA=0, R/W=1 (idle)
-    nop                 side 0b01       ; Assert VMA=1, R/W=0 (write mode)
-    wait 1 gpio 24      side 0b01       ; Wait for E high (latch), keep signals
-    ; Hold time delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
-    ; (max delay is 7 with 2-bit side-set)
-    set x, 9            side 0b01       ; Initialize loop counter (1 cycle)
-write_delay:
-    jmp x-- write_delay [7] side 0b01  ; Loop 10 times x 8 cycles = 80 cycles
-    wait 0 gpio 24      side 0b01       ; Wait for E low, keep signals
-    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle)
+    wait 0 gpio 24      side 0b10       ; Wait for E low, idle
+    pull block          side 0b10       ; Pull data from TX FIFO (blocks if empty)
+    out pins, 8         side 0b01       ; Drive data bus, assert VMA=1, R/W=0 (write mode)
+    wait 1 gpio 24      side 0b01       ; Wait for E high (latch)
+    wait 0 gpio 24      side 0b01       ; Wait for E low (end of cycle)
+    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle), data bus returns to idle
 
 .wrap
 ```
 
-### Delay Instruction Limit
+### Write Cycle Optimization
 
-With 2-bit SIDE-SET, only 3 bits remain for delay encoding, limiting the maximum delay per instruction to 7 cycles (`[7]`). To achieve 80 cycles of delay, both programs use a loop-based approach.
+**Important**: Write cycles do **not** need a delay loop. Unlike read cycles, write cycles only need to wait for E clock edges:
 
-### Loop-Based Optimization
+1. **E clock low**: Begin cycle, wait for data in TX FIFO
+2. **Pull data**: Read data from TX FIFO
+3. **Drive data bus**: Use `out pins, 8` to drive data bus, assert VMA=1, R/W=0 (write mode)
+4. **E clock high**: Peripheral latches data immediately
+5. **E clock low**: End of cycle, deassert VMA
 
-Both read and write cycles use the same efficient loop-based approach instead of separate `nop [7]` instructions:
+**Key Timing Points:**
 
-```asm
-set x, 9            side 0b11       ; Initialize loop counter (1 cycle)
-read_delay:         ; (or write_delay:)
-    jmp x-- read_delay [7] side 0b11   ; Loop 10 times x 8 cycles = 80 cycles
-```
+- **Data bus driving**: Data bus is driven by the `out pins, 8` instruction after data is pulled from TX FIFO
+- **FIFO synchronization**: `pull block` instruction waits for data in TX FIFO before proceeding
+- **Combined operation**: `out pins, 8` simultaneously drives data bus and sets VMA/R/W via SIDE-SET
+- **Peripheral latching**: MC6821 PIA latches data on the E clock rising edge
+- **Cycle completion**: Write cycle ends on the next E clock falling edge
 
-This reduces program size while maintaining the same timing (81 total cycles including the `set` instruction) for both read and write operations.
+The E clock period (1.117µs @ 894.886kHz) provides more than sufficient time for the peripheral to latch data.
+
+**Benefits of the optimized write cycle:**
+- **Faster write operations**: No unnecessary 300ns delay
+- **Proper timing**: Data bus driven only when E is low, ensuring stable data before E rises
+- **FIFO-triggered**: Write operations triggered by pushing data to TX FIFO
+- **Efficient instruction**: `out pins, 8` drives data bus and sets control signals in one instruction
+- **Simplified control**: No state machine switching needed
+- **More accurate**: Matches actual MC6800 timing requirements
 
 ## Timing Analysis
 
@@ -173,13 +213,32 @@ This reduces program size while maintaining the same timing (81 total cycles inc
 
 | Parameter          | Value    | Notes                 |
 |--------------------|----------|-----------------------|
-| System Clock       | 266 MHz  | RP2350 default        |
-| PIO Clock          | 266 MHz  | No divider            |
-| PIO Cycle Time     | 3.759 ns | 1/266MHz              |
-| Read Data Setup    | 81 cycles| 1 + (10 × 8) cycles   |
-| Write Hold Time    | 81 cycles| 1 + (10 × 8) cycles   |
-| Read Delay         | 304.5 ns | 81 × 3.759ns          |
-| Write Delay        | 304.5 ns | 81 × 3.759ns          |
+| System Clock       | Configurable | Set by SYS_CLOCK_MHZ |
+| PIO Clock          | System Clock | No divider          |
+| PIO Cycle Time     | 1/System Clock | Variable         |
+| Read Data Setup    | Calculated | Based on SYS_CLOCK_MHZ |
+| Write Hold Time    | Calculated | Based on SYS_CLOCK_MHZ |
+| Read Delay         | ~300 ns  | Target for MC6821 PIA |
+| Write Delay        | ~300 ns  | Target for MC6821 PIA |
+
+### Dynamic Timing Calculation
+
+The PIO programs now use dynamic timing calculation based on the actual system clock frequency:
+
+```c
+// Target delay: 300ns (exceeds MC6821 PIA 290ns requirement with margin)
+// Convert to cycles: (300ns * sys_clock_hz) / 1000000000
+uint64_t cycles = ((uint64_t)300 * sys_clock_hz) / 1000000000;
+```
+
+**Example timing at different clock speeds:**
+
+| System Clock | Cycle Time | Required Cycles | Actual Delay |
+|--------------|------------|-----------------|--------------|
+| 125 MHz      | 8.000 ns   | 38 cycles       | 304.0 ns     |
+| 200 MHz      | 5.000 ns   | 60 cycles       | 300.0 ns     |
+| 266 MHz      | 3.759 ns   | 81 cycles       | 304.5 ns     |
+| 300 MHz      | 3.333 ns   | 90 cycles       | 300.0 ns     |
 
 ### Peripheral Timing Requirements
 
@@ -275,9 +334,11 @@ void bus_write_cycle_pio(uint16_t address, uint8_t data);
 1. Software sets data bus direction to output
 2. Software drives address bus and data bus
 3. PIO waits for E low, asserts VMA, clears R/W
-4. PIO waits for E high (peripheral latches data)
-5. PIO delays 304.5ns (81 cycles, hold time)
-6. PIO waits for E low, deasserts VMA, sets R/W
+4. PIO waits for E high (peripheral latches data immediately)
+5. PIO waits for E low (end of cycle - no delay loop needed)
+6. PIO deasserts VMA, sets R/W to idle state
+
+**Note**: Write cycles do **not** use a delay loop. The peripheral latches data on the E clock rising edge, and the cycle completes on the next E clock falling edge. This provides faster write operations and more accurate MC6800 timing.
 
 ### Enable/Disable
 

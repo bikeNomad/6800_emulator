@@ -6,8 +6,9 @@
 ;   GPIO 24:    E clock (WAIT source, controlled by SM0)
 ;   GPIO 25-26: VMA + R/W (SIDE-SET, 2 bits consecutive)
 ;
-; Clock: 266 MHz system clock (no divider) for ~3.76ns resolution
-; Data setup delay: 40 cycles = 150.4ns (exceeds MC6800 100ns requirement)
+; Clock: Full system clock (no divider) for finest timing resolution
+; Data setup/hold delay: Dynamically calculated based on SYS_CLOCK_MHZ
+; Target delay: 300ns (exceeds MC6821 PIA 290ns requirement with margin)
 
 .program bus_read_cycle
 
@@ -20,8 +21,10 @@ public read_cycle:
     wait 0 gpio 24      side 0b10       ; Sync: Wait for E low, VMA=0, R/W=1 (idle)
     nop                 side 0b11       ; Assert VMA=1, R/W=1 (read mode)
     wait 1 gpio 24      side 0b11       ; Wait for E high, keep signals
-    ; Data setup delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
-    ; MC6821 PIA worst-case data delay is 290ns, so use 300ns+ for margin
+        ; Data setup delay: Configurable based on system clock
+    ; Target: 300ns for MC6821 PIA worst-case data delay (290ns + margin)
+    ; Actual delay calculated at runtime based on SYS_CLOCK_MHZ
+    ; Default: 81 cycles = 304.5ns @ 266MHz
     set x, 9            side 0b11       ; Initialize loop counter (1 cycle)
 read_delay:
     jmp x-- read_delay [7] side 0b11   ; Loop 10 times x 8 cycles = 80 cycles
@@ -37,24 +40,41 @@ read_delay:
 .side_set 2         ; GPIO 25=VMA, GPIO 26=R/W
 
 ; Entry point for write cycle
-; Software must set up address bus, data bus, and direction before triggering
+; Software must set up address bus before triggering
+; Write is triggered by pushing data to TX FIFO
+; Note: Write cycles only need to wait for E clock edges - no delay loop needed
+; The peripheral latches data on E rising edge, then cycle ends on E falling edge
 public write_cycle:
-    wait 0 gpio 24      side 0b10       ; Sync: Wait for E low, VMA=0, R/W=1 (idle)
-    nop                 side 0b01       ; Assert VMA=1, R/W=0 (write mode)
-    wait 1 gpio 24      side 0b01       ; Wait for E high (latch), keep signals
-    ; Hold time delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
-    ; (max delay is 7 with 2-bit side-set)
-    set x, 9            side 0b01       ; Initialize loop counter (1 cycle)
-write_delay:
-    jmp x-- write_delay [7] side 0b01  ; Loop 10 times x 8 cycles = 80 cycles
-    wait 0 gpio 24      side 0b01       ; Wait for E low, keep signals
-    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle)
+    wait 0 gpio 24      side 0b10       ; Wait for E low, idle
+    pull block          side 0b10       ; Pull data from TX FIFO (blocks if empty)
+    out pins, 8         side 0b01       ; Drive data bus, assert VMA=1, R/W=0 (write mode)
+    wait 1 gpio 24      side 0b01       ; Wait for E high (latch)
+    wait 0 gpio 24      side 0b01       ; Wait for E low (end of cycle)
+    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle), data bus returns to idle
 
-.wrap
+.wrap   ; Automatically wraps back to write_cycle label
 
 % c-sdk {
 #include "hardware/clocks.h"
 #include "board_config.h"
+
+// Calculate delay cycles needed for 300ns data setup/hold time
+// Returns the number of PIO cycles needed to achieve ~300ns delay
+// at the current system clock frequency
+static inline uint32_t calculate_bus_delay_cycles(void) {
+    uint32_t sys_clock_hz = clock_get_hz(clk_sys);
+
+    // Target delay: 300ns (exceeds MC6821 PIA 290ns requirement with margin)
+    // Convert to cycles: (300ns * sys_clock_hz) / 1000000000
+    uint64_t cycles = ((uint64_t)300 * sys_clock_hz) / 1000000000;
+
+    // Ensure minimum delay of 1 cycle
+    if (cycles < 1) {
+        cycles = 1;
+    }
+
+    return (uint32_t)cycles;
+}
 
 // Initialize bus read cycle PIO state machine
 static inline void bus_read_cycle_program_init(PIO pio, uint sm, uint offset) {

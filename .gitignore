@@ -2,3 +2,5 @@ build*/
 ~.*
 __pycache__/*
 */__pycache__
+Programmable IO — MicroPython latest documentation*
+rp2 — functionality specific to the RP2040 — MicroPython latest documentation*

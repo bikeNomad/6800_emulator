@@ -4,6 +4,7 @@
 
 #include "bus.h"
 #include "clock.h"
+#include "bus_timing.h"
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
@@ -257,20 +258,21 @@ bool bus_read_reset(void) {
 }
 
 // ============================================================================
-// PIO-Based Bus Cycle Implementation
+// PIO-Based Bus Cycle Implementation (Three Dedicated State Machines)
 // ============================================================================
 
-// PIO state machine for bus cycles (SM1 on pio0, SM0 is E clock)
+// PIO state machines for bus cycles (SM0=eclock, SM1=read, SM2=write on pio0)
 #define BUS_PIO         pio0
-#define BUS_SM          1
+#define E_SM            0
+#define READ_SM         1
+#define WRITE_SM        2
 
 // PIO program offsets
 static uint pio_read_offset = 0;
 static uint pio_write_offset = 0;
 static bool pio_bus_initialized = false;
-static bool pio_bus_enabled = false;
 
-// Initialize PIO bus cycle state machine
+// Initialize PIO bus cycle state machines
 void bus_cycle_pio_init(void) {
     if (pio_bus_initialized) {
         printf("PIO bus cycles already initialized\n");
@@ -281,19 +283,26 @@ void bus_cycle_pio_init(void) {
     pio_read_offset = pio_add_program(BUS_PIO, &bus_read_cycle_program);
     pio_write_offset = pio_add_program(BUS_PIO, &bus_write_cycle_program);
 
-    // Initialize with read cycle program (default state)
-    bus_read_cycle_program_init(BUS_PIO, BUS_SM, pio_read_offset);
+    // Initialize E clock state machine (SM0) - always running
+    // Note: E clock program should already be initialized by eclock_init()
+
+    // Initialize read state machine (SM1) - always ready
+    bus_read_cycle_program_init(BUS_PIO, READ_SM, pio_read_offset);
+
+    // Initialize write state machine (SM2) - always waiting for TX FIFO data
+    bus_write_cycle_program_init(BUS_PIO, WRITE_SM, pio_write_offset);
 
     pio_bus_initialized = true;
-    pio_bus_enabled = true;
 
-    printf("PIO bus cycles initialized (SM%d on pio0)\n", BUS_SM);
+    printf("PIO bus cycles initialized (SM0=E, SM1=Read, SM2=Write on pio0)\n");
     printf("  Read program offset:  %d\n", pio_read_offset);
     printf("  Write program offset: %d\n", pio_write_offset);
     printf("  E clock: GPIO %d (WAIT source)\n", GPIO_ECLOCK);
     printf("  VMA:     GPIO %d (SIDE-SET bit 0)\n", GPIO_VMA);
     printf("  R/W:     GPIO %d (SIDE-SET bit 1)\n", GPIO_RW);
-    printf("  Data setup delay: 40 cycles @ 266MHz = 150.4ns\n");
+
+    // Print dynamic timing configuration
+    print_timing_config();
 }
 
 // Perform one read bus cycle using PIO
@@ -303,67 +312,61 @@ uint8_t bus_read_cycle_pio(uint16_t address) {
     drive_address_bus(address);
 
     // Clear any stale data from RX FIFO
-    while (!pio_sm_is_rx_fifo_empty(BUS_PIO, BUS_SM)) {
-        pio_sm_get(BUS_PIO, BUS_SM);
+    while (!pio_sm_is_rx_fifo_empty(BUS_PIO, READ_SM)) {
+        pio_sm_get(BUS_PIO, READ_SM);
     }
 
-    // Enable state machine (it will run through one cycle and push data)
-    pio_sm_set_enabled(BUS_PIO, BUS_SM, true);
+    // Trigger read state machine (it will run through one cycle and push data)
+    pio_sm_set_enabled(BUS_PIO, READ_SM, true);
 
     // Wait for data in RX FIFO (blocking)
-    while (pio_sm_is_rx_fifo_empty(BUS_PIO, BUS_SM)) {
+    while (pio_sm_is_rx_fifo_empty(BUS_PIO, READ_SM)) {
         tight_loop_contents();
     }
 
     // Read data from FIFO
-    uint32_t data = pio_sm_get(BUS_PIO, BUS_SM);
+    uint32_t data = pio_sm_get(BUS_PIO, READ_SM);
+
+    // Disable read state machine (it will wait for next trigger)
+    pio_sm_set_enabled(BUS_PIO, READ_SM, false);
 
     return (uint8_t)(data & 0xFF);
 }
 
 // Perform one write bus cycle using PIO
 void bus_write_cycle_pio(uint16_t address, uint8_t data) {
-    // Software: Set up address bus, data bus, and direction
+    // Software: Set up address bus and data bus
     gpio_set_dir_masked(DATA_MASK, DATA_MASK);  // Data bus = output
     drive_address_bus(address);
     gpio_put_masked(DATA_MASK, data);
 
-    // Switch to write cycle program
-    pio_sm_set_enabled(BUS_PIO, BUS_SM, false);
-    pio_sm_clear_fifos(BUS_PIO, BUS_SM);
-    pio_sm_restart(BUS_PIO, BUS_SM);
-    pio_sm_exec(BUS_PIO, BUS_SM, pio_encode_jmp(pio_write_offset));
-    pio_sm_set_enabled(BUS_PIO, BUS_SM, true);
+    // Trigger write state machine by pushing data to its TX FIFO
+    pio_sm_put(BUS_PIO, WRITE_SM, data);
 
-    // Wait for write cycle to complete (approximately 1 E clock cycle)
-    // The write cycle program will complete after one full E clock period
-    busy_wait_us(2);  // Conservative wait (2µs > 1.117µs E period)
-
-    // Switch back to read cycle program for next operation
-    pio_sm_set_enabled(BUS_PIO, BUS_SM, false);
-    pio_sm_clear_fifos(BUS_PIO, BUS_SM);
-    pio_sm_restart(BUS_PIO, BUS_SM);
-    pio_sm_exec(BUS_PIO, BUS_SM, pio_encode_jmp(pio_read_offset));
+    // Wait for write cycle to complete
+    // Write state machine will execute automatically when data is in TX FIFO
+    // It waits for E clock edges and executes the write cycle
+    busy_wait_us(1);  // Minimal wait for cycle completion
 
     // Set data bus back to input mode
     gpio_set_dir_masked(DATA_MASK, 0);
 }
 
-// Enable/disable PIO bus cycles
+// Enable/disable PIO bus cycles (for compatibility - now always enabled)
 void bus_cycle_pio_enable(bool enable) {
     if (!pio_bus_initialized && enable) {
         printf("Error: PIO bus cycles not initialized\n");
         return;
     }
 
-    pio_bus_enabled = enable;
-    pio_sm_set_enabled(BUS_PIO, BUS_SM, enable);
-
     if (enable) {
-        // Re-initialize to read cycle program
-        pio_sm_clear_fifos(BUS_PIO, BUS_SM);
-        pio_sm_restart(BUS_PIO, BUS_SM);
-        pio_sm_exec(BUS_PIO, BUS_SM, pio_encode_jmp(pio_read_offset));
+        // All state machines are always enabled in the new architecture
+        pio_sm_set_enabled(BUS_PIO, READ_SM, true);
+        pio_sm_set_enabled(BUS_PIO, WRITE_SM, true);
+    } else {
+        // Disable state machines (for debugging only)
+        pio_sm_set_enabled(BUS_PIO, READ_SM, false);
+        pio_sm_set_enabled(BUS_PIO, WRITE_SM, false);
     }
 
     printf("PIO bus cycles %s\n", enable ? "enabled" : "disabled");
@@ -371,5 +374,5 @@ void bus_cycle_pio_enable(bool enable) {
 
 // Check if PIO bus cycles are enabled
 bool bus_cycle_pio_is_enabled(void) {
-    return pio_bus_enabled;
+    return pio_bus_initialized;
 }
