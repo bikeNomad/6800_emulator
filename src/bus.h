@@ -113,6 +113,8 @@ bool bus_read_reset(void);
 // PIO-Based Bus Cycle Functions (precise hardware timing)
 // ============================================================================
 
+extern bool pio_bus_initialized;
+
 // Initialize PIO state machine for bus cycles
 // Must be called after bus_init() and eclock_init()
 void bus_cycle_pio_init(void);
@@ -129,6 +131,9 @@ void bus_write_cycle_pio(uint16_t address, uint8_t data);
 void bus_cycle_pio_enable(bool enable);
 
 // Check if PIO bus cycles are enabled
-bool bus_cycle_pio_is_enabled(void);
+static inline bool bus_cycle_pio_is_enabled(void) {
+    return pio_bus_initialized;
+}
+
 
 #endif // BUS_H

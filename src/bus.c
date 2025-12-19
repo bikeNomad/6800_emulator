@@ -127,6 +127,8 @@ void bus_init(void) {
 
 // Perform one read bus cycle
 uint8_t bus_read_cycle(uint16_t address) {
+    uint8_t data = 0;
+
 #if TIMING_TEST_ENABLED
     // Set test pin high during external bus read cycle
     gpio_put(GPIO_TIMING_TEST, 1);
@@ -134,7 +136,7 @@ uint8_t bus_read_cycle(uint16_t address) {
 
     // Use PIO-based bus cycle if available for precise timing
     if (bus_cycle_pio_is_enabled()) {
-        return bus_read_cycle_pio(address);
+        data = bus_read_cycle_pio(address);
     } else {
         // Wait for E clock low (beginning of cycle)
         bus_sync();
@@ -154,7 +156,7 @@ uint8_t bus_read_cycle(uint16_t address) {
 
         // Read data bus using bulk read
         uint32_t all_gpios = gpio_get_all();
-        uint8_t data = all_gpios & DATA_MASK;
+        data = all_gpios & DATA_MASK;
 
         // Wait for E clock low (end of cycle)
         eclock_wait_low();
@@ -281,7 +283,7 @@ bool bus_read_reset(void) {
 // PIO program offsets
 static uint pio_read_offset = 0;
 static uint pio_write_offset = 0;
-static bool pio_bus_initialized = false;
+bool pio_bus_initialized = false;
 
 // Initialize PIO bus cycle state machines
 void bus_cycle_pio_init(void) {
@@ -317,7 +319,7 @@ void bus_cycle_pio_init(void) {
 }
 
 // Perform one read bus cycle using PIO
-uint8_t bus_read_cycle_pio(uint16_t address) {
+uint8_t __time_critical_func(bus_read_cycle_pio)(uint16_t address) {
     // Software: Set up address bus and data direction
     gpio_set_dir_masked(DATA_MASK, 0);  // Data bus = input
     drive_address_bus(address);
@@ -331,12 +333,8 @@ uint8_t bus_read_cycle_pio(uint16_t address) {
     pio_sm_set_enabled(BUS_PIO, READ_SM, true);
 
     // Wait for data in RX FIFO (blocking)
-    while (pio_sm_is_rx_fifo_empty(BUS_PIO, READ_SM)) {
-        tight_loop_contents();
-    }
-
     // Read data from FIFO
-    uint32_t data = pio_sm_get(BUS_PIO, READ_SM);
+    uint32_t data = pio_sm_get_blocking(BUS_PIO, READ_SM);
 
     // Disable read state machine (it will wait for next trigger)
     pio_sm_set_enabled(BUS_PIO, READ_SM, false);
@@ -345,11 +343,9 @@ uint8_t bus_read_cycle_pio(uint16_t address) {
 }
 
 // Perform one write bus cycle using PIO
-void bus_write_cycle_pio(uint16_t address, uint8_t data) {
+void __time_critical_func(bus_write_cycle_pio)(uint16_t address, uint8_t data) {
     // Software: Set up address bus and data bus
-    gpio_set_dir_masked(DATA_MASK, DATA_MASK);  // Data bus = output
     drive_address_bus(address);
-    gpio_put_masked(DATA_MASK, data);
 
     // Trigger write state machine by pushing data to its TX FIFO
     pio_sm_put(BUS_PIO, WRITE_SM, data);
@@ -357,7 +353,7 @@ void bus_write_cycle_pio(uint16_t address, uint8_t data) {
     // Wait for write cycle to complete
     // Write state machine will execute automatically when data is in TX FIFO
     // It waits for E clock edges and executes the write cycle
-    busy_wait_us(1);  // Minimal wait for cycle completion
+    busy_wait_us(2);  // Minimal wait for cycle completion
 
     // Set data bus back to input mode
     gpio_set_dir_masked(DATA_MASK, 0);
@@ -370,20 +366,8 @@ void bus_cycle_pio_enable(bool enable) {
         return;
     }
 
-    if (enable) {
-        // All state machines are always enabled in the new architecture
-        pio_sm_set_enabled(BUS_PIO, READ_SM, true);
-        pio_sm_set_enabled(BUS_PIO, WRITE_SM, true);
-    } else {
-        // Disable state machines (for debugging only)
-        pio_sm_set_enabled(BUS_PIO, READ_SM, false);
-        pio_sm_set_enabled(BUS_PIO, WRITE_SM, false);
-    }
+    pio_sm_set_enabled(BUS_PIO, READ_SM, false);
+    pio_sm_set_enabled(BUS_PIO, WRITE_SM, enable);
 
     printf("PIO bus cycles %s\n", enable ? "enabled" : "disabled");
-}
-
-// Check if PIO bus cycles are enabled
-bool bus_cycle_pio_is_enabled(void) {
-    return pio_bus_initialized;
 }

@@ -41,6 +41,7 @@ static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_
     // Read block of data
     for (uint16_t i = 0; i < length; i++) {
         buffer[i] = bus_read_cycle(address + i);
+        busy_wait_us(3);
     }
 
     // Stop E clock if we started it
@@ -59,6 +60,7 @@ static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer,
     // Write block of data
     for (uint16_t i = 0; i < length; i++) {
         bus_write_cycle(address + i, buffer[i]);
+        busy_wait_us(3);
     }
 
     // Stop E clock if we started it

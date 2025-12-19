@@ -29,15 +29,13 @@ public set_loop_count:
 read_delay:
     jmp x-- read_delay [7] side 0b11   ; Loop 10 times x 8 cycles = 80 cycles
     in pins, 8          side 0b11       ; Sample data (now stable!), keep signals
-    push noblock        side 0b11       ; Push to RX FIFO, keep signals
     wait 0 gpio 24      side 0b11       ; Wait for E low, keep signals
-    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle)
+    push noblock        side 0b10       ; Push to RX FIFO, VMA=0
 
-.wrap
 
 .program bus_write_cycle
 
-.side_set 2         ; GPIO 25=VMA, GPIO 26=R/W
+; Set pins: GPIO 25=VMA, GPIO 26=R/W
 
 ; Entry point for write cycle
 ; Software must set up address bus and data direction before triggering
@@ -45,14 +43,17 @@ read_delay:
 ; Note: Write cycles only need to wait for E clock edges - no delay loop needed
 ; The peripheral latches data on E rising edge, then cycle ends on E falling edge
 public write_cycle:
-    wait 0 gpio 24      side 0b10       ; Wait for E low, idle
-    pull block          side 0b10       ; Pull data from TX FIFO (blocks if empty)
-    out pins, 8         side 0b01       ; Drive data bus, assert VMA=1, R/W=0 (write mode)
-    wait 1 gpio 24      side 0b01       ; Wait for E high (latch)
-    wait 0 gpio 24      side 0b01       ; Wait for E low (end of cycle)
-    nop                 side 0b10       ; Deassert VMA=0, R/W=1 (idle), data bus returns to idle
-
-.wrap   ; Automatically wraps back to write_cycle label
+    pull block          ; Pull data from TX FIFO (blocks if empty)
+    set pins, 0b10      ; Deassert VMA=0, R/W=1 (idle)
+    wait 0 gpio 24      ; Wait for E low, idle
+    out pins, 8         ; Drive data bus
+    set pins, 0b01      ; Assert VMA=1, R/W=0 (write)
+    mov pindirs, !null  ; set as outputs
+    wait 1 gpio 24      ; Wait for E high (latch)
+    wait 0 gpio 24      ; Wait for E low (end of cycle)
+    mov pindirs, null   ; set as inputs
+    set pins, 0b10      ; Deassert VMA=0, R/W=1 (idle)
+.wrap
 
 % c-sdk {
 #include "hardware/clocks.h"
@@ -93,14 +94,16 @@ static inline void bus_read_cycle_program_init(PIO pio, uint sm, uint offset) {
     // At 266 MHz: 1 cycle = 3.759ns
     sm_config_set_clkdiv(&c, 1.0f);
 
+    pio_sm_set_pins_with_mask(pio, sm, 0, (0u << GPIO_VMA) | (1u << GPIO_RW));
+
+    // Set VMA and R/W as outputs
+    pio_sm_set_pindirs_with_mask(pio, sm, (1u << GPIO_VMA) | (1u << GPIO_RW), (1u << GPIO_VMA) | (1u << GPIO_RW));
+
     // Initialize GPIO for PIO control (VMA and R/W)
     pio_gpio_init(pio, GPIO_VMA);
     pio_gpio_init(pio, GPIO_RW);
 
-    // Set VMA and R/W as outputs (consecutive pins starting at GPIO_VMA)
-    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_VMA, 2, true);
-
-    // Initialize state machine
+    // Initialize state machine (will be enabled later to trigger)
     pio_sm_init(pio, sm, offset, &c);
 }
 
@@ -109,21 +112,24 @@ static inline void bus_write_cycle_program_init(PIO pio, uint sm, uint offset) {
     // Get default configuration
     pio_sm_config c = bus_write_cycle_program_get_default_config(offset);
 
-    // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
-    sm_config_set_sideset_pins(&c, GPIO_VMA);
-    sm_config_set_sideset(&c, 2, false, false);  // 2 bits, not optional, no pindirs
+    // Configure SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
+    sm_config_set_set_pins(&c, GPIO_VMA, 2);
 
     // Use full system clock speed (no divider)
     sm_config_set_clkdiv(&c, 1.0f);
+
+    pio_sm_set_pins_with_mask(pio, sm, 0, (0u << GPIO_VMA) | (1u << GPIO_RW));
+
+    // Set VMA and R/W as outputs
+    pio_sm_set_pindirs_with_mask(pio, sm, (1u << GPIO_VMA) | (1u << GPIO_RW), (1u << GPIO_VMA) | (1u << GPIO_RW));
 
     // Initialize GPIO for PIO control (VMA and R/W)
     pio_gpio_init(pio, GPIO_VMA);
     pio_gpio_init(pio, GPIO_RW);
 
-    // Set VMA and R/W as outputs
-    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_VMA, 2, true);
-
     // Initialize state machine
     pio_sm_init(pio, sm, offset, &c);
+
+    pio_sm_set_enabled(pio, sm, true);
 }
 %}
