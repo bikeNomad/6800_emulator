@@ -14,9 +14,15 @@
 ;    txfifo[0] = ~0
 ;    txfifo[0] = (address << 8) | data
 
-.define e_pin 24
+; 2 side-set pins + optional bit leaves only 2 delay bits.
+
 .program bus_cycle
 .side_set 2
+.define e_pin 24
+
+.lang_opt python sideset_init = pico.PIO.OUT_HIGH
+.lang_opt python out_init = pico.PIO.OUT_HIGH
+.lang_opt python out_shiftdir = 1
 
 loop:
     mov pindirs, null side 0b10 ; all inputs, VMA=0, R/W=1 (idle)
@@ -34,14 +40,15 @@ do_read:
     wait 1 gpio e_pin           ; wait for E high, VMA=1, R/W=1 (read)
     wait 0 gpio e_pin           ; Wait for E low
     in pins, 8                  ; Sample data
-    push noblock           [4]  ; Push to RX FIFO, VMA=0 (+addr hold)
+    push noblock           [3]  ; Push to RX FIFO, VMA=0 (+addr hold)
     jmp loop
 
 do_write:
     mov pindirs, x side 0b01    ; VMA=1, R/W=0 (write)
     out pins, 24                ; Drive address, data, VMA=1, R/W=0
     wait 1 gpio e_pin           ; wait for E high (latch)
-    wait 0 gpio e_pin      [6]  ; wait for E low (end of cycle), delay for addr hold time
+    wait 0 gpio e_pin      [3]  ; wait for E low (end of cycle), delay for addr hold time
+    nop                    [3]
 
 .wrap
 
@@ -49,31 +56,48 @@ do_write:
 #include "hardware/clocks.h"
 #include "board_config.h"
 
+#define N_ADDR_DATA_PINS 8 + ADDR_LINES
+
 // Initialize bus cycle PIO state machine
 static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
+    // Initialize GPIO for PIO control (DATA, ADDR, VMA and R/W)
+    for (uint i = GPIO_DATA_BASE; i < GPIO_DATA_BASE + N_ADDR_DATA_PINS; i++) {
+        pio_gpio_init(pio, i);
+    }
+    pio_gpio_init(pio, GPIO_VMA);
+    pio_gpio_init(pio, GPIO_RW);
+
+    // set DATA as inputs
+    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_DATA_BASE, 8, false);
+    // set ADDR as outputs
+    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_ADDR_BASE, ADDR_LINES, true);
+    // Set VMA and R/W as outputs
+    pio_sm_set_pindirs_with_mask(pio, sm,
+        (1u << GPIO_VMA) | (1u << GPIO_RW),     // dirs
+        (1u << GPIO_VMA) | (1u << GPIO_RW));    // mask
+    pio_sm_set_pins_with_mask(pio, sm, 
+        (0u << GPIO_VMA) | (1u << GPIO_RW),     // init
+        (1u << GPIO_VMA) | (1u << GPIO_RW));    // mask
+
     // Get default configuration
     pio_sm_config c = bus_cycle_program_get_default_config(offset);
+
+    // Configure OUT pins: GPIO 0-7 (data bus), GPIO 8-23 (address bus)
+    sm_config_set_out_shift(&c, false, false, N_ADDR_DATA_PINS);
+    sm_config_set_out_pins(&c, GPIO_DATA_BASE, N_ADDR_DATA_PINS);
 
     // Configure IN pins: GPIO 0-7 (data bus)
     sm_config_set_in_pins(&c, GPIO_DATA_BASE);
     sm_config_set_in_shift(&c, false, false, 8);  // Shift left, no autopush, 8 bits
 
     // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
+    // optional side-set uses another of the 5 bits, leaving only 2 for delay
     sm_config_set_sideset_pins(&c, GPIO_VMA);
-    sm_config_set_sideset(&c, 2, true, false);  // 2 bits, optional, no pindirs
+    sm_config_set_sideset(&c, 2, true, false);  // 2 bits, optional, not pindirs
 
     // Use full system clock speed (no divider) for finest timing control
     // At 266 MHz: 1 cycle = 3.759ns
     sm_config_set_clkdiv(&c, 1.0f);
-
-    pio_sm_set_pins_with_mask(pio, sm, 0, (0u << GPIO_VMA) | (1u << GPIO_RW));
-
-    // Set VMA and R/W as outputs
-    pio_sm_set_pindirs_with_mask(pio, sm, (1u << GPIO_VMA) | (1u << GPIO_RW), (1u << GPIO_VMA) | (1u << GPIO_RW));
-
-    // Initialize GPIO for PIO control (VMA and R/W)
-    pio_gpio_init(pio, GPIO_VMA);
-    pio_gpio_init(pio, GPIO_RW);
 
     // Initialize and enable state machine
     pio_sm_init(pio, sm, offset, &c);
