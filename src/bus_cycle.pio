@@ -17,7 +17,7 @@
 ; 2 side-set pins + optional bit leaves only 2 delay bits.
 
 .program bus_cycle
-.side_set 2 opt
+.side_set 2
 .define e_pin 24
 
 .lang_opt python sideset_init = pico.PIO.OUT_HIGH
@@ -27,29 +27,30 @@
 loop:
     set pins, 0       side 0b10 ; test pin LOW
     pull block        side 0b10 ; read pindirs
-    set pins, 1                 ; test pin HIGH
-    mov x, osr                  ; X has pindirs
-    mov y, !x                   ; Y is 0 for writes.
-    pull block                  ; OSR has address + data
-    wait 1 gpio e_pin           ; wait for E high
-    wait 0 gpio e_pin           ; wait for E low (start of cycle)
-    jmp !y, do_write
+    mov x, osr        side 0b10 ; X has pindirs
+    mov y, !x         side 0b10 ; Y is 0 for writes.
+    pull block        side 0b10 ; OSR has address + data
+    wait 1 gpio e_pin side 0b10 ; wait for E high
+    wait 0 gpio e_pin side 0b10 ; wait for E low (start of cycle)
+    jmp !y, do_write  side 0b10 ; VMA low
 
 do_read:
+    set pins, 1       side 0b11 ; test pin HIGH
     mov pindirs, x side 0b11    ; VMA=1, R/W=1 (read)
-    out pins, 32                ; Drive address (data lines are set to inputs)
-    wait 1 gpio e_pin           ; wait for E high, VMA=1, R/W=1 (read)
-    wait 0 gpio e_pin           ; Wait for E low
-    in pins, 8                  ; Sample data
-    push noblock           [3]  ; Push to RX FIFO, VMA=0 (+addr hold)
-    jmp loop
+    out pins, 24      side 0b11 ; Drive address (data lines are set to inputs)
+    wait 1 gpio e_pin side 0b11 ; wait for E high, VMA=1, R/W=1 (read)
+    wait 0 gpio e_pin side 0b11 ; Wait for E low
+    in pins, 8        side 0b11 ; Sample data
+    push noblock side 0b10 [3]  ; Push to RX FIFO, VMA=0 (+addr hold)
+    jmp loop         side 0b10
+
 
 do_write:
     mov pindirs, x side 0b01    ; VMA=1, R/W=0 (write)
-    out pins, 32                ; Drive address, data, VMA=1, R/W=0
-    wait 1 gpio e_pin           ; wait for E high (latch)
-    wait 0 gpio e_pin      [3]  ; wait for E low (end of cycle), delay for addr hold time
-    nop                    [3]
+    out pins, 24   side 0b01    ; Drive address, data, VMA=1, R/W=0
+    wait 1 gpio e_pin side 0b01 ; wait for E high (latch)
+    wait 0 gpio e_pin side 0b01 [3] ; wait for E low (end of cycle), delay for addr hold time
+    nop         side 0b01  [3]
 
 .wrap
 
@@ -94,7 +95,7 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
     // optional side-set uses another of the 5 bits, leaving only 2 for delay
     sm_config_set_sideset_pins(&c, GPIO_VMA);
-    sm_config_set_sideset(&c, 2, true, false);  // 2 bits, optional, not pindirs
+    sm_config_set_sideset(&c, 2, false, false);  // 2 bits, optional, not pindirs
 
 #if TIMING_TEST_ENABLED
     static_assert(GPIO_TIMING_TEST < 32);

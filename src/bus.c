@@ -314,7 +314,7 @@ void bus_cycle_pio_enable(bool enable) {
 // Perform one read bus cycle using PIO
 uint8_t __time_critical_func(bus_read_cycle_pio)(uint16_t address) {
     pio_sm_put_blocking(BUS_PIO, CYCLE_SM, READ_PINDIRS);
-    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, ((uint32_t)address) << 8);
+    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, ((uint32_t)address) << 8UL);
 
     // Wait for data in RX FIFO (blocking)
     uint32_t data = pio_sm_get_blocking(BUS_PIO, CYCLE_SM);
@@ -324,5 +324,6 @@ uint8_t __time_critical_func(bus_read_cycle_pio)(uint16_t address) {
 // Perform one write bus cycle using PIO
 void __time_critical_func(bus_write_cycle_pio)(uint16_t address, uint8_t data) {
     pio_sm_put_blocking(BUS_PIO, CYCLE_SM, WRITE_PINDIRS);
-    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, (((uint32_t)address) << 8) | data);
+    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, (((uint32_t)address) << 8UL) | (uint32_t)data);
+    busy_wait_us(2);
 }
