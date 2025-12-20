@@ -25,9 +25,8 @@
 .lang_opt python out_shiftdir = 1
 
 loop:
-    set pins, 0                 ; test pin LOW
-    mov pindirs, null side 0b10 ; all inputs, VMA=0, R/W=1 (idle)
-    pull block                  ; read pindirs
+    set pins, 0       side 0b10 ; test pin LOW
+    pull block        side 0b10 ; read pindirs
     set pins, 1                 ; test pin HIGH
     mov x, osr                  ; X has pindirs
     mov y, !x                   ; Y is 0 for writes.
@@ -103,6 +102,7 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     // Configure SET pins
     pio_gpio_init(pio, GPIO_TIMING_TEST);
     sm_config_set_set_pins(&c, GPIO_TIMING_TEST, 1);
+    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_TIMING_TEST, 1, true);
 #endif
 
     // Use full system clock speed (no divider) for finest timing control

@@ -55,7 +55,7 @@ ned_sys7: build_ned_sys7
 
 # Clean all build directories and images
 clean: clean-images
-	rm -rf $(BUILD_PICO2_DIR) $(BUILD_NED_SYS7_DIR)
+	rm -rf $(BUILD_PICO2_DIR) $(BUILD_NED_SYS7_DIR) build
 
 # Clean images only
 clean-images:

@@ -5,8 +5,8 @@ if(NOT DEFINED ENV{PICO_SDK_PATH})
     set(ENV{PICO_SDK_PATH} "/Users/ned/src/Micropython/micropython/lib/pico-sdk")
 endif()
 
-# Set board type to Pico 2 W (RP2350 with WiFi) - MUST be before pico_sdk_import
-set(PICO_BOARD pico2_w)
+# Set board type to Pico 2 (RP2350) - MUST be before pico_sdk_import
+set(PICO_BOARD pico2)
 
 # Include the Pico SDK
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
@@ -118,5 +118,5 @@ target_compile_definitions(mc6800_emulator PRIVATE
 target_compile_options(mc6800_emulator PRIVATE
     -Wall
     -Wextra
-    -O2
+    -Og
 )
