@@ -7,14 +7,16 @@
 ; GPIO 24 is E clock, driven by SM0
 ; jump pin: none
 ; For read:
-;    txfifo[0] = 0xFFFF00
+;    txfifo[0] = ~0 << 8
 ;    txfifo[0] = address << 8
 ;    read data from rxfifo[0]
 ; For write:
-;    txfifo[0] = 0xFFFFFF
+;    txfifo[0] = ~0
 ;    txfifo[0] = (address << 8) | data
 
 .define e_pin 24
+.program bus_cycle
+.side_set 2
 
 loop:
     mov pindirs, null side 0b10 ; all inputs, VMA=0, R/W=1 (idle)
@@ -42,3 +44,40 @@ do_write:
     wait 0 gpio e_pin      [6]  ; wait for E low (end of cycle), delay for addr hold time
 
 .wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "board_config.h"
+
+// Initialize bus cycle PIO state machine
+static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
+    // Get default configuration
+    pio_sm_config c = bus_cycle_program_get_default_config(offset);
+
+    // Configure IN pins: GPIO 0-7 (data bus)
+    sm_config_set_in_pins(&c, GPIO_DATA_BASE);
+    sm_config_set_in_shift(&c, false, false, 8);  // Shift left, no autopush, 8 bits
+
+    // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
+    sm_config_set_sideset_pins(&c, GPIO_VMA);
+    sm_config_set_sideset(&c, 2, true, false);  // 2 bits, optional, no pindirs
+
+    // Use full system clock speed (no divider) for finest timing control
+    // At 266 MHz: 1 cycle = 3.759ns
+    sm_config_set_clkdiv(&c, 1.0f);
+
+    pio_sm_set_pins_with_mask(pio, sm, 0, (0u << GPIO_VMA) | (1u << GPIO_RW));
+
+    // Set VMA and R/W as outputs
+    pio_sm_set_pindirs_with_mask(pio, sm, (1u << GPIO_VMA) | (1u << GPIO_RW), (1u << GPIO_VMA) | (1u << GPIO_RW));
+
+    // Initialize GPIO for PIO control (VMA and R/W)
+    pio_gpio_init(pio, GPIO_VMA);
+    pio_gpio_init(pio, GPIO_RW);
+
+    // Initialize and enable state machine
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+}
