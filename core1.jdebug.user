@@ -1,15 +1,7 @@
 
 
-OpenDocument="clock.c", FilePath="/Users/ned/src/6800_emulator/src/clock.c", Line=0
-OpenDocument="clock.h", FilePath="/Users/ned/src/6800_emulator/src/clock.h", Line=0
-OpenDocument="memory.c", FilePath="/Users/ned/src/6800_emulator/src/memory.c", Line=241
-OpenDocument="cpu_state.c", FilePath="/Users/ned/src/6800_emulator/src/cpu_state.c", Line=35
-OpenDocument="emulator.jdebug", FilePath="/Users/ned/src/6800_emulator/emulator.jdebug", Line=0
-OpenDocument="multicore.h", FilePath="/Users/ned/src/Micropython/micropython/lib/pico-sdk/src/rp2_common/pico_multicore/include/pico/multicore.h", Line=120
-OpenDocument="cycle_test.c", FilePath="/Users/ned/src/6800_emulator/src/cycle_test.c", Line=58
-OpenDocument="instructions.c", FilePath="/Users/ned/src/6800_emulator/src/instructions.c", Line=1668
-OpenDocument="sync.h", FilePath="/Users/ned/src/Micropython/micropython/lib/pico-sdk/src/rp2_common/hardware_sync/include/hardware/sync.h", Line=96
-OpenDocument="main.c", FilePath="/Users/ned/src/6800_emulator/src/main.c", Line=54
+OpenDocument="cdc_device.c", FilePath="/Users/ned/src/Micropython/micropython/lib/pico-sdk/lib/tinyusb/src/class/cdc/cdc_device.c", Line=127
+OpenDocument="main.c", FilePath="/Users/ned/src/6800_emulator/src/main.c", Line=53
 OpenToolbar="Debug", Floating=0, x=0, y=0
 OpenWindow="Call Stack", DockArea=RIGHT, x=0, y=4, w=767, h=306, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 OpenWindow="Registers 1", DockArea=FLOATING, x=3863, y=0, w=1186, h=0, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, FilteredItems=[], RefreshRate=1
@@ -27,15 +19,13 @@ SmartViewPlugin="", Page="", Toolbar="Hidden", Window="SmartView 1"
 TableHeader="Global Data", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[198;199;100;100;226;188]
 TableHeader="Vector Catches", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Vector Catch";"Description"], ColWidths=[50;300;500]
 TableHeader="Break & Tracepoints", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Type";"Location";"Extras"], ColWidths=[100;100;252;100]
-TableHeader="Local Data", SortCol="Location", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[197;350;100;100;196;182]
+TableHeader="Local Data", SortCol="Location", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[197;350;100;100;196;212]
 TableHeader="Functions", SortCol="Address", SortOrder="ASCENDING", VisibleCols=["Name";"Address";"Size";"#Insts";"Source"], ColWidths=[347;100;100;100;686]
 TableHeader="Call Stack", SortCol="Function", SortOrder="ASCENDING", VisibleCols=["Function";"Stack Frame";"Source";"PC";"Return Address";"Stack Used"], ColWidths=[245;112;257;100;168;100]
 TableHeader="Source Files", SortCol="File", SortOrder="ASCENDING", VisibleCols=["File";"Status";"Size";"#Insts";"Path"], ColWidths=[203;77;53;100;758]
 TableHeader="Call Graph", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Stack Total";"Stack Local";"Code Total";"Code Local";"Depth";"Called From"], ColWidths=[582;100;100;100;100;100;100]
 TableHeader="Power Sampling", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";"Ch 0"], ColWidths=[100;100;100]
-TableHeader="Registers 1", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Description"], ColWidths=[265;312;17918]
+TableHeader="Registers 1", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Description"], ColWidths=[265;312;609]
 TableHeader="Watched Data 1", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Value";"Location";"Refresh"], ColWidths=[143;358;100;166]
 TableHeader="RegisterSelectionDialog", SortCol="None", SortOrder="ASCENDING", VisibleCols=[], ColWidths=[]
-TableHeader="TargetExceptionDialog", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Address";"Description"], ColWidths=[200;100;100;358]
-WatchedExpression="cycle_overage", Window=Watched Data 1
-WatchedExpression="diff", Window=Watched Data 1
+TableHeader="TargetExceptionDialog", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Address";"Description"], ColWidths=[200;100;100;343]
