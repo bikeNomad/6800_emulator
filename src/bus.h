@@ -114,17 +114,18 @@ bool bus_read_reset(void);
 // ============================================================================
 
 extern bool pio_bus_initialized;
+extern bool pio_bus_enabled;
 
 // Initialize PIO state machine for bus cycles
 // Must be called after bus_init() and eclock_init()
 void bus_cycle_pio_init(void);
 
-// Perform one read bus cycle using PIO (precise 150ns data setup delay)
-// Software sets up address, PIO handles E clock synchronization and data capture
+// Perform one read bus cycle using PIO
+// PIO handles E clock synchronization and data capture
 uint8_t bus_read_cycle_pio(uint16_t address);
 
-// Perform one write bus cycle using PIO (precise timing)
-// Software sets up address and data, PIO handles E clock synchronization
+// Perform one write bus cycle using PIO
+// PIO handles E clock synchronization
 void bus_write_cycle_pio(uint16_t address, uint8_t data);
 
 // Enable/disable PIO bus cycles (for debugging/comparison)
@@ -132,7 +133,7 @@ void bus_cycle_pio_enable(bool enable);
 
 // Check if PIO bus cycles are enabled
 static inline bool bus_cycle_pio_is_enabled(void) {
-    return pio_bus_initialized;
+    return pio_bus_enabled;
 }
 
 

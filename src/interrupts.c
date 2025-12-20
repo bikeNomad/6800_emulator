@@ -91,11 +91,13 @@ void interrupt_service_reset(void) {
         cpu.running = true;
         cpu.halted = false;
         eclock_start();
+        bus_cycle_pio_enable(true);
         DEBUG_INT_PRINTF("CPU started after RESET release\n");
     } else {
         // /RESET still LOW - stay halted
         cpu.halted = true;
         cpu.running = false;
+        bus_cycle_pio_enable(false);
         eclock_stop();
         led_all_off();
         DEBUG_INT_PRINTF("CPU halted while /RESET asserted\n");

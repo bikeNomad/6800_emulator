@@ -11,8 +11,7 @@
 #include "hardware/clocks.h"
 
 // Target timing requirements (in nanoseconds)
-#define BUS_DATA_SETUP_TIME_NS 300  // Exceeds MC6821 PIA 290ns requirement
-#define BUS_DATA_HOLD_TIME_NS  300  // Same as setup for consistency
+#define BUS_DATA_HOLD_TIME_NS  30   // max(tAH, tDHW)
 
 // Calculate PIO cycles needed for target delay
 // Returns the number of PIO cycles required to achieve the target delay
@@ -42,17 +41,13 @@ static inline void print_timing_config(void) {
     uint32_t sys_clock_mhz = sys_clock_hz / 1000000;
     float cycle_time_ns = 1000.0f / sys_clock_mhz;
 
-    uint32_t setup_cycles = calculate_pio_cycles_for_ns(BUS_DATA_SETUP_TIME_NS);
     uint32_t hold_cycles = calculate_pio_cycles_for_ns(BUS_DATA_HOLD_TIME_NS);
 
-    float actual_setup_ns = setup_cycles * cycle_time_ns;
     float actual_hold_ns = hold_cycles * cycle_time_ns;
 
     printf("Bus Timing Configuration:\n");
     printf("  System Clock: %lu MHz\n", (unsigned long)sys_clock_mhz);
     printf("  Cycle Time: %.3f ns\n", cycle_time_ns);
-    printf("  Setup Delay: %lu cycles = %.1f ns (target: %d ns)\n",
-           (unsigned long)setup_cycles, actual_setup_ns, BUS_DATA_SETUP_TIME_NS);
     printf("  Hold Delay: %lu cycles = %.1f ns (target: %d ns)\n",
            (unsigned long)hold_cycles, actual_hold_ns, BUS_DATA_HOLD_TIME_NS);
 }

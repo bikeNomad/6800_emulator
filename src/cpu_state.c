@@ -72,6 +72,7 @@ void cpu_start(void) {
     cpu.running = true;
     cpu.halted = false;
     eclock_start();  // Start E clock PIO (also resets PIO counter)
+    bus_cycle_pio_enable(true);
     printf("CPU started: PC=$%04X\n", cpu.pc);
 }
 
@@ -79,6 +80,7 @@ void cpu_start(void) {
 void cpu_halt(void) {
     cpu.halted = true;
     __mem_fence_release();  // Memory barrier - ensure Core 0 sees halt flag immediately
+    bus_cycle_pio_enable(false);
     eclock_stop();  // Stop E clock PIO
 
     // Turn off all LEDs when halted

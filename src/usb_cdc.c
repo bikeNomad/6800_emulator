@@ -36,6 +36,7 @@ static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_
     bool was_running = cpu_is_running();
     if (!was_running) {
         eclock_start();
+        bus_cycle_pio_enable(true);
     }
 
     // Read block of data
@@ -46,6 +47,7 @@ static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_
 
     // Stop E clock if we started it
     if (!was_running) {
+        bus_cycle_pio_enable(false);
         eclock_stop();
     }
 }
@@ -54,6 +56,7 @@ static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer,
     // Temporarily start E clock if CPU is halted
     bool was_running = cpu_is_running();
     if (!was_running) {
+        bus_cycle_pio_enable(true);
         eclock_start();
     }
 
@@ -65,6 +68,7 @@ static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer,
 
     // Stop E clock if we started it
     if (!was_running) {
+        bus_cycle_pio_enable(false);
         eclock_stop();
     }
 }

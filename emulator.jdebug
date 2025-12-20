@@ -29,11 +29,13 @@ void OnProjectLoad (void) {
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("4 MHz");
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M33F.svd");
-  Project.AddSvdFile ("/Applications/SEGGER/Ozone_V326g/Ozone.app/Contents/MacOS/Config/Peripherals/ARMv6M.svd");
+  Project.AddSvdFile ("/Applications/SEGGER/Ozone_V340d/Ozone.app/Contents/MacOS/Config/Peripherals/ARMv6M.svd");
+
   //
   // User settings
   //
-  File.Open ("$(ProjectDir)/build/mc6800_emulator.elf");
+  File.Open ("$(ProjectDir)/build_ned_sys7/mc6800_emulator.elf");
+	Project.AddSvdFile ("/Users/ned/src/Micropython/micropython/lib/pico-sdk/src/rp2350/hardware_regs/RP2350.svd");
 }
 
 /*********************************************************************
