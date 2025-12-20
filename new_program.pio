@@ -1,0 +1,44 @@
+; state machine 1
+; runs at system clock speed (266MHz, 3.76ns)
+; bus cycle: 1.11746046µs
+; out base: 0, count: 24
+; side base: 25, count: 2 (VMA, R/W), optional
+; set base: 25, count: 2
+; GPIO 24 is E clock, driven by SM0
+; jump pin: none
+; For read:
+;    txfifo[0] = 0xFFFF00
+;    txfifo[0] = address << 8
+;    read data from rxfifo[0]
+; For write:
+;    txfifo[0] = 0xFFFFFF
+;    txfifo[0] = (address << 8) | data
+
+.define e_pin 24
+
+loop:
+    mov pindirs, null side 0b10 ; all inputs, VMA=0, R/W=1 (idle)
+    pull block                  ; read pindirs
+    mov x, osr                  ; X has pindirs
+    mov y, !x                   ; Y is 0 for writes.
+    pull block                  ; OSR has address + data
+    wait 1 gpio e_pin           ; wait for E high
+    wait 0 gpio e_pin           ; wait for E low (start of cycle)
+    jmp !y, do_write
+
+do_read:
+    mov pindirs, x side 0b11    ; VMA=1, R/W=1 (read)
+    out pins, 24                ; Drive address (data lines are set to inputs)
+    wait 1 gpio e_pin           ; wait for E high, VMA=1, R/W=1 (read)
+    wait 0 gpio e_pin           ; Wait for E low
+    in pins, 8                  ; Sample data
+    push noblock           [4]  ; Push to RX FIFO, VMA=0 (+addr hold)
+    jmp loop
+
+do_write:
+    mov pindirs, x side 0b01    ; VMA=1, R/W=0 (write)
+    out pins, 24                ; Drive address, data, VMA=1, R/W=0
+    wait 1 gpio e_pin           ; wait for E high (latch)
+    wait 0 gpio e_pin      [6]  ; wait for E low (end of cycle), delay for addr hold time
+
+.wrap
