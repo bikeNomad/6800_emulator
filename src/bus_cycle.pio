@@ -3,7 +3,7 @@
 ; bus cycle: 1.11746046µs
 ; out base: 0, count: 24
 ; side base: 25, count: 2 (VMA, R/W), optional
-; set base: 25, count: 2
+; set base: 42, count: 1 (test pin)
 ; GPIO 24 is E clock, driven by SM0
 ; jump pin: none
 ; For read:
@@ -25,8 +25,10 @@
 .lang_opt python out_shiftdir = 1
 
 loop:
+    set pins, 0                 ; test pin LOW
     mov pindirs, null side 0b10 ; all inputs, VMA=0, R/W=1 (idle)
     pull block                  ; read pindirs
+    set pins, 1                 ; test pin HIGH
     mov x, osr                  ; X has pindirs
     mov y, !x                   ; Y is 0 for writes.
     pull block                  ; OSR has address + data
@@ -94,6 +96,14 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     // optional side-set uses another of the 5 bits, leaving only 2 for delay
     sm_config_set_sideset_pins(&c, GPIO_VMA);
     sm_config_set_sideset(&c, 2, true, false);  // 2 bits, optional, not pindirs
+
+#if TIMING_TEST_ENABLED
+    static_assert(GPIO_TIMING_TEST < 32);
+
+    // Configure SET pins
+    pio_gpio_init(pio, GPIO_TIMING_TEST);
+    sm_config_set_set_pins(&c, GPIO_TIMING_TEST, 1);
+#endif
 
     // Use full system clock speed (no divider) for finest timing control
     // At 266 MHz: 1 cycle = 3.759ns

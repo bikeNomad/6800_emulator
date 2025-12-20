@@ -78,7 +78,8 @@
   #define GPIO_PSRAM_CS    47  // PSRAM chip select
 
   // Test pin for timing diagnostics (available on NED_SYS7 only)
-  #define GPIO_TIMING_TEST 42  // Test pin for timing measurements
+  // Must be <32 for PIO use
+  #define GPIO_TIMING_TEST 30  // Test pin for timing measurements
   #define TIMING_TEST_ENABLED 1
 
 #else

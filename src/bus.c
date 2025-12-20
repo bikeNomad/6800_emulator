@@ -81,9 +81,9 @@ void bus_init(void) {
     }
 #else
     // NED_SYS7: Initialize unused GPIO pins as inputs with pull-ups
-    // Unused: 30-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
+    // Unused: 31-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
     // Allow for either 36 or 39 to be used for yellow LED.
-    const int unused_pins[] = {30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
+    const int unused_pins[] = {31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
     for (int i = 0; i < 11; i++) {
         gpio_init(unused_pins[i]);
         gpio_set_dir(unused_pins[i], GPIO_IN);
@@ -107,22 +107,25 @@ void bus_init(void) {
     gpio_put(GPIO_LED_UNMAPPED, 1);  // Off
 #endif
 
-    printf("Bus interface initialized for %s\n", BOARD_NAME);
-    printf("  Data:  GPIO %d-%d\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
+    printf("Bus interface initialized for %s\r\n", BOARD_NAME);
+    printf("  Data:  GPIO %d-%d\r\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
 #if BOARD_TYPE == BOARD_PICO2
-    printf("  Addr:  GPIO 8-14 -> MC6800 A{0,1,10-14} (%d lines, %d addresses)\n",
+    printf("  Addr:  GPIO 8-14 -> MC6800 A{0,1,10-14} (%d lines, %d addresses)\r\n",
            ADDR_LINES, ADDR_SPACE_SIZE);
-    printf("  Addr mask: 0x%04X (non-contiguous address space)\n", ADDR_MASK);
+    printf("  Addr mask: 0x%04X (non-contiguous address space)\r\n", ADDR_MASK);
 #else
-    printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\n",
+    printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\r\n",
            ADDR_LINES, ADDR_SPACE_SIZE);
-    printf("  Addr mask: 0x%04X (full address space)\n", ADDR_MASK);
+    printf("  Addr mask: 0x%04X (full address space)\r\n", ADDR_MASK);
 #endif
-    printf("  VMA:   GPIO %d\n", GPIO_VMA);
-    printf("  R/W:   GPIO %d\n", GPIO_RW);
-    printf("  /IRQ:  GPIO %d\n", GPIO_IRQ);
-    printf("  /NMI:  GPIO %d\n", GPIO_NMI);
-    printf("  /RESET: GPIO %d\n", GPIO_RESET);
+    printf("  VMA:   GPIO %d\r\n", GPIO_VMA);
+    printf("  R/W:   GPIO %d\r\n", GPIO_RW);
+    printf("  /IRQ:  GPIO %d\r\n", GPIO_IRQ);
+    printf("  /NMI:  GPIO %d\r\n", GPIO_NMI);
+    printf("  /RESET: GPIO %d\r\n", GPIO_RESET);
+#if TIMING_TEST_ENABLED
+    printf("  Timing test enabled, pin %d\r\n", GPIO_TIMING_TEST);
+#endif
 }
 
 // Perform one read bus cycle
@@ -132,16 +135,10 @@ uint8_t bus_read_cycle(uint16_t address) {
     // Wait for E clock low (beginning of cycle)
     bus_sync();
 
-#if TIMING_TEST_ENABLED
-    // Set test pin high during external bus read cycle
-    gpio_put(GPIO_TIMING_TEST, 1);
-#endif
-
     // Use PIO-based bus cycle if available for precise timing
     if (bus_cycle_pio_is_enabled()) {
         data = bus_read_cycle_pio(address);
     } else {
-
         // Set data bus to input mode (bulk operation)
         // Drive strength already configured in bus_init()
         gpio_set_dir_masked(DATA_MASK, 0);
@@ -166,11 +163,6 @@ uint8_t bus_read_cycle(uint16_t address) {
         deassert_vma();
     }
 
-#if TIMING_TEST_ENABLED
-    // Set test pin low after external bus read cycle completes
-    gpio_put(GPIO_TIMING_TEST, 0);
-#endif
-
     return data;
 }
 
@@ -178,11 +170,6 @@ uint8_t bus_read_cycle(uint16_t address) {
 void bus_write_cycle(uint16_t address, uint8_t data) {
     // Wait for E clock low (beginning of cycle)
     bus_sync();
-
-#if TIMING_TEST_ENABLED
-    // Set test pin high during external bus write cycle
-    gpio_put(GPIO_TIMING_TEST, 1);
-#endif
 
     // Use PIO-based bus cycle if available for precise timing
     if (bus_cycle_pio_is_enabled()) {
@@ -211,11 +198,6 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
         gpio_set_dir_masked(DATA_MASK, 0);
 
     }
-
-#if TIMING_TEST_ENABLED
-    // Set test pin low after external bus write cycle completes
-    gpio_put(GPIO_TIMING_TEST, 0);
-#endif
 }
 
 // Wait for next E clock edge (with real-time tracking)
@@ -305,11 +287,11 @@ void bus_cycle_pio_init(void) {
 
     pio_bus_initialized = true;
 
-    printf("PIO bus cycles initialized (SM0=E, SM1=Read, SM2=Write on pio0)\n");
-    printf("  Cycle program offset: %d\n", pio_cycle_offset);
-    printf("  E clock: GPIO %d (WAIT source)\n", GPIO_ECLOCK);
-    printf("  VMA:     GPIO %d (SIDE-SET bit 0)\n", GPIO_VMA);
-    printf("  R/W:     GPIO %d (SIDE-SET bit 1)\n", GPIO_RW);
+    printf("PIO bus cycles initialized (SM0=E, SM1=Read/Write)\r\n");
+    printf("  Cycle program offset: %d\r\n", pio_cycle_offset);
+    printf("  E clock: GPIO %d (WAIT source)\r\n", GPIO_ECLOCK);
+    printf("  VMA:     GPIO %d (SIDE-SET bit 0)\r\n", GPIO_VMA);
+    printf("  R/W:     GPIO %d (SIDE-SET bit 1)\r\n", GPIO_RW);
 
     // Print dynamic timing configuration
     print_timing_config();
