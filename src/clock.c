@@ -12,9 +12,8 @@
 #include <stdio.h>
 
 // PIO instance and state machine
-static PIO pio = pio0;
-static uint sm = 0;
-static uint offset;
+static uint eclock_offset;  // E_SM
+static uint sync_offset;    // SYNC_SM
 
 // Cycle counter (non-volatile for performance - not accessed by ISRs)
 uint32_t cycle_count = 0;
@@ -33,38 +32,26 @@ static bool last_e_state = false;
 
 // Initialize E clock
 void eclock_init(void) {
-    // Load PIO program
-    offset = pio_add_program(pio, &eclock_program);
-
-    // Initialize state machine (this starts it by default)
-    eclock_program_init(pio, sm, offset, GPIO_ECLOCK);
-
-    // Stop immediately (will be started when CPU runs)
-    pio_sm_set_enabled(pio, sm, false);
+    // Load PIO program and Initialize state machine (will be stopped)
+    eclock_offset = pio_add_program(BUS_PIO, &eclock_program);
+    eclock_program_init(BUS_PIO, E_SM, eclock_offset, GPIO_ECLOCK);
+    
+    sync_offset = pio_add_program(BUS_PIO, &sync_program);
+    sync_program_init(BUS_PIO, SYNC_SM, sync_offset, GPIO_ECLOCK, GPIO_TIMING_TEST);
 
     // Initialize X register while stopped (sets X = 0xFFFFFFFF for countdown)
     eclock_reset_pio_counter();
 
     // Reset cached PIO cycles to 0
     last_pio_cycles = 0;
-
-    // Verify SM is actually stopped
-    bool is_enabled = (pio->ctrl & (1u << sm)) != 0;
-    printf("E clock initialized on GPIO %d (%s)\n", GPIO_ECLOCK,
-           is_enabled ? "ERROR: STILL RUNNING!" : "stopped");
-    printf("Target frequency: 0.894886 MHz (period: 1.117µs)\n");
 }
 
 // Start E clock generation
 void eclock_start(void) {
-    // Ensure PIO has control of the pin (in case GPIO took control during stop)
-    pio_gpio_init(pio, GPIO_ECLOCK);
-    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_ECLOCK, 1, true);
-
     // Reset PIO cycle counter before starting
     eclock_reset_pio_counter();
 
-    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_set_enabled(BUS_PIO, E_SM, true);
     cycle_count = 0;
     cycle_overage = 0;
     last_pio_cycles = 0;
@@ -78,12 +65,9 @@ void eclock_stop(void) {
     eclock_get_pio_cycles();  // Updates last_pio_cycles
 
     // Disable PIO state machine
-    pio_sm_set_enabled(pio, sm, false);
-
-    // Configure GPIO to drive E clock LOW
-    gpio_init(GPIO_ECLOCK);
-    gpio_set_dir(GPIO_ECLOCK, GPIO_OUT);
-    gpio_put(GPIO_ECLOCK, 0);  // Force LOW
+    pio_sm_set_enabled(BUS_PIO, E_SM, false);
+    
+    eclock_force_low();
 
     printf("E clock stopped (PIO cycles: %lu, E forced LOW)\n", (unsigned long)last_pio_cycles);
 }
@@ -119,7 +103,7 @@ void eclock_wait_low(void) {
 // Get real elapsed E clock cycles from PIO
 uint32_t __time_critical_func(eclock_get_pio_cycles)(void) {
     // Check if state machine is enabled (check CTRL register bit)
-    bool sm_enabled = (pio->ctrl & (1u << sm)) != 0;
+    bool sm_enabled = (BUS_PIO->ctrl & (1u << E_SM)) != 0;
 
     if (!sm_enabled) {
         // SM is stopped, return cached value
@@ -130,7 +114,7 @@ uint32_t __time_critical_func(eclock_get_pio_cycles)(void) {
     // The PIO program continuously updates rxfifo[0] with the X value
     // using: mov isr, x; push noblock
     // The .fifo txput directive enables rxf_putget access
-    uint32_t x_value = pio->rxf_putget[sm][0];
+    uint32_t x_value = BUS_PIO->rxf_putget[E_SM][0];
 
     // Invert to get elapsed cycles (0xFFFFFFFF - x_value)
     uint32_t pio_cycles = ~x_value;
@@ -146,7 +130,12 @@ void eclock_reset_pio_counter(void) {
     // Write 0xFFFFFFFF to X register to reset counter
     // Execute "mov x, ~null" instruction to set X = 0xFFFFFFFF
     // The invert modifier is encoded in bit 3 (0x08) of the source field
-    pio_sm_exec(pio, sm, pio_encode_mov(pio_x, 0x08 | pio_null));
+    pio_sm_exec(BUS_PIO, E_SM, pio_encode_mov(pio_x, 0x08 | pio_null));
+}
+
+void eclock_force_low(void) {
+    // force E clock low
+    pio_sm_exec(BUS_PIO, E_SM, pio_encode_set(pio_pins, 0));
 }
 
 // Check timing and wait if emulator is ahead of real-time

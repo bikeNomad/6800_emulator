@@ -51,6 +51,9 @@ uint32_t eclock_get_pio_cycles(void);
 // Reset PIO cycle counter
 void eclock_reset_pio_counter(void);
 
+// Force E clock low
+void eclock_force_low(void);
+
 // Check timing and wait if emulator is ahead of real-time
 void eclock_check_timing(void);
 

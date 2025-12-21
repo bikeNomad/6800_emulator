@@ -83,7 +83,7 @@ void bus_init(void) {
     // NED_SYS7: Initialize unused GPIO pins as inputs with pull-ups
     // Unused: 31-32 (after control signals), 35-36 (old UART pins), 42-47 (after LEDs/UART)
     // Allow for either 36 or 39 to be used for yellow LED.
-    const int unused_pins[] = {31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
+    const int unused_pins[] = {30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
     for (int i = 0; i < 11; i++) {
         gpio_init(unused_pins[i]);
         gpio_set_dir(unused_pins[i], GPIO_IN);
@@ -257,15 +257,8 @@ bool bus_read_reset(void) {
 // PIO-Based Bus Cycle Implementation (Two Dedicated State Machines)
 // ============================================================================
 
-// PIO state machines for bus cycles (SM0=eclock, SM1=read/write, SM2=sync)
-#define BUS_PIO         pio0
-#define E_SM            0   // E clock generation
-#define CYCLE_SM        1   // read/write cycle
-#define SYNC_SM         2   // TODO: bus sync
-
  // PIO program offsets
 static uint pio_cycle_offset = 0;
-static uint pio_sync_offset = 0;
 
 bool pio_bus_initialized = false;
 bool pio_bus_enabled = false;

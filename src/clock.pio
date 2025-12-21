@@ -24,6 +24,29 @@ loop:
     jmp x-- loop        ; Decrement X each cycle and loop
 .wrap
 
+
+; Program to wait a given number of E clock cycles
+; (falling edges)
+; single IN pin is E clock
+; single OUT pin is TEST pin for debugging
+; Usage: push number to txfifo[0]
+; wait until stalled again
+
+.program sync
+
+entry_point:
+    set pins, 0         ; test pin low
+    pull block          ; get count
+    set pins, 1         ; test pin high
+    mov x, osr          ; X has count
+    jmp x--, next_edge  ; decrement X
+next_edge:
+    wait 1 pin 0        ; wait for E clock HIGH
+    wait 0 pin 0        ; wait for E clock LOW
+    jmp x--, next_edge  ; another edge if X>0
+.wrap
+
+
 % c-sdk {
 #include "hardware/clocks.h"
 
@@ -52,8 +75,29 @@ static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) 
 
     sm_config_set_clkdiv_int_frac(&c, div_int, div_frac);
 
-    // Initialize and start state machine
+    // Initialize state machine
+    pio_sm_init(pio, sm, offset, &c);
+    // Stop immediately (will be started later)
+    pio_sm_set_enabled(pio, sm, false);
+}
+
+static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_pin, uint test_pin) {
+    pio_gpio_init(pio, clock_pin); 
+    pio_gpio_init(pio, test_pin); 
+
+    // Configure clock pin as PIO input and test pin as PIO output
+    uint mask = (1U << clock_pin | 1U << test_pin);
+    pio_sm_set_pindirs_with_mask(pio, sm, (0U << clock_pin | 1U << test_pin), mask);
+    pio_sm_set_pins_with_mask(pio, sm, 0, mask);
+
+    pio_sm_config c = sync_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, test_pin, 1);
+    sm_config_set_in_pins(&c, clock_pin);
+    
+    sm_config_set_clkdiv_int_frac(&c, 1, 0);
+
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }
+
 %}

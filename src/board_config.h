@@ -40,7 +40,7 @@
   // #define GPIO_UART_TX 24  // TX
   // #define GPIO_UART_RX 25  // RX
 
-  // No timing test pin available on PICO2 (only 26 GPIOs)
+  #define GPIO_TIMING_TEST 15 // Test pin for timing measurements
   #define TIMING_TEST_ENABLED 0
 
 #elif BOARD_TYPE == BOARD_NED_SYS7
@@ -109,5 +109,12 @@
 // Address bus limits
 #define ADDR_LINE_COUNT ADDR_LINES
 #define MAX_ADDRESS ((1u << ADDR_LINES) - 1)
+
+// PIO configuration for bus_cycle.pio, bus.c, clock.pio, clock.c
+// PIO state machines for bus cycles (SM0=eclock, SM1=read/write, SM2=sync)
+#define BUS_PIO         pio0
+#define E_SM            0   // E clock generation
+#define CYCLE_SM        1   // read/write cycle
+#define SYNC_SM         2   // TODO: bus sync
 
 #endif // BOARD_CONFIG_H

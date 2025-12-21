@@ -3,7 +3,6 @@
 ; bus cycle: 1.11746046µs
 ; out base: 0, count: 24
 ; side base: 25, count: 2 (VMA, R/W), optional
-; set base: 42, count: 1 (test pin)
 ; GPIO 24 is E clock, driven by SM0
 ; jump pin: none
 ; For read:
@@ -25,7 +24,6 @@
 .lang_opt python out_shiftdir = 1
 
 loop:
-    set pins, 0       side 0b10 ; test pin LOW
     pull block        side 0b10 ; read pindirs
     mov x, osr        side 0b10 ; X has pindirs
     mov y, !x         side 0b10 ; Y is 0 for writes.
@@ -35,7 +33,6 @@ loop:
     jmp !y, do_write  side 0b10 ; VMA low
 
 do_read:
-    set pins, 1       side 0b11 ; test pin HIGH
     mov pindirs, x side 0b11    ; VMA=1, R/W=1 (read)
     out pins, 32      side 0b11 ; Drive address (data lines are set to inputs)
     wait 1 gpio e_pin side 0b11 ; wait for E high, VMA=1, R/W=1 (read)
@@ -96,15 +93,6 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     // optional side-set uses another of the 5 bits, leaving only 2 for delay
     sm_config_set_sideset_pins(&c, GPIO_VMA);
     sm_config_set_sideset(&c, 2, false, false);  // 2 bits, optional, not pindirs
-
-#if TIMING_TEST_ENABLED
-    static_assert(GPIO_TIMING_TEST < 32);
-
-    // Configure SET pins
-    pio_gpio_init(pio, GPIO_TIMING_TEST);
-    sm_config_set_set_pins(&c, GPIO_TIMING_TEST, 1);
-    pio_sm_set_consecutive_pindirs(pio, sm, GPIO_TIMING_TEST, 1, true);
-#endif
 
     // Use full system clock speed (no divider) for finest timing control
     // At 266 MHz: 1 cycle = 3.759ns
