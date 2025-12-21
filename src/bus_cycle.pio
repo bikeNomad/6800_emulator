@@ -37,7 +37,7 @@ loop:
 do_read:
     set pins, 1       side 0b11 ; test pin HIGH
     mov pindirs, x side 0b11    ; VMA=1, R/W=1 (read)
-    out pins, 24      side 0b11 ; Drive address (data lines are set to inputs)
+    out pins, 32      side 0b11 ; Drive address (data lines are set to inputs)
     wait 1 gpio e_pin side 0b11 ; wait for E high, VMA=1, R/W=1 (read)
     wait 0 gpio e_pin side 0b11 ; Wait for E low
     in pins, 8        side 0b11 ; Sample data
@@ -47,7 +47,7 @@ do_read:
 
 do_write:
     mov pindirs, x side 0b01    ; VMA=1, R/W=0 (write)
-    out pins, 24   side 0b01    ; Drive address, data, VMA=1, R/W=0
+    out pins, 32   side 0b01    ; Drive address, data, VMA=1, R/W=0
     wait 1 gpio e_pin side 0b01 ; wait for E high (latch)
     wait 0 gpio e_pin side 0b01 [3] ; wait for E low (end of cycle), delay for addr hold time
     nop         side 0b01  [3]
@@ -85,7 +85,7 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_config c = bus_cycle_program_get_default_config(offset);
 
     // Configure OUT pins: GPIO 0-7 (data bus), GPIO 8-23 (address bus)
-    sm_config_set_out_shift(&c, false, false, N_ADDR_DATA_PINS);
+    sm_config_set_out_shift(&c, false, false, 32);
     sm_config_set_out_pins(&c, GPIO_DATA_BASE, N_ADDR_DATA_PINS);
 
     // Configure IN pins: GPIO 0-7 (data bus)
