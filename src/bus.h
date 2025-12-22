@@ -101,20 +101,25 @@ uint8_t bus_read_cycle(uint16_t address);
 // Synchronized to E clock
 void bus_write_cycle(uint16_t address, uint8_t data);
 
-// Wait for next E clock edge (for synchronization)
-void bus_sync(void);
+// Read interrupt request lines (active low)
+static inline bool bus_read_irq(void) {
+    return !gpio_get(GPIO_IRQ);  // Active low, so invert
+}
 
-// Read control inputs
-bool bus_read_irq(void);
-bool bus_read_nmi(void);
-bool bus_read_reset(void);
+static inline bool bus_read_nmi(void) {
+    return !gpio_get(GPIO_NMI);  // Active low, so invert
+}
+
+static inline bool bus_read_reset(void) {
+    return !gpio_get(GPIO_RESET);  // Active low, so invert
+}
+
 
 // ============================================================================
 // PIO-Based Bus Cycle Functions (precise hardware timing)
 // ============================================================================
 
 extern bool pio_bus_initialized;
-extern bool pio_bus_enabled;
 
 // Initialize PIO state machine for bus cycles
 // Must be called after bus_init() and eclock_init()
@@ -127,14 +132,6 @@ uint8_t bus_read_cycle_pio(uint16_t address);
 // Perform one write bus cycle using PIO
 // PIO handles E clock synchronization
 void bus_write_cycle_pio(uint16_t address, uint8_t data);
-
-// Enable/disable PIO bus cycles (for debugging/comparison)
-void bus_cycle_pio_enable(bool enable);
-
-// Check if PIO bus cycles are enabled
-static inline bool bus_cycle_pio_is_enabled(void) {
-    return pio_bus_enabled;
-}
 
 
 #endif // BUS_H

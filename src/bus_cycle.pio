@@ -41,13 +41,11 @@ do_read:
     push noblock side 0b10 [3]  ; Push to RX FIFO, VMA=0 (+addr hold)
     jmp loop         side 0b10
 
-
 do_write:
     mov pindirs, x side 0b01    ; VMA=1, R/W=0 (write)
     out pins, 32   side 0b01    ; Drive address, data, VMA=1, R/W=0
     wait 1 gpio e_pin side 0b01 ; wait for E high (latch)
-    wait 0 gpio e_pin side 0b01 [3] ; wait for E low (end of cycle), delay for addr hold time
-    nop         side 0b01  [3]
+    wait 0 gpio e_pin side 0b01 [6] ; wait for E low (end of cycle), delay for addr hold time
 
 .wrap
 
@@ -90,7 +88,7 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_in_shift(&c, false, false, 8);  // Shift left, no autopush, 8 bits
 
     // Configure SIDE-SET: GPIO 25-26 (VMA + R/W, 2 bits consecutive)
-    // optional side-set uses another of the 5 bits, leaving only 2 for delay
+    // Leaves 3 bits for delay, 2 bits for VMA and R/W
     sm_config_set_sideset_pins(&c, GPIO_VMA);
     sm_config_set_sideset(&c, 2, false, false);  // 2 bits, optional, not pindirs
 

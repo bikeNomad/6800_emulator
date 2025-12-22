@@ -8,7 +8,6 @@
 #include "bus.h"
 #include "ihex_parser.h"
 #include "interrupts.h"
-#include "cycle_test.h"
 #include "clock.h"
 #include "debug_spi.h"
 #include "pico/stdlib.h"
@@ -36,7 +35,6 @@ static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_
     bool was_running = cpu_is_running();
     if (!was_running) {
         eclock_start();
-        bus_cycle_pio_enable(true);
     }
 
     // Read block of data
@@ -47,7 +45,6 @@ static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_
 
     // Stop E clock if we started it
     if (!was_running) {
-        bus_cycle_pio_enable(false);
         eclock_stop();
     }
 }
@@ -56,7 +53,6 @@ static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer,
     // Temporarily start E clock if CPU is halted
     bool was_running = cpu_is_running();
     if (!was_running) {
-        bus_cycle_pio_enable(true);
         eclock_start();
     }
 
@@ -68,7 +64,6 @@ static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer,
 
     // Stop E clock if we started it
     if (!was_running) {
-        bus_cycle_pio_enable(false);
         eclock_stop();
     }
 }
@@ -297,7 +292,7 @@ static void process_command(char *cmd) {
                 } else {
                     // Fast path for mapped memory only
                     for (uint32_t i = 0; i < count; i++) {
-                        memory_write(addr + i, buffer[i]);
+                        memory_write_fast(addr + i, buffer[i]);
                     }
                 }
                 usb_cdc_send("OK\r\n");
@@ -366,21 +361,8 @@ static void process_command(char *cmd) {
         sleep_ms(100);  // Give time for message to send
         reset_usb_boot(0, 0);  // Reset into USB bootloader
 
-    } else if (strcmp(cmd, "cycletest") == 0) {
-        // Run cycle count test for all instructions
-        usb_cdc_send("Running cycle count test...\r\n");
-
-        // Disable CMOS auto-save during test (prevents flash write lockups)
-        memory_set_cmos_autosave_enabled(false);
-
-        cycle_test_all();
-
-        // Re-enable CMOS auto-save after test
-        memory_set_cmos_autosave_enabled(true);
-
-        usb_cdc_send("Cycle test complete.\r\n");
-
-    } else if (strcmp(cmd, "debug on") == 0) {
+    }
+    else if (strcmp(cmd, "debug on") == 0) {
         // Enable debug SPI output
         debug_spi_enable(true);
         usb_cdc_send("OK: Debug SPI enabled\r\n");

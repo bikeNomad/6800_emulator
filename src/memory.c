@@ -178,78 +178,6 @@ memory_type_t __time_critical_func(memory_get_type)(uint16_t address) {
     return MEM_TYPE_UNMAPPED;
 }
 
-// Read byte from address via bus
-uint8_t __time_critical_func(memory_read)(uint16_t address) {
-    // If CPU is not running, use fast path (for diagnostic/init access)
-    if (!cpu_is_running()) {
-        return memory_read_fast(address);
-    }
-
-    // Sync any accumulated cycles before bus operation
-    eclock_sync_instruction();
-
-    memory_type_t type = memory_get_type(address);
-
-    // Read from ROM shadow (RAM copy) - cycle-accurate
-    if (type == MEM_TYPE_ROM) {
-#if BOARD_TYPE == BOARD_NED_SYS7
-        led_set_rom();  // ROM LED on, others off
-#endif
-        // Wait for E clock cycle (even though not using physical bus)
-        bus_sync();
-        eclock_wait_high();  // Data valid time
-
-        // Translate address for missing A15 decode
-        // 0xFFF8-0xFFFF → 0x7FF8-0x7FFF
-        uint16_t physical_addr = address & ADDR_MASK_A15;
-
-        uint16_t rom_offset = physical_addr - mem_config.rom_base;
-        uint8_t data = rom_shadow[rom_offset];
-
-        // bus_sync already counted the cycle
-        return data;
-    }
-
-    // Read from RAM shadow (with mirroring) - cycle-accurate
-    if (type == MEM_TYPE_RAM) {
-#if BOARD_TYPE == BOARD_NED_SYS7
-        led_set_ram();  // RAM LED on, others off
-#endif
-        // Wait for E clock cycle (even though not using physical bus)
-        bus_sync();
-        eclock_wait_high();  // Data valid time
-
-        uint16_t ram_offset = address - mem_config.ram_base;
-
-        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
-        if (address >= 0x1000 && address <= 0x10FF) {
-            ram_offset = address - 0x1000;  // Map to 0000-00FF
-        }
-
-        uint8_t data = 0xFF;
-        if (ram_offset < mem_config.ram_size) {
-            data = ram_shadow[ram_offset];
-        }
-
-        // bus_sync already counted the cycle
-        return data;
-    }
-
-    // Unmapped - route to physical bus (cycle-accurate)
-    // This includes PIAs and other peripherals
-#if BOARD_TYPE == BOARD_NED_SYS7
-    led_set_unmapped();  // Unmapped LED on, others off
-#endif
-    // Check timing before bus operation to stay synchronized with hardware
-    eclock_check_timing();
-    uint8_t data = bus_read_cycle(address);
-    
-    // Log bus access to SPI debug trace
-    debug_spi_log_bus(address, true, data);
-    
-    return data;
-}
-
 // Fast-path read (no GPIO polling for ROM/RAM)
 uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
     memory_type_t type = memory_get_type(address);
@@ -289,81 +217,8 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 #if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();
 #endif
-    eclock_check_timing();
     uint8_t data = bus_read_cycle(address);
     return data;
-}
-
-// Write byte to address via bus
-void memory_write(uint16_t address, uint8_t value) {
-    // If CPU is not running, use fast path (for diagnostic/init access)
-    if (!cpu_is_running()) {
-        memory_write_fast(address, value);
-        return;
-    }
-
-    // Sync any accumulated cycles before bus operation
-    eclock_sync_instruction();
-
-    memory_type_t type = memory_get_type(address);
-
-    // Write to RAM shadow (with mirroring) - cycle-accurate
-    if (type == MEM_TYPE_RAM) {
-#if BOARD_TYPE == BOARD_NED_SYS7
-        led_set_ram();  // RAM LED on, others off
-#endif
-        // Wait for E clock cycle (even though not using physical bus)
-        bus_sync();
-        eclock_wait_high();  // Data latch time
-
-        uint16_t ram_offset = address - mem_config.ram_base;
-
-        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
-        if (address >= 0x1000 && address <= 0x10FF) {
-            ram_offset = address - 0x1000;  // Map to 0000-00FF
-        }
-
-        if (ram_offset < mem_config.ram_size) {
-            ram_shadow[ram_offset] = value;
-
-            // Check if this is a write to CMOS region - mark for auto-save
-            if (address >= mem_config.cmos_base &&
-                address < mem_config.cmos_base + mem_config.cmos_size) {
-                // Only call time_us_64() if transitioning from clean to dirty
-                // (avoids expensive timer read on every stack write)
-                if (!mem_config.cmos_dirty) {
-                    cmos_last_write_time = time_us_64();
-                    mem_config.cmos_dirty = true;
-                }
-            }
-        }
-
-        // bus_sync already counted the cycle
-        return;
-    }
-
-    // ROM writes are ignored but still consume a cycle
-    if (type == MEM_TYPE_ROM) {
-#if BOARD_TYPE == BOARD_NED_SYS7
-        led_set_rom();  // ROM LED on, others off
-#endif
-        bus_sync();
-        eclock_wait_high();
-        // bus_sync already counted the cycle
-        return;
-    }
-
-    // Unmapped writes - route to physical bus (cycle-accurate)
-    // This includes PIAs and other peripherals
-#if BOARD_TYPE == BOARD_NED_SYS7
-    led_set_unmapped();  // Unmapped LED on, others off
-#endif
-    // Check timing before bus operation to stay synchronized with hardware
-    eclock_check_timing();
-    bus_write_cycle(address, value);
-    
-    // Log bus access to SPI debug trace
-    debug_spi_log_bus(address, false, value);
 }
 
 // Fast-path write (no GPIO polling for ROM/RAM)
@@ -412,7 +267,6 @@ void memory_write_fast(uint16_t address, uint8_t value) {
 #if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();
 #endif
-    eclock_check_timing();
     bus_write_cycle(address, value);
 }
 

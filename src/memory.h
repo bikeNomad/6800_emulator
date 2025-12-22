@@ -49,12 +49,6 @@ void memory_get_ram_config(uint16_t *base, uint16_t *size);
 // Get memory type for address
 memory_type_t memory_get_type(uint16_t address);
 
-// Read byte from address (via bus)
-uint8_t memory_read(uint16_t address);
-
-// Write byte to address (via bus)
-void memory_write(uint16_t address, uint8_t value);
-
 // Fast-path read (no GPIO polling for ROM/RAM)
 uint8_t memory_read_fast(uint16_t address);
 
