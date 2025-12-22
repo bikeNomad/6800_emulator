@@ -558,16 +558,14 @@ void __time_critical_func(instruction_execute)(void) {
 
         // PSHA - Push A onto stack
         case 0x36:
-            eclock_consume_cycles(1);  // Internal: setup
             cpu_push(cpu.a);
-            eclock_consume_cycles(1);  // Internal: cleanup
+            eclock_consume_cycles(2);  // Internal: cleanup
             break;
 
         // PSHB - Push B onto stack
         case 0x37:
-            eclock_consume_cycles(1);  // Internal: setup
             cpu_push(cpu.b);
-            eclock_consume_cycles(1);  // Internal: cleanup
+            eclock_consume_cycles(2);  // Internal: cleanup
             break;
 
         // PULA - Pull A from stack
@@ -613,14 +611,13 @@ void __time_critical_func(instruction_execute)(void) {
 
         // SWI - Software Interrupt
         case 0x3F:
-            eclock_consume_cycles(1);  // Internal: setup
             // Push registers onto stack
             cpu_push16(cpu.pc);
             cpu_push16(cpu.x);
             cpu_push(cpu.a);
             cpu_push(cpu.b);
             cpu_push(cpu.ccr);
-            eclock_consume_cycles(1);  // Internal: setup
+            eclock_consume_cycles(2);  // Internal: setup
             // Set interrupt mask
             cpu_set_flag(CCR_I, true);
             // Load PC from SWI vector (0xFFFA-0xFFFB)
@@ -856,10 +853,9 @@ void __time_critical_func(instruction_execute)(void) {
         // NEG - Negate Memory (Indexed)
         case 0x60: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             value = (~value) + 1;
             memory_write_fast(addr, value);
             cpu_update_nz(value);
@@ -871,10 +867,9 @@ void __time_critical_func(instruction_execute)(void) {
         // COM - Complement Memory (Indexed)
         case 0x63: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             value = ~value;
             memory_write_fast(addr, value);
             cpu_update_nz(value);
@@ -886,10 +881,9 @@ void __time_critical_func(instruction_execute)(void) {
         // LSR - Logical Shift Right (Indexed)
         case 0x64: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit0 = value & 0x01;
             value >>= 1;
             memory_write_fast(addr, value);
@@ -903,10 +897,9 @@ void __time_critical_func(instruction_execute)(void) {
         // ROR - Rotate Right (Indexed)
         case 0x66: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = value & 0x01;
             value = (value >> 1) | old_carry;
@@ -920,10 +913,9 @@ void __time_critical_func(instruction_execute)(void) {
         // ASR - Arithmetic Shift Right (Indexed)
         case 0x67: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit0 = value & 0x01;
             uint8_t sign_bit = value & 0x80;
             value = (value >> 1) | sign_bit;
@@ -937,10 +929,9 @@ void __time_critical_func(instruction_execute)(void) {
         // ASL - Arithmetic Shift Left (Indexed)
         case 0x68: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value <<= 1;
             memory_write_fast(addr, value);
@@ -953,10 +944,9 @@ void __time_critical_func(instruction_execute)(void) {
         // ROL - Rotate Left (Indexed)
         case 0x69: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value = (value << 1) | old_carry;
@@ -970,10 +960,9 @@ void __time_critical_func(instruction_execute)(void) {
         // DEC - Decrement Memory (Indexed)
         case 0x6A: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             value--;
             memory_write_fast(addr, value);
             cpu_update_nz(value);
@@ -984,10 +973,9 @@ void __time_critical_func(instruction_execute)(void) {
         // INC - Increment Memory (Indexed)
         case 0x6C: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: modify operation
             value++;
             memory_write_fast(addr, value);
             cpu_update_nz(value);
@@ -998,10 +986,9 @@ void __time_critical_func(instruction_execute)(void) {
         // TST - Test Memory (Indexed)
         case 0x6D: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t value = memory_read_fast(addr);
-            eclock_consume_cycles(1);  // Internal: test operation
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
             break;
@@ -1300,9 +1287,8 @@ void __time_critical_func(instruction_execute)(void) {
         // BSR - Branch to Subroutine
         case 0x8D: {
             int8_t offset = (int8_t)memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(1);  // Internal: address calculation
             cpu_push16(cpu.pc);
-            eclock_consume_cycles(3);  // Internal: branch setup
+            eclock_consume_cycles(4);  // Internal: branch setup
             cpu.pc += offset;
             break;
         }
@@ -1620,9 +1606,8 @@ void __time_critical_func(instruction_execute)(void) {
         // JSR (Indexed)
         case 0xAD: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(1);  // Internal: address calculation
             cpu_push16(cpu.pc);
-            eclock_consume_cycles(3);  // Internal: jump setup
+            eclock_consume_cycles(4);  // Internal: jump setup
             cpu.pc = cpu.x + offset;
             break;
         }
@@ -1803,9 +1788,8 @@ void __time_critical_func(instruction_execute)(void) {
             uint8_t high = memory_read_fast(cpu.pc++);
             uint8_t low = memory_read_fast(cpu.pc++);
             uint16_t addr = (high << 8) | low;
-            eclock_consume_cycles(1);  // Internal: jump setup
             cpu_push16(cpu.pc);
-            eclock_consume_cycles(3);  // Internal: jump setup
+            eclock_consume_cycles(4);  // Internal: jump setup
             cpu.pc = addr;
             break;
         }
