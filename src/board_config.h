@@ -112,9 +112,11 @@
 
 // PIO configuration for bus_cycle.pio, bus.c, clock.pio, clock.c
 // PIO state machines for bus cycles (SM0=eclock, SM1=read/write, SM2=sync)
-#define BUS_PIO         pio0
+#define ECLK_PIO        pio0
 #define E_SM            0   // E clock generation
-#define CYCLE_SM        1   // read/write cycle
-#define SYNC_SM         2   // TODO: bus sync
+#define SYNC_SM         1
+
+#define BUS_PIO         pio1
+#define CYCLE_SM        0   // read/write cycle
 
 #endif // BOARD_CONFIG_H

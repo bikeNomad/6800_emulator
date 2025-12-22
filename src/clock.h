@@ -40,12 +40,12 @@ void eclock_start(void);
 void eclock_stop(void);
 
 static inline bool eclock_is_running(void) {
-    return BUS_PIO->ctrl & ((1 << E_SM) << PIO_CTRL_SM_ENABLE_LSB);
+    return ECLK_PIO->ctrl & ((1 << E_SM) << PIO_CTRL_SM_ENABLE_LSB);
 }
 
 // Should only be called when E clock is stopped
 static inline void eclock_force_low(void) {
-    pio_sm_exec(BUS_PIO, E_SM, pio_encode_set(pio_pins, 0));
+    pio_sm_exec(ECLK_PIO, E_SM, pio_encode_set(pio_pins, 0));
 }
 
 // Get real elapsed E clock cycles from PIO
@@ -56,7 +56,7 @@ static inline void eclock_reset_pio_counter(void) {
     // Write 0xFFFFFFFF to X register to reset counter
     // Execute "mov x, ~null" instruction to set X = 0xFFFFFFFF
     // The invert modifier is encoded in bit 3 (0x08) of the source field
-    pio_sm_exec(BUS_PIO, E_SM, pio_encode_mov(pio_x, 0x08 | pio_null));
+    pio_sm_exec(ECLK_PIO, E_SM, pio_encode_mov(pio_x, 0x08 | pio_null));
 }
 
 // Accumulate cycles without GPIO polling (inline for performance)
@@ -92,9 +92,9 @@ void bus_sync(void);
 
 static inline void eclock_wait_cycles(uint32_t cycles) {
     // Wait for the specified number of E clock cycles
-    pio_sm_put(BUS_PIO, SYNC_SM, cycles);  // push cycles to FIFO
+    pio_sm_put(ECLK_PIO, SYNC_SM, cycles);  // push cycles to FIFO
     // wait until stalled again
-    while (!pio_sm_is_exec_stalled(BUS_PIO, SYNC_SM)) {
+    while (!pio_sm_is_exec_stalled(ECLK_PIO, SYNC_SM)) {
         tight_loop_contents();
     }
 }

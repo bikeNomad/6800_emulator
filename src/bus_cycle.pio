@@ -38,7 +38,7 @@ do_read:
     wait 1 gpio e_pin side 0b11 ; wait for E high, VMA=1, R/W=1 (read)
     wait 0 gpio e_pin side 0b11 ; Wait for E low
     in pins, 8        side 0b11 ; Sample data
-    push noblock side 0b10 [3]  ; Push to RX FIFO, VMA=0 (+addr hold)
+    push block side 0b10 [3]    ; Push to RX FIFO, VMA=0 (+addr hold)
     jmp loop         side 0b10
 
 do_write:

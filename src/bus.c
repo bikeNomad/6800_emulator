@@ -12,8 +12,20 @@
 #include <stdio.h>
 
 // Address bus GPIO mapping is board-specific (see board_config.h for ADDR_GPIO_MASK)
+#if BOARD_TYPE == BOARD_NED_SYS7
 #define WRITE_PINDIRS 0xFFFFFFFFUL
 #define READ_PINDIRS 0xFFFFFF00UL
+static inline uint32_t address_to_gpio(uint16_t addr) {
+    return addr << 8;
+}
+#else   // BOARD_PICO2
+#define WRITE_PINDIRS 0x00000000UL
+#define READ_PINDIRS 0xFFFFFF00UL
+// We're only using 7 address lines (A0,A1,A10-A14), so mask out the rest
+static inline uint32_t address_to_gpio(uint16_t addr) {
+    // TODO
+}
+#endif
 #define DATA_MASK 0x000000FFUL
 
 // Initialize bus interface
@@ -145,18 +157,17 @@ void bus_write_cycle(uint16_t address, uint8_t data) {
 // ============================================================================
 
  // PIO program offsets
-static uint pio_cycle_offset = 0;
-
-bool pio_bus_initialized = false;
+static int pio_cycle_offset = 0;
 
 // Initialize PIO bus cycle state machines
 void bus_cycle_pio_init(void) {
-    if (pio_bus_initialized) {
+    // Load PIO program
+    pio_clear_instruction_memory(BUS_PIO);
+    pio_cycle_offset = pio_add_program(BUS_PIO, &bus_cycle_program);
+    if (pio_cycle_offset < 0) {
+        printf("Error: Failed to load PIO bus cycle program\r");
         return;
     }
-
-    // Load PIO program
-    pio_cycle_offset = pio_add_program(BUS_PIO, &bus_cycle_program);
 
     // Initialize E clock state machine (SM0) - always running
     // Note: E clock program should already be initialized by eclock_init()
@@ -164,9 +175,7 @@ void bus_cycle_pio_init(void) {
     // Initialize cycle state machine (SM1) - always ready
     bus_cycle_program_init(BUS_PIO, CYCLE_SM, pio_cycle_offset);
 
-    pio_bus_initialized = true;
-
-    printf("PIO bus cycles initialized (SM0=E, SM1=Read/Write)\r\n");
+    printf("PIO bus cycles initialized (SM0=Read/Write)\r\n");
     printf("  Cycle program offset: %d\r\n", pio_cycle_offset);
     printf("  E clock: GPIO %d (WAIT source)\r\n", GPIO_ECLOCK);
     printf("  VMA:     GPIO %d (SIDE-SET bit 0)\r\n", GPIO_VMA);
@@ -180,15 +189,15 @@ void bus_cycle_pio_init(void) {
 // Perform one read bus cycle using PIO
 uint8_t __time_critical_func(bus_read_cycle_pio)(uint16_t address) {
     pio_sm_put_blocking(BUS_PIO, CYCLE_SM, READ_PINDIRS);
-    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, ((uint32_t)address) << 8UL);
+    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, address_to_gpio(address));
 
     // Wait for data in RX FIFO (blocking)
     uint32_t data = pio_sm_get_blocking(BUS_PIO, CYCLE_SM);
-    return (uint8_t)(data & 0xFFUL);
+    return (uint8_t)(data & DATA_MASK);
 }
 
 // Perform one write bus cycle using PIO
 void __time_critical_func(bus_write_cycle_pio)(uint16_t address, uint8_t data) {
     pio_sm_put_blocking(BUS_PIO, CYCLE_SM, WRITE_PINDIRS);
-    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, (((uint32_t)address) << 8UL) | (uint32_t)data);
+    pio_sm_put_blocking(BUS_PIO, CYCLE_SM, address_to_gpio(address) | (uint32_t)data);
 }
