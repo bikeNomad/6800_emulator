@@ -23,7 +23,7 @@ static inline uint32_t address_to_gpio(uint16_t addr) {
 #define READ_PINDIRS 0xFFFFFF00UL
 // We're only using 7 address lines (A0,A1,A10-A14), so mask out the rest
 static inline uint32_t address_to_gpio(uint16_t addr) {
-    // TODO
+    return addr << 8;   // TODO
 }
 #endif
 #define DATA_MASK 0x000000FFUL
