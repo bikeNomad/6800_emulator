@@ -42,6 +42,7 @@ typedef void (*cmd_handler_fn)(void);
 typedef struct {
     const char *name;
     cmd_handler_fn handler;
+    bool needs_args;  // True if command needs remaining tokens as arguments
 } command_entry_t;
 
 // Helper functions for bus operations with E clock management
@@ -763,175 +764,97 @@ static int tokenize_command(char *cmd) {
     return cmd_token_count;
 }
 
+// Command table - two-word commands checked first, then single-word
+static const command_entry_t command_table[] = {
+    // Two-word commands (require exact match of first two tokens)
+    {"config rom", cmd_config_rom, true},       // needs <base> <size>
+    {"config ram", cmd_config_ram, true},       // needs <base> <size>
+    {"cmos save", cmd_cmos_save, false},
+    {"cmos dump", cmd_cmos_dump, false},
+    {"cmos autosave", cmd_cmos_autosave, true}, // needs on/off
+    {"debug on", cmd_debug_on, false},
+    {"debug off", cmd_debug_off, false},
+    {"break clear", cmd_break_clear, true},     // needs optional <addr>
+    {"break list", cmd_break_list, false},
+    {"reg pc", cmd_reg_pc, true},               // needs <value>
+    {"reg a", cmd_reg_a, true},                 // needs <value>
+    {"reg b", cmd_reg_b, true},                 // needs <value>
+    {"reg x", cmd_reg_x, true},                 // needs <value>
+    {"reg sp", cmd_reg_sp, true},               // needs <value>
+    {"reg ccr", cmd_reg_ccr, true},             // needs <value>
+    
+    // Single-word commands
+    {"load", cmd_load, false},
+    {"end", cmd_end, false},
+    {"config", cmd_config_show, false},
+    {"read", cmd_read, true},                   // needs <addr> <len>
+    {"write", cmd_write, true},                 // needs <addr> <data...>
+    {"status", cmd_status, false},
+    {"run", cmd_run, false},
+    {"halt", cmd_halt, false},
+    {"reset", cmd_reset, false},
+    {"bootloader", cmd_bootloader, false},
+    {"boot", cmd_bootloader, false},            // Alias for bootloader
+    {"break", cmd_break_set, true},             // needs <addr>
+    {"bus_read_block", cmd_bus_read_block, true},   // needs <addr> <len>
+    {"bus_write_block", cmd_bus_write_block, true}, // needs <addr> <data...>
+    {"bus_write", cmd_bus_write, true},         // needs <addr> <data>
+    {"bus_read", cmd_bus_read, true},           // needs <addr>
+    {"bus_info", cmd_bus_info, false},
+    {"help", cmd_help, false},
+    {NULL, NULL, false}  // Terminator
+};
+
 static void dispatch_command(void) {
     // Empty command
     if (cmd_token_count == 0) {
         return;
     }
 
-    // Build two-word command string if possible
+    // Build two-word command string if we have at least 2 tokens
     char two_word[64];
     if (cmd_token_count >= 2) {
         snprintf(two_word, sizeof(two_word), "%s %s", cmd_tokens[0], cmd_tokens[1]);
     }
 
-    // Try two-word match first
-    if (cmd_token_count >= 2) {
-        if (strcmp(two_word, "config rom") == 0) {
-            // Shift tokens by copying remaining tokens to beginning
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
+    // Search through command table
+    for (int i = 0; command_table[i].name != NULL; i++) {
+        const char *cmd_name = command_table[i].name;
+        bool matched = false;
+        int tokens_consumed = 0;
+        
+        // Check if this is a two-word command (contains a space)
+        if (strchr(cmd_name, ' ') != NULL) {
+            // Two-word command - only match if we have enough tokens
+            if (cmd_token_count >= 2 && strcmp(two_word, cmd_name) == 0) {
+                matched = true;
+                tokens_consumed = 2;
             }
-            cmd_token_count -= 2;
-            cmd_config_rom();
-            return;
-        } else if (strcmp(two_word, "config ram") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
+        } else {
+            // Single-word command - match first token
+            if (strcmp(cmd_tokens[0], cmd_name) == 0) {
+                matched = true;
+                tokens_consumed = 1;
             }
-            cmd_token_count -= 2;
-            cmd_config_ram();
-            return;
-        } else if (strcmp(two_word, "cmos save") == 0) {
-            cmd_cmos_save();
-            return;
-        } else if (strcmp(two_word, "cmos dump") == 0) {
-            cmd_cmos_dump();
-            return;
-        } else if (strcmp(two_word, "cmos autosave") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
+        }
+        
+        if (matched) {
+            // If command needs arguments, shift remaining tokens
+            if (command_table[i].needs_args) {
+                for (int j = tokens_consumed; j < cmd_token_count; j++) {
+                    cmd_tokens[j - tokens_consumed] = cmd_tokens[j];
+                }
+                cmd_token_count -= tokens_consumed;
             }
-            cmd_token_count -= 2;
-            cmd_cmos_autosave();
-            return;
-        } else if (strcmp(two_word, "debug on") == 0) {
-            cmd_debug_on();
-            return;
-        } else if (strcmp(two_word, "debug off") == 0) {
-            cmd_debug_off();
-            return;
-        } else if (strcmp(two_word, "break clear") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_break_clear();
-            return;
-        } else if (strcmp(two_word, "break list") == 0) {
-            cmd_break_list();
-            return;
-        } else if (strcmp(two_word, "reg pc") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_reg_pc();
-            return;
-        } else if (strcmp(two_word, "reg a") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_reg_a();
-            return;
-        } else if (strcmp(two_word, "reg b") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_reg_b();
-            return;
-        } else if (strcmp(two_word, "reg x") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_reg_x();
-            return;
-        } else if (strcmp(two_word, "reg sp") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_reg_sp();
-            return;
-        } else if (strcmp(two_word, "reg ccr") == 0) {
-            for (int i = 2; i < cmd_token_count; i++) {
-                cmd_tokens[i - 2] = cmd_tokens[i];
-            }
-            cmd_token_count -= 2;
-            cmd_reg_ccr();
+            
+            // Call the handler
+            command_table[i].handler();
             return;
         }
     }
 
-    // Try single-word match
-    if (strcmp(cmd_tokens[0], "load") == 0) {
-        cmd_load();
-    } else if (strcmp(cmd_tokens[0], "end") == 0) {
-        cmd_end();
-    } else if (strcmp(cmd_tokens[0], "config") == 0) {
-        cmd_config_show();
-    } else if (strcmp(cmd_tokens[0], "read") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_read();
-    } else if (strcmp(cmd_tokens[0], "write") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_write();
-    } else if (strcmp(cmd_tokens[0], "status") == 0) {
-        cmd_status();
-    } else if (strcmp(cmd_tokens[0], "run") == 0) {
-        cmd_run();
-    } else if (strcmp(cmd_tokens[0], "halt") == 0) {
-        cmd_halt();
-    } else if (strcmp(cmd_tokens[0], "reset") == 0) {
-        cmd_reset();
-    } else if (strcmp(cmd_tokens[0], "bootloader") == 0 || strcmp(cmd_tokens[0], "boot") == 0) {
-        cmd_bootloader();
-    } else if (strcmp(cmd_tokens[0], "break") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_break_set();
-    } else if (strcmp(cmd_tokens[0], "bus_read_block") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_bus_read_block();
-    } else if (strcmp(cmd_tokens[0], "bus_write_block") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_bus_write_block();
-    } else if (strcmp(cmd_tokens[0], "bus_write") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_bus_write();
-    } else if (strcmp(cmd_tokens[0], "bus_read") == 0) {
-        for (int i = 1; i < cmd_token_count; i++) {
-            cmd_tokens[i - 1] = cmd_tokens[i];
-        }
-        cmd_token_count--;
-        cmd_bus_read();
-    } else if (strcmp(cmd_tokens[0], "bus_info") == 0) {
-        cmd_bus_info();
-    } else if (strcmp(cmd_tokens[0], "help") == 0) {
-        cmd_help();
-    } else {
-        usb_cdc_send("ERROR: Unknown command. Type 'help' for help.\r\n");
-    }
+    // No match found
+    usb_cdc_send("ERROR: Unknown command. Type 'help' for help.\r\n");
 }
 
 // Process a complete command line
