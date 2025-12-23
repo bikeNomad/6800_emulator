@@ -51,23 +51,12 @@ void led_all_off(void) {
 #endif
 }
 
-// Flash storage for ROM (at the end of program flash)
-#define FLASH_TARGET_OFFSET (1024 * 1024)  // 1MB offset (adjust based on program size)
-#define MAX_ROM_SIZE (32 * 1024)  // 32KB max ROM
-#define MAX_RAM_SIZE (8 * 1024)  // 8KB max RAM (supports up to 0x1FFF)
-
-// CMOS RAM persistent storage configuration
-#define CMOS_FLASH_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)  // 0x108000
-#define CMOS_SIZE 256
-#define CMOS_BASE 0x0100
-#define CMOS_AUTOSAVE_DELAY_MS 30000  // 30 seconds
-
 // Memory configuration
-static memory_config_t mem_config;
+memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE];
-static uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
+uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
 static uint8_t cmos_load_buffer[FLASH_SECTOR_SIZE];  // Buffer for CMOS flash operations
 static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
@@ -188,11 +177,7 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();
 #endif
-
-        // Translate address for missing A15 decode
-        uint16_t physical_addr = address & ADDR_MASK_A15;
-        uint16_t rom_offset = physical_addr - mem_config.rom_base;
-        return rom_shadow[rom_offset];
+        return memory_read_rom_shadow(address);
     }
 
     // Read from RAM shadow (with mirroring) - fast path
@@ -222,7 +207,7 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 }
 
 // Fast-path write (no GPIO polling for ROM/RAM)
-void memory_write_fast(uint16_t address, uint8_t value) {
+void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
 
     // Write to RAM shadow (with mirroring) - fast path
@@ -337,17 +322,6 @@ bool memory_finalize_load(void) {
     printf("ROM shadow copy complete (%u bytes)\n", (unsigned int)mem_config.flash_size);
 
     return true;
-}
-
-// Get ROM shadow for diagnostics
-const uint8_t* memory_get_rom_shadow(void) {
-    // Return pointer to flash storage
-    return (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
-}
-
-// Get RAM shadow for diagnostics
-const uint8_t* memory_get_ram_shadow(void) {
-    return ram_shadow;
 }
 
 // Initialize ROM from flash on startup
