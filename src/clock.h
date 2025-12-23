@@ -15,20 +15,11 @@
 #include "hardware/pio_instructions.h"
 #include "hardware/structs/iobank0.h"
 
-// E clock output pin is defined in board_config.h as GPIO_ECLOCK
-
-// Read E clock state from OUTTOPAD register (what PIO is driving)
-// This is independent of external pin loading or shorting
-static inline bool eclock_read_outtopad(void) {
-    // Read GPIO STATUS register OUTTOPAD bit (bit 9)
-    // This shows what the PIO is driving, not what the pin voltage is
-    return (iobank0_hw->io[GPIO_ECLOCK].status & IO_BANK0_GPIO0_STATUS_OUTTOPAD_BITS) != 0;
-}
-
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
 extern uint32_t pending_cycles;
 extern int32_t cycle_overage;
+extern uint32_t last_pio_cycles;
 
 // Initialize E clock PIO
 void eclock_init(void);
@@ -47,9 +38,6 @@ static inline bool eclock_is_running(void) {
 static inline void eclock_force_low(void) {
     pio_sm_exec(ECLK_PIO, E_SM, pio_encode_set(pio_pins, 0));
 }
-
-// Get real elapsed E clock cycles from PIO
-uint32_t eclock_get_pio_cycles(void);
 
 // Reset PIO cycle counter
 static inline void eclock_reset_pio_counter(void) {
@@ -87,15 +75,67 @@ static inline uint32_t eclock_get_pending(void) {
     return pending_cycles;
 }
 
-// Wait for next E clock edge (for synchronization)
-void bus_sync(void);
-
 static inline void eclock_wait_cycles(uint32_t cycles) {
     // Wait for the specified number of E clock cycles
-    pio_sm_put(ECLK_PIO, SYNC_SM, cycles);  // push cycles to FIFO
+    if (!cycles) {
+        return;  // no cycles to wait for
+    }
+    pio_sm_put(ECLK_PIO, SYNC_SM, cycles-1);  // push cycles to FIFO
     // wait until stalled again
     while (!pio_sm_is_exec_stalled(ECLK_PIO, SYNC_SM)) {
         tight_loop_contents();
+    }
+}
+
+// Get real elapsed E clock cycles from PIO
+static inline uint32_t eclock_get_pio_cycles(void) {
+    if (!eclock_is_running()) {
+        // SM is stopped, return cached value
+        return last_pio_cycles;
+    }
+
+    // Read PIO X register directly from rxf_putget register
+    // The PIO program continuously updates rxfifo[0] with the X value
+    // using: mov isr, x; push noblock
+    // The .fifo txput directive enables rxf_putget access
+    uint32_t x_value = ECLK_PIO->rxf_putget[E_SM][0];
+
+    // Invert to get elapsed cycles (0xFFFFFFFF - x_value)
+    uint32_t pio_cycles = ~x_value;
+
+    // Cache the value
+    last_pio_cycles = pio_cycles;
+
+    return pio_cycles;
+}
+
+
+// Wait for next E clock edge (with real-time tracking)
+static inline void bus_sync(void) {
+    // get simulated cycles from the emulator
+    uint32_t simulated_cycles = eclock_get_count();
+    // Get real elapsed cycles from PIO
+    uint32_t pio_cycles = eclock_get_pio_cycles();
+
+    // Calculate difference (positive = ahead, negative = behind)
+    int32_t diff = (int32_t)(simulated_cycles - pio_cycles);
+
+    if (diff > 0) {
+        // Emulator is ahead of real time
+        // Apply overage credit first
+        diff -= cycle_overage;
+
+        if (diff > 0) {
+            // Still need to wait for additional cycles
+            eclock_wait_cycles((uint32_t)diff);
+            cycle_overage = 0;
+        } else {
+            // Overage covers the difference
+            cycle_overage = -diff;
+        }
+    } else if (diff < 0) {
+        // Emulator is behind real time - accumulate overage credit
+        cycle_overage += (-diff);
     }
 }
 

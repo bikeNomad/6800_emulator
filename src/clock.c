@@ -22,7 +22,7 @@ uint32_t pending_cycles = 0;
 int32_t cycle_overage = 0;
 
 // Last known PIO cycles value (cached when SM is stopped)
-static uint32_t last_pio_cycles = 0;
+uint32_t last_pio_cycles = 0;
 
 // Initialize E clock
 void eclock_init(void) {
@@ -70,54 +70,4 @@ void eclock_stop(void) {
     eclock_force_low();
 }
 
-// Get real elapsed E clock cycles from PIO
-uint32_t __time_critical_func(eclock_get_pio_cycles)(void) {
-    // Check if state machine is enabled (check CTRL register bit)
-    bool sm_enabled = (ECLK_PIO->ctrl & (1u << E_SM)) != 0;
 
-    if (!sm_enabled) {
-        // SM is stopped, return cached value
-        return last_pio_cycles;
-    }
-
-    // Read PIO X register directly from rxf_putget register
-    // The PIO program continuously updates rxfifo[0] with the X value
-    // using: mov isr, x; push noblock
-    // The .fifo txput directive enables rxf_putget access
-    uint32_t x_value = ECLK_PIO->rxf_putget[E_SM][0];
-
-    // Invert to get elapsed cycles (0xFFFFFFFF - x_value)
-    uint32_t pio_cycles = ~x_value;
-
-    // Cache the value
-    last_pio_cycles = pio_cycles;
-
-    return pio_cycles;
-}
-
-// Wait for next E clock edge (with real-time tracking)
-void __time_critical_func(bus_sync)(void) {
-    // Get real elapsed cycles from PIO
-    uint32_t pio_cycles = eclock_get_pio_cycles();
-
-    // Calculate difference (positive = ahead, negative = behind)
-    int32_t diff = (int32_t)(eclock_get_count() - pio_cycles);
-
-    if (diff > 0) {
-        // Emulator is ahead of real time
-        // Apply overage credit first
-        diff -= cycle_overage;
-
-        if (diff > 0) {
-            // Still need to wait for additional cycles
-            eclock_wait_cycles((uint32_t)diff);
-            cycle_overage = 0;
-        } else {
-            // Overage covers the difference
-            cycle_overage = -diff;
-        }
-    } else if (diff < 0) {
-        // Emulator is behind real time - accumulate overage credit
-        cycle_overage += (-diff);
-    }
-}

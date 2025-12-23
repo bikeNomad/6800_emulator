@@ -10,7 +10,7 @@
 
 .fifo txput             ; Enable rxf_putget registers for direct FIFO access
 
-public entry_point:
+entry_point:
     mov x, ~null        ; Initialize X to 0xFFFFFFFF (count down)
     mov isr, x          ; Move X to ISR (1 cycle)
     mov rxfifo[0], isr  ; Write ISR directly to rxfifo[0] (1 cycle)
@@ -29,17 +29,17 @@ loop:
 ; (falling edges)
 ; single IN pin is E clock
 ; single OUT pin is TEST pin for debugging
-; Usage: push number to txfifo[0]
+; Usage: push (number-1) to txfifo[0]
 ; wait until stalled again
 
 .program sync
 
+.wrap_target
 entry_point:
     set pins, 0         ; test pin low
     pull block          ; get count
     set pins, 1         ; test pin high
     mov x, osr          ; X has count
-    jmp x--, next_edge  ; decrement X
 next_edge:
     wait 1 pin 0        ; wait for E clock HIGH
     wait 0 pin 0        ; wait for E clock LOW
