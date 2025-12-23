@@ -2,6 +2,9 @@
  * USB CDC Interface Implementation
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
 #include "usb_cdc.h"
 #include "cpu_state.h"
 #include "memory.h"
@@ -14,9 +17,7 @@
 #include "pico/bootrom.h"
 #include "hardware/clocks.h"
 #include "tusb.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
+#include "instructions.h"
 
 // Command buffer
 #define CMD_BUFFER_SIZE 4096
@@ -306,7 +307,9 @@ static void process_command(char *cmd) {
     } else if (strcmp(cmd, "status") == 0) {
         // Get CPU status
         usb_cdc_printf("CPU Status:\r\n");
-        usb_cdc_printf("  PC: $%04X\r\n", cpu.pc);
+        usb_cdc_printf("  PC: $%04X  (%s)\r\n",
+                        cpu.pc,
+                        instruction_get_mnemonic(memory_read_rom_shadow(cpu.pc)));
         usb_cdc_printf("  A:  $%02X\r\n", cpu.a);
         usb_cdc_printf("  B:  $%02X\r\n", cpu.b);
         usb_cdc_printf("  X:  $%04X\r\n", cpu.x);
