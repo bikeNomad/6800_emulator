@@ -155,14 +155,6 @@ int main() {
     printf("Initializing interrupt handling...\n");
     interrupts_init();
 
-#if TIMING_TEST_ENABLED
-    printf("Initializing timing test pin...\n");
-    gpio_init(GPIO_TIMING_TEST);
-    gpio_set_dir(GPIO_TIMING_TEST, GPIO_OUT);
-    gpio_put(GPIO_TIMING_TEST, 0);  // Start low
-    printf("Timing test pin initialized on GPIO %d\n", GPIO_TIMING_TEST);
-#endif
-
     printf("\nMC6800 Emulator Ready\n");
     fflush(stdout);
 

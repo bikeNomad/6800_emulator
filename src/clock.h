@@ -81,7 +81,7 @@ static inline void eclock_wait_cycles(uint32_t cycles) {
         return;  // no cycles to wait for
     }
     pio_sm_put(ECLK_PIO, SYNC_SM, cycles-1);  // push cycles to FIFO
-    pio_sm_get_blocking(ECLK_PIO, SYNC_SM);  // wait for completion
+    (void)pio_sm_get_blocking(ECLK_PIO, SYNC_SM);  // wait for completion
 }
 
 // Get real elapsed E clock cycles from PIO

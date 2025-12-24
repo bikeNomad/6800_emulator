@@ -30,7 +30,7 @@ loop:
 ; single IN pin is E clock
 ; single OUT pin is TEST pin for debugging
 ; Usage: push (number-1) to txfifo[0]
-; wait until stalled again
+;        get from rxfifo[0] when done
 
 .program sync
 
@@ -44,6 +44,7 @@ next_edge:
     wait 1 pin 0        ; wait for E clock HIGH
     wait 0 pin 0        ; wait for E clock LOW
     jmp x--, next_edge  ; another edge if X>0
+
     push                ; signal done
 .wrap
 
