@@ -40,11 +40,6 @@ static inline uint32_t addr_to_gpio_mask(uint16_t address) {
     return gpio_value;
 }
 
-static inline void drive_address_bus(uint16_t address) {
-    uint32_t gpio_value = addr_to_gpio_mask(address);
-    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);  // 0x7F00 (GPIO 8-14)
-}
-
 #elif BOARD_TYPE == BOARD_NED_SYS7
 // ----------------------------------------------------------------------------
 // Ned's System 7 Board - Full 16-bit address bus (16 address lines)
@@ -61,34 +56,9 @@ static inline uint32_t addr_to_gpio_mask(uint16_t address) {
     return gpio_value;
 }
 
-static inline void drive_address_bus(uint16_t address) {
-    uint32_t gpio_value = addr_to_gpio_mask(address);
-    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);  // 0xFFFF00 (GPIO 8-23)
-}
-
 #else
 #error "Unknown board type - must define BOARD_PICO2 or BOARD_NED_SYS7"
 #endif
-
-// ----------------------------------------------------------------------------
-// Control Signal Helpers (board-independent)
-// ----------------------------------------------------------------------------
-
-static inline void drive_control_read(void) {
-    // VMA=1, R/W=1 (read)
-    gpio_put_masked((1u << GPIO_VMA) | (1u << GPIO_RW), (1u << GPIO_VMA) | (1u << GPIO_RW));
-}
-
-static inline void drive_control_write(uint8_t data) {
-    // Data + VMA=1, R/W=0 (write)
-    uint32_t data_ctrl = data | (1u << GPIO_VMA) | (0u << GPIO_RW);
-    gpio_put_masked(0xFF | (1u << GPIO_VMA) | (1u << GPIO_RW), data_ctrl);
-}
-
-static inline void deassert_vma(void) {
-    // VMA=0, R/W=1 (inactive)
-    gpio_put_masked((1u << GPIO_VMA) | (1u << GPIO_RW), (0u << GPIO_VMA) | (1u << GPIO_RW));
-}
 
 // Initialize bus interface (configure GPIO)
 void bus_init(void);
