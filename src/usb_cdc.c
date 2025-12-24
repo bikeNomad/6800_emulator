@@ -295,7 +295,7 @@ static void cmd_status(void) {
     uint32_t pio_cnt = eclock_get_pio_cycles();
     if (pio_cnt > 0) {
         float speed_ratio = (float)cycle_cnt / (float)pio_cnt;
-        usb_cdc_printf("  Speed: %.2fx real-time\r\n", speed_ratio);
+        usb_cdc_printf("  Speed: %fx real-time\r\n", speed_ratio);
     }
 
     // Include QSPI information
