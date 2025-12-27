@@ -19,9 +19,8 @@
 .side_set 2
 .define e_pin 24
 
-.lang_opt python sideset_init = pico.PIO.OUT_HIGH
-.lang_opt python out_init = pico.PIO.OUT_HIGH
-.lang_opt python out_shiftdir = 1
+.lang_opt python sideset_init = rp2.PIO.OUT_LOW
+.lang_opt python out_init = rp2.PIO.OUT_LOW
 
 loop:
     pull block        side 0b10 ; read pindirs

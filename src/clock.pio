@@ -1,10 +1,6 @@
 ; PIO program to generate E clock for MC6800 emulator
 ; Target frequency: 3.579545 MHz / 4 = 0.894886 MHz
 ; Period: 1.117µs (approximately 560ns high, 560ns low)
-;
-; System clock is typically 125 MHz
-; Divide ratio: 125 MHz / 0.894886 MHz ≈ 139.7
-; Use PIO divider for fine tuning
 
 .program eclock
 
