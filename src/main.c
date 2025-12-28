@@ -166,6 +166,11 @@ int main() {
     multicore_launch_core1(core1_entry);
     sleep_ms(100);
 
+#if COUNT_INSTRUCTIONS
+    printf("Initializing instruction counting...\n");
+    instruction_count_initialize();
+#endif
+
     printf("Core 0: CPU emulation started\n");
     fflush(stdout);
     printf("Waiting for EPROM load via USB...\n\n");

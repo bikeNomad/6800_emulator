@@ -10,6 +10,51 @@
 #include "clock.h"
 #include <stdio.h>
 
+#if COUNT_INSTRUCTIONS
+#include <stdlib.h> // for qsort
+// Instruction count tracking
+//
+volatile instruction_count_info instruction_counts[256];
+volatile bool instruction_counting = false;
+
+void instruction_count_initialize(void) {
+    bool was_enabled = instruction_count_enable(false);
+    for (int i = 0; i < 256; i++) {
+        instruction_counts[i].opcode = i;
+        instruction_counts[i].count = 0;
+        instruction_counts[i].cycles = 0;
+    }
+    instruction_count_enable(was_enabled);
+}
+
+void instruction_count_report(printf_func_t printf_func) {
+    bool was_counting = instruction_count_enable(false);
+    // sort by count descending
+    int compare_counts(const void *a, const void *b) {
+        const instruction_count_info *ia = (const instruction_count_info *)a;
+        const instruction_count_info *ib = (const instruction_count_info *)b;
+        return ((int)ib->count - (int)ia->count);
+    }
+    qsort((void*)instruction_counts, 256, sizeof(instruction_count_info), compare_counts);
+    // Print report
+    printf_func("Instruction Execution Counts (was counting: %d):\r\n", was_counting);
+    printf_func("Opcode  Cycles  Mnemonic           Count\r\n");
+    printf_func("------  ------  ------------------ -----------\r\n");
+    for (int i = 0; i < 256; i++) {
+        volatile instruction_count_info *p = &instruction_counts[i];
+        uint8_t opcode = p->opcode;
+        uint8_t cycles = p->cycles;
+        uint32_t count = p->count;
+        if (count > 0) {
+            const char *mnemonic = instruction_get_mnemonic(opcode);
+            printf_func(" $%02X  %2u  %-18s %10u\r\n", opcode, cycles, mnemonic, count);
+        }
+    }
+    
+    instruction_count_enable(was_counting);
+}
+#endif
+
 // Instruction mnemonics
 static const char* mnemonics[256] = {
     [0x01] = "NOP (INH)",
@@ -235,10 +280,22 @@ static inline void sub_with_carry(uint8_t *dest, uint8_t operand) {
     *dest = result & 0xFF;
 }
 
+static inline uint16_t read_extended_operand_fast(void) {
+    uint8_t high = memory_read_fast(cpu.pc++);
+    uint8_t low = memory_read_fast(cpu.pc++);
+    return ((uint16_t)high << 8) | low;
+}
+
 // Execute one instruction (placed in RAM for maximum performance)
 void __time_critical_func(instruction_execute)(void) {
     // Fetch opcode using fast path (no GPIO polling)
-    uint8_t opcode = memory_read_fast(cpu.pc++);
+    static uint8_t opcode;
+
+    opcode = memory_read_fast(cpu.pc++);
+
+#if COUNT_INSTRUCTIONS
+    instruction_count_increment(opcode);
+#endif
 
     // Increment instruction counter
     cpu.instruction_count++;
@@ -1016,9 +1073,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // NEG - Negate Memory (Extended)
         case 0x70: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             value = (~value) + 1;
             memory_write_fast(addr, value);
@@ -1030,9 +1085,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // COM - Complement Memory (Extended)
         case 0x73: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             value = ~value;
             memory_write_fast(addr, value);
@@ -1044,9 +1097,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // LSR - Logical Shift Right (Extended)
         case 0x74: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             uint8_t old_bit0 = value & 0x01;
             value >>= 1;
@@ -1060,9 +1111,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ROR - Rotate Right (Extended)
         case 0x76: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x80 : 0;
             uint8_t old_bit0 = value & 0x01;
@@ -1076,9 +1125,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ASR - Arithmetic Shift Right (Extended)
         case 0x77: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             uint8_t old_bit0 = value & 0x01;
             uint8_t sign_bit = value & 0x80;
@@ -1092,9 +1139,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ASL - Arithmetic Shift Left (Extended)
         case 0x78: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             uint8_t old_bit7 = (value & 0x80) >> 7;
             value <<= 1;
@@ -1107,9 +1152,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ROL - Rotate Left (Extended)
         case 0x79: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             uint8_t old_carry = cpu_get_flag(CCR_C) ? 0x01 : 0;
             uint8_t old_bit7 = (value & 0x80) >> 7;
@@ -1118,14 +1161,13 @@ void __time_critical_func(instruction_execute)(void) {
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             break;
         }
 
         // DEC - Decrement Memory (Extended)
         case 0x7A: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             eclock_consume_cycles(1);  // Internal: arithmetic operation
             value--;
@@ -1137,9 +1179,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // INC - Increment Memory (Extended)
         case 0x7C: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             value++;
             memory_write_fast(addr, value);
@@ -1150,9 +1190,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // TST - Test Memory (Extended)
         case 0x7D: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t value = memory_read_fast(addr);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, false);
@@ -1169,9 +1207,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // CLR - Clear Memory (Extended)
         case 0x7F: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             memory_write_fast(addr, 0x00);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
@@ -1639,9 +1675,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // SUBA (Extended)
         case 0xB0: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             sub_with_carry(&cpu.a, operand);
             break;
@@ -1649,9 +1683,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // CMPA (Extended)
         case 0xB1: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
@@ -1661,9 +1693,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // SBCA (Extended)
         case 0xB2: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
@@ -1674,9 +1704,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ANDA (Extended)
         case 0xB4: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             cpu.a &= operand;
             cpu_update_nz(cpu.a);
@@ -1686,9 +1714,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // BITA (Extended)
         case 0xB5: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.a & operand;
             cpu_update_nz(result);
@@ -1698,9 +1724,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // LDAA (Extended)
         case 0xB6: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             cpu.a = memory_read_fast(addr);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1709,10 +1733,8 @@ void __time_critical_func(instruction_execute)(void) {
 
         // STAA (Extended)
         case 0xB7: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
-            eclock_consume_cycles(1);  // Internal
+            uint16_t addr = read_extended_operand_fast();
+            eclock_consume_cycles(2);  // Internal
             memory_write_fast(addr, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
@@ -1721,9 +1743,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // EORA (Extended)
         case 0xB8: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             cpu.a ^= operand;
             cpu_update_nz(cpu.a);
@@ -1733,9 +1753,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ADCA (Extended)
         case 0xB9: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.a + operand + carry;
@@ -1748,9 +1766,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ORAA (Extended)
         case 0xBA: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             cpu.a |= operand;
             cpu_update_nz(cpu.a);
@@ -1760,9 +1776,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ADDA (Extended)
         case 0xBB: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             add_with_carry(&cpu.a, operand);
             break;
@@ -1770,9 +1784,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // CPX (Extended)
         case 0xBC: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t mem_high = memory_read_fast(addr);
             uint8_t mem_low = memory_read_fast(addr + 1);
             uint16_t mem_val = (mem_high << 8) | mem_low;
@@ -1785,9 +1797,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // JSR (Extended)
         case 0xBD: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             cpu_push16(cpu.pc);
             eclock_consume_cycles(4);  // Internal: jump setup
             cpu.pc = addr;
@@ -1796,9 +1806,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // LDS - Load Stack Pointer (Extended)
         case 0xBE: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t sp_high = memory_read_fast(addr);
             uint8_t sp_low = memory_read_fast(addr + 1);
             cpu.sp = (sp_high << 8) | sp_low;
@@ -1809,9 +1817,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // STS - Store Stack Pointer (Extended)
         case 0xBF: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write_fast(addr, (cpu.sp >> 8) & 0xFF);
             memory_write_fast(addr + 1, cpu.sp & 0xFF);
@@ -2224,9 +2230,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // SUBB (Extended)
         case 0xF0: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
@@ -2237,9 +2241,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // CMPB (Extended)
         case 0xF1: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
@@ -2249,9 +2251,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // SBCB (Extended)
         case 0xF2: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b - operand - (cpu_get_flag(CCR_C) ? 1 : 0);
             cpu_update_nzv(result & 0xFF, cpu.b, operand, true);
@@ -2262,9 +2262,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ANDB (Extended)
         case 0xF4: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             cpu.b &= operand;
             cpu_update_nz(cpu.b);
@@ -2274,9 +2272,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // BITB (Extended)
         case 0xF5: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint8_t result = cpu.b & operand;
             cpu_update_nz(result);
@@ -2286,9 +2282,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // LDAB (Extended)
         case 0xF6: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             cpu.b = memory_read_fast(addr);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
@@ -2297,9 +2291,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // STAB (Extended)
         case 0xF7: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write_fast(addr, cpu.b);
             cpu_update_nz(cpu.b);
@@ -2309,9 +2301,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // EORB (Extended)
         case 0xF8: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             cpu.b ^= operand;
             cpu_update_nz(cpu.b);
@@ -2321,9 +2311,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ADCB (Extended)
         case 0xF9: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint8_t carry = cpu_get_flag(CCR_C) ? 1 : 0;
             uint16_t result = cpu.b + operand + carry;
@@ -2336,9 +2324,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ORAB (Extended)
         case 0xFA: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             cpu.b |= operand;
             cpu_update_nz(cpu.b);
@@ -2348,9 +2334,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // ADDB (Extended)
         case 0xFB: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.b + operand;
             cpu_update_nzv(result & 0xFF, cpu.b, operand, false);
@@ -2362,9 +2346,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // LDX (Extended)
         case 0xFE: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             uint8_t xh = memory_read_fast(addr);
             uint8_t xl = memory_read_fast(addr + 1);
             cpu.x = (xh << 8) | xl;
@@ -2375,9 +2357,7 @@ void __time_critical_func(instruction_execute)(void) {
 
         // STX (Extended)
         case 0xFF: {
-            uint8_t high = memory_read_fast(cpu.pc++);
-            uint8_t low = memory_read_fast(cpu.pc++);
-            uint16_t addr = (high << 8) | low;
+            uint16_t addr = read_extended_operand_fast();
             eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write_fast(addr, cpu.x >> 8);
             memory_write_fast(addr + 1, cpu.x & 0xFF);
@@ -2390,9 +2370,16 @@ void __time_critical_func(instruction_execute)(void) {
         default:
             printf("*** UNIMPLEMENTED OPCODE: $%02X at PC=$%04X ***\n", opcode, cpu.pc - 1);
             cpu.halted = true;
-            break;
+            return;
     }
+
+#if COUNT_INSTRUCTIONS
+    if (instruction_count_enabled()) {
+        instruction_counts[opcode].cycles = pending_cycles;
+    }
+#endif
 
     // Sync accumulated cycles once at end of instruction
     eclock_sync_instruction();
+
 }

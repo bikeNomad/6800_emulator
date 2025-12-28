@@ -708,6 +708,29 @@ static void cmd_bus_write_block(void) {
     usb_cdc_send("OK\r\n");
 }
 
+#if COUNT_INSTRUCTIONS
+static void cmd_print_instruction_counts(void) {
+    instruction_count_report(usb_cdc_printf);
+}
+
+static void cmd_reset_instruction_counts(void) {
+    bool old = instruction_count_enable(false);
+    instruction_count_initialize();
+    instruction_count_enable(old);
+    usb_cdc_printf("OK: Instruction counts reset (counting: %d)\r\n", old);
+}
+
+static void cmd_count_on(void) {
+    instruction_count_enable(true);
+    usb_cdc_printf("OK: Instruction counting enabled\r\n");
+}
+
+static void cmd_count_off(void) {
+    instruction_count_enable(false);
+    usb_cdc_printf("OK: Instruction counting disabled\r\n");
+}
+#endif
+
 static void cmd_help(void) {
     // Send as single string to avoid buffer overflow
     usb_cdc_send(
@@ -725,7 +748,12 @@ static void cmd_help(void) {
         "  run                       - Start CPU execution\r\n"
         "  halt                      - Stop CPU execution (auto-saves CMOS)\r\n"
         "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
-        "  cycletest                 - Test instruction cycle counts\r\n"
+    #if COUNT_INSTRUCTIONS
+        "  count print               - Print instruction execution counts\r\n"
+        "  count reset               - Reset instruction execution counts\r\n"
+        "  count on                  - Enable instruction counting\r\n"
+        "  count off                 - Disable instruction counting\r\n"
+    #endif
         "  debug on/off              - Enable/disable SPI debug output\r\n"
         "  break <addr>              - Set breakpoint at address\r\n"
         "  break clear               - Clear all breakpoints\r\n"
@@ -782,7 +810,13 @@ static const command_entry_t command_table[] = {
     {"reg x", cmd_reg_x, true},                 // needs <value>
     {"reg sp", cmd_reg_sp, true},               // needs <value>
     {"reg ccr", cmd_reg_ccr, true},             // needs <value>
-    
+#if COUNT_INSTRUCTIONS
+    {"count print", cmd_print_instruction_counts, false},
+    {"count reset", cmd_reset_instruction_counts, false},
+    {"count on", cmd_count_on, false},
+    {"count off", cmd_count_off, false},
+#endif
+
     // Single-word commands
     {"load", cmd_load, false},
     {"end", cmd_end, false},
@@ -955,6 +989,7 @@ void usb_cdc_task(void) {
                     cmd_buffer[cmd_pos++] = c;
                     // Echo character
                     tud_cdc_write_char(c);
+                    tud_cdc_write_flush();  // echo
                 }
             }
         }
