@@ -172,7 +172,6 @@ static const char* mnemonics[256] = {
     [0x9A] = "ORAA (DIR)",
     [0x9B] = "ADDA (DIR)",
     [0x9C] = "CPX (DIR)",
-    [0x9D] = "JSR (DIR)",
     [0x9E] = "LDS (DIR)",
     [0x9F] = "STS (DIR)",
     [0xA0] = "SUBA (IND)",
@@ -1062,12 +1061,12 @@ void __time_critical_func(instruction_execute)(void) {
         // CLR - Clear Memory (Indexed)
         case 0x6F: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(4);  // Internal: address calculation
             memory_write_fast(cpu.x + offset, 0x00);
             cpu_set_flag(CCR_N, false);
             cpu_set_flag(CCR_Z, true);
             cpu_set_flag(CCR_V, false);
             cpu_set_flag(CCR_C, false);
+            eclock_consume_cycles(5);  // Internal: address calculation
             break;
         }
 
@@ -1161,7 +1160,7 @@ void __time_critical_func(instruction_execute)(void) {
             cpu_set_flag(CCR_C, old_bit7 != 0);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, cpu_get_flag(CCR_N) != cpu_get_flag(CCR_C));
-            eclock_consume_cycles(1);  // Internal: arithmetic operation
+            eclock_consume_cycles(2);  // Internal: arithmetic operation
             break;
         }
 
@@ -1185,6 +1184,7 @@ void __time_critical_func(instruction_execute)(void) {
             memory_write_fast(addr, value);
             cpu_update_nz(value);
             cpu_set_flag(CCR_V, value == 0x80);
+            eclock_consume_cycles(1);  // Internal: arithmetic operation
             break;
         }
 
@@ -1213,6 +1213,7 @@ void __time_critical_func(instruction_execute)(void) {
             cpu_set_flag(CCR_Z, true);
             cpu_set_flag(CCR_V, false);
             cpu_set_flag(CCR_C, false);
+            eclock_consume_cycles(2);
             break;
         }
 
@@ -1466,14 +1467,6 @@ void __time_critical_func(instruction_execute)(void) {
             break;
         }
 
-        // JSR - Jump to Subroutine (Direct)
-        case 0x9D: {
-            uint8_t addr = memory_read_fast(cpu.pc++);
-            cpu_push16(cpu.pc);
-            cpu.pc = addr;
-            break;
-        }
-
         // LDS - Load Stack Pointer (Direct)
         case 0x9E: {
             uint8_t addr = memory_read_fast(cpu.pc++);
@@ -1509,12 +1502,12 @@ void __time_critical_func(instruction_execute)(void) {
         // CMPA (Indexed)
         case 0xA1: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
             uint16_t addr = cpu.x + offset;
             uint8_t operand = memory_read_fast(addr);
             uint16_t result = cpu.a - operand;
             cpu_update_nzv(result & 0xFF, cpu.a, operand, true);
             cpu_set_flag(CCR_C, result > 0xFF);
+            eclock_consume_cycles(3);  // Internal: address calculation
             break;
         }
 
@@ -1568,10 +1561,10 @@ void __time_critical_func(instruction_execute)(void) {
         // STAA (Indexed)
         case 0xA7: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(3);  // Internal: address calculation
             memory_write_fast(cpu.x + offset, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(4);  // Internal: address calculation
             break;
         }
 
@@ -1734,10 +1727,10 @@ void __time_critical_func(instruction_execute)(void) {
         // STAA (Extended)
         case 0xB7: {
             uint16_t addr = read_extended_operand_fast();
-            eclock_consume_cycles(2);  // Internal
             memory_write_fast(addr, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(3);  // Internal
             break;
         }
 
@@ -2134,20 +2127,20 @@ void __time_critical_func(instruction_execute)(void) {
         // LDAB (Indexed)
         case 0xE6: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(2);  // Internal: address calculation
             cpu.b = memory_read_fast(cpu.x + offset);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(3);  // Internal: address calculation
             break;
         }
 
         // STAB (Indexed)
         case 0xE7: {
             uint8_t offset = memory_read_fast(cpu.pc++);
-            eclock_consume_cycles(3);  // Internal: address calculation
             memory_write_fast(cpu.x + offset, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(4);  // Internal: address calculation
             break;
         }
 
@@ -2286,16 +2279,17 @@ void __time_critical_func(instruction_execute)(void) {
             cpu.b = memory_read_fast(addr);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(1);  // Internal: address hold after write
             break;
         }
 
         // STAB (Extended)
         case 0xF7: {
             uint16_t addr = read_extended_operand_fast();
-            eclock_consume_cycles(1);  // Internal: address hold after write
             memory_write_fast(addr, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(2);  // Internal: address hold after write
             break;
         }
 
