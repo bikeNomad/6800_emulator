@@ -1,27 +1,35 @@
-from machine import Pin
+from machine import Pin, mem32
+from micropython import const
 import rp2
 from board_config import (
     GPIO_E_CLOCK, GPIO_TEST_PIN,
-    ECLOCK_PIO, ECLOCK_SM, SYNC_PIO, SYNC_SM
+    ECLOCK_SM, SYNC_SM
 )
+from sm_helpers import (
+    set_sm_join_mode,
+    sm_rxputget_base_addr
+)
+
 
 # Constants
 _PIO_CYCLES_PER_CLOCK = 65
 _TARGET_FREQ = 3_579_545 / 4
 _PIO_FREQ = _TARGET_FREQ * _PIO_CYCLES_PER_CLOCK
+_CYCLES_READ_ADDR = 0
+_JOIN_TXPUT = const(8)
 
 # Globals
 eclock_sm = None # State machine instance after initialization
 sync_sm = None # State machine instance after initialization
 
-_JOIN_TXPUT = getattr(rp2.PIO, "JOIN_TXPUT", 8)
 
 # PIO program to drive the E clock pin.
 # Also updates the RXFIFO[0] with the inverse of the
 # E clock count.
-# Requires the FIFO join mode to be set to "txput" (8)
+# Requires the FIFO join mode to be set to "TXPUT" (8)
+# to allow the SM to write the ISR to rxfifo
 
-@rp2.asm_pio(set_init=(rp2.PIO.OUT_LOW), fifo_join=_JOIN_TXPUT)
+@rp2.asm_pio(set_init=(rp2.PIO.OUT_LOW))
 def eclock():
     mov(x, invert(null))                  # 0 Initialize X to 0xFFFFFFFF (count down)
     mov(isr, x)                           # 1 Move X to ISR (1 cycle)
@@ -72,6 +80,12 @@ def _init_eclock_pio(pio_id, sm_id):
             freq=int(_PIO_FREQ),   # For target E clock frequency: 0.894886 MHz
             set_base=GPIO_E_CLOCK)     # E clock output pin
 
+    set_sm_join_mode(pio_id, sm_id, _JOIN_TXPUT)
+    sm.restart()
+
+    global _CYCLES_READ_ADDR
+    _CYCLES_READ_ADDR = sm_rxputget_base_addr(pio_id, sm_id) + 0
+
     # Stop immediately (will be started later)
     sm.active(0)
     return sm
@@ -94,12 +108,12 @@ def _init_sync_pio(pio_id, sm_id):
 def eclock_force_low():
     if eclock_sm is None:
         return
-    eclock_sm.exec("set pins, 0")
+    eclock_sm.exec("set(pins, 0)")
 
 def eclock_reset_pio_counter():
     if eclock_sm is None:
         return
-    eclock_sm.exec("mov x, invert(null)")
+    eclock_sm.exec("mov(x, invert(null))")
 
 def eclock_stop():
     """Stop the eclock PIO state machine"""
@@ -127,9 +141,9 @@ def eclock_cycles() -> int:
     """Return the number of E clock cycles since restarting the clock"""
     if eclock_sm is None:
         return 0
-    return eclock_sm.get() ^ 0xFFFF_FFFF
+    return ~mem32[_CYCLES_READ_ADDR]
 
-def init_clock_pio():
+def init_clock_pio(pio_id):
     """Initialize the clock PIO state machine"""
     global eclock_sm, sync_sm
     if eclock_sm is not None or sync_sm is not None:
@@ -139,5 +153,5 @@ def init_clock_pio():
     Pin(GPIO_E_CLOCK, Pin.ALT, alt=altmode)
     Pin(GPIO_TEST_PIN, Pin.ALT, alt=altmode)
 
-    eclock_sm = _init_eclock_pio(ECLOCK_PIO, ECLOCK_SM)
-    sync_sm = _init_sync_pio(SYNC_PIO, SYNC_SM)
+    eclock_sm = _init_eclock_pio(pio_id, ECLOCK_SM)
+    sync_sm = _init_sync_pio(pio_id, SYNC_SM)

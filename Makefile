@@ -89,3 +89,10 @@ help:
 	@echo "Output files will be placed in $(IMAGES_DIR)/"
 	@echo "  - $(IMAGES_DIR)/BOARD_PICO2.uf2"
 	@echo "  - $(IMAGES_DIR)/BOARD_NED_SYS7.uf2"
+
+micropython-pio:
+	mpremote cp micropython/board_config.py :
+	mpremote cp micropython/bus_cycle_pio.py :
+	mpremote cp micropython/clock_pio.py :
+	mpremote cp micropython/sm_helpers.py :
+	mpremote cp micropython/main_pio_test.py :main.py

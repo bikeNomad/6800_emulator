@@ -1,20 +1,21 @@
 from machine import Pin
+from micropython import const
 import rp2
 from board_config import (
     GPIO_ADDR_BASE, GPIO_DATA_BASE, GPIO_E_CLOCK, GPIO_VMA, GPIO_RW,
     GPIO_IRQ, GPIO_NMI, GPIO_RESET, N_ADDR_DATA_PINS
 )
-from micropython import const
 
+
+# Constants
 _ADDR_SHIFT = const(8)
 assert _ADDR_SHIFT == GPIO_ADDR_BASE
-
 _E_CLOCK = const(24)
 assert _E_CLOCK == GPIO_E_CLOCK
-
 _WRITE_PINDIRS = const(0xFFFFFFFF)
 _READ_PINDIRS = const(0xFFFFFF00)
 
+# Globals
 bus_cycle_sm = None # State machine instance after initialization
 irq_pin = Pin(GPIO_IRQ, Pin.IN, Pin.PULL_UP)
 nmi_pin = Pin(GPIO_NMI, Pin.IN, Pin.PULL_UP)
@@ -86,7 +87,7 @@ def init_bus_cycle_pio(pio_id, sm_id):
             out_base=GPIO_DATA_BASE,     # Data bus output pins (0-7)
             sideset_base=GPIO_VMA,       # Side-set pins for VMA/R/W
             push_thresh=8,               # Push 8 bits at a time
-            pull_thresh=32)              # Pull 32 bits at a time (address + data)
+            pull_thresh=0)              # Pull 32 bits at a time (address + data)
 
     # Enable state machine
     sm.active(1)
