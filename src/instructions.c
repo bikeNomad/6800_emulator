@@ -1565,7 +1565,7 @@ void __time_critical_func(instruction_execute)(void) {
             memory_write_fast(cpu.x + offset, cpu.a);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
-            eclock_consume_cycles(4);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             break;
         }
 
@@ -1722,6 +1722,7 @@ void __time_critical_func(instruction_execute)(void) {
             cpu.a = memory_read_fast(addr);
             cpu_update_nz(cpu.a);
             cpu_set_flag(CCR_V, false);
+            eclock_consume_cycles(1);  // Internal
             break;
         }
 
@@ -2138,7 +2139,7 @@ void __time_critical_func(instruction_execute)(void) {
             cpu.b = memory_read_fast(cpu.x + offset);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
-            eclock_consume_cycles(3);  // Internal: address calculation
+            eclock_consume_cycles(2);  // Internal: address calculation
             break;
         }
 
