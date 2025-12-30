@@ -50,7 +50,7 @@ void instruction_count_report(printf_func_t printf_func) {
             printf_func(" $%02X  %2u  %-18s %10u\r\n", opcode, cycles, mnemonic, count);
         }
     }
-    
+
     instruction_count_enable(was_counting);
 }
 #endif
@@ -227,6 +227,7 @@ static const char* mnemonics[256] = {
     [0xDA] = "ORAB (DIR)",
     [0xDB] = "ADDB (DIR)",
     [0xDE] = "LDX (DIR)",
+    [0xDD] = "HCF (INH)",
     [0xDF] = "STX (DIR)",
     [0xE0] = "SUBB (IND)",
     [0xE1] = "CMPB (IND)",
@@ -2038,6 +2039,13 @@ void __time_critical_func(instruction_execute)(void) {
             cpu_set_flag(CCR_C, result > 0xFF);
             cpu_set_flag(CCR_H, ((cpu.b & 0x0F) + (operand & 0x0F)) > 0x0F);
             cpu.b = result & 0xFF;
+            break;
+        }
+
+        // HCF (inherent): Halt and Catch Fire
+        case 0xDD: {
+            // For emulation purposes, we'll just halt the CPU
+            cpu.halted = true;
             break;
         }
 
