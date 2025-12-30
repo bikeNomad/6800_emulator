@@ -11,7 +11,32 @@ from clock_pio import (
     eclock_force_low, eclock_reset_pio_counter
 )
 
-from machine import mem32
+def bus_read_block(address, length):
+    was_started = eclock_start()
+    data = bytearray(length)
+    for i in range(length):
+        data[i] = bus_read_cycle(address + i)
+    if not was_started:
+        eclock_stop()
+    return data
+
+def bus_write_block(address, data):
+    was_started = eclock_start()
+    for i, byte in enumerate(data):
+        bus_write_cycle(address + i, byte)
+    if not was_started:
+        eclock_stop()
+
+def bus_fill_block(address, length, byte):
+    was_started = eclock_start()
+    for i in range(length):
+        bus_write_cycle(address + i, byte)
+    if not was_started:
+        eclock_stop()
+
+def block_checksum(address, length) -> int:
+    return sum(bus_read_block(address, length)) & 0xFFFF
+
 
 # Must initialize in this order for pindirs to be correct:
 init_bus_cycle_pio(BUS_CYCLE_PIO, BUS_CYCLE_SM)

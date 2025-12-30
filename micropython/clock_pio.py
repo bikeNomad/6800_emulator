@@ -116,20 +116,26 @@ def eclock_reset_pio_counter():
     eclock_sm.exec("mov(x, invert(null))")
 
 def eclock_stop():
-    """Stop the eclock PIO state machine"""
+    """Stop the eclock PIO state machine.
+    Return True if it was started previously."""
     if eclock_sm is None:
-        return
+        return False
     if eclock_sm.active():
         eclock_sm.active(0)
         eclock_force_low()
+        return True
+    return False
 
 def eclock_start():
-    """Stop the eclock PIO state machine"""
+    """Start the eclock PIO state machine.
+    Return True if it was already started, else False."""
     if eclock_sm is None:
-        return
+        return False
     if not eclock_sm.active():
         eclock_sm.restart()
         eclock_sm.active(1)
+        return False
+    return True
 
 def eclock_wait_cycles(n: int):
     """Wait for a given number of E clock cycles"""
@@ -149,7 +155,7 @@ def init_clock_pio(pio_id):
     if eclock_sm is not None or sync_sm is not None:
         return
 
-    altmode = Pin.ALT_PIO0 if pio_id == 0 else Pin.ALT_PIO1
+    altmode = Pin.ALT_PIO0 if pio_id == 0 else Pin.ALT_PIO1 if pio_id == 1 else Pin.ALT_PIO2
     Pin(GPIO_E_CLOCK, Pin.ALT, alt=altmode)
     Pin(GPIO_TEST_PIN, Pin.ALT, alt=altmode)
 
