@@ -1,6 +1,8 @@
 # Makefile to build 6800 emulator for both board configurations
 # Produces BOARD_PICO2 and BOARD_NED_SYS7 .uf2 files in images/ directory
 
+AS6800 ?= $(PWD)/../motorola-6800-assembler/bin/as0
+
 .PHONY: all clean images build_pico2 build_ned_sys7
 
 # Board types to build
@@ -96,3 +98,9 @@ micropython-pio:
 	mpremote cp micropython/clock_pio.py :
 	mpremote cp micropython/sm_helpers.py :
 	mpremote cp micropython/main_pio_test.py :main.py
+
+%.s19: %.asm
+	$(AS6800) $< -l > $(subst .asm,.lst,$<)
+
+%.hex: %.s19
+	arm-none-eabi-objcopy -I srec -O ihex $< $@

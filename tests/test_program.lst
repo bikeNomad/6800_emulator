@@ -1,0 +1,60 @@
+0001                                   opt c,cre,l,s
+0002                               
+0003                               * IC36 on MCU board: Sound and commas
+0004                               * Connector 1J8, upper right of board (pin 1 on top)
+0005 0040                          pin1_strobe     equ $40     1J8/1 PB6
+0006 0080                          pin2_strobe     equ $80     1J8/2 PB7
+0007                               
+0008 2100                          pia_data_a      equ $2100
+0009 2101                          pia_ctrl_a      equ pia_data_a+1
+0010 2102                          pia_data_b      equ pia_data_a+2
+0011 2103                          pia_ctrl_b      equ pia_data_a+3
+0012                               
+0013 f000                              org $f000
+0014                               
+0015                               main
+0016 f000 0f                 [ 2 ]     sei
+0017 f001 bd f0 1b           [ 9 ]     jsr     init_pia
+0018 f004 86 40              [ 2 ]     ldaa    #pin1_strobe
+0019 f006 5f                 [ 2 ]     clrb
+0020                               loop
+0021 f007 b7 21 02           [ 5 ]     staa    pia_data_b      drive pin high
+0022 f00a b6 21 02           [ 4 ]     ldaa    pia_data_b      read it back
+0023 f00d f7 21 02           [ 5 ]     stab    pia_data_b      and drive back low
+0024 f010 01                 [ 2 ]     nop
+0025 f011 01                 [ 2 ]     nop
+0026 f012 01                 [ 2 ]     nop
+0027 f013 01                 [ 2 ]     nop
+0028 f014 01                 [ 2 ]     nop
+0029 f015 01                 [ 2 ]     nop
+0030 f016 01                 [ 2 ]     nop
+0031 f017 01                 [ 2 ]     nop
+0032 f018 7e f0 07           [ 3 ]     jmp     loop
+0033                               
+0034                               
+0035                               init_pia
+0036                               * Upon initialization, the PIA control registers are all 0s
+0037                               * so the DDRs are selected.
+0038 f01b 86 ff              [ 2 ]     ldaa    #$FF
+0039 f01d b7 21 00           [ 5 ]     staa    pia_data_a      set to all outputs
+0040 f020 b7 21 02           [ 5 ]     staa    pia_data_b      set to all outputs
+0041 f023 86 04              [ 2 ]     ldaa    #$04
+0042 f025 b7 21 01           [ 5 ]     staa    pia_ctrl_a      select data regs
+0043 f028 b7 21 03           [ 5 ]     staa    pia_ctrl_b      select data regs
+0044 f02b 39                 [ 5 ]     rts
+0045                               
+0046                               nmi_handler
+0047 f02c 3b                 [10 ]     rti
+0048                               
+0049                               swi_handler
+0050 f02d 3b                 [10 ]     rti
+0051                               
+0052                               irq_handler
+0053 f02e 3b                 [10 ]     rti
+0054                               
+0055                               * Vectors
+0056 fff8                              org $FFF8
+0057 fff8 f0 2e                    irq_entry   fdb irq_handler
+0058 fffa f0 2d                    swi_entry   fdb swi_handler
+0059 fffc f0 2c                    nmi_entry   fdb nmi_handler
+0060 fffe f0 00                    rst_entry   fdb main
