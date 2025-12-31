@@ -3,7 +3,7 @@ from board_config import ECLOCK_PIO, BUS_CYCLE_PIO, BUS_CYCLE_SM
 
 from bus_cycle_pio import (
     init_bus_cycle_pio, bus_read_cycle, bus_write_cycle,
-    bus_read_irq, bus_read_nmi, bus_read_reset
+    bus_read_irq, bus_read_nmi, bus_read_reset, bus_read_block_into
 )
 
 from clock_pio import (
@@ -14,8 +14,7 @@ from clock_pio import (
 def bus_read_block(address, length):
     was_started = eclock_start()
     data = bytearray(length)
-    for i in range(length):
-        data[i] = bus_read_cycle(address + i)
+    bus_read_block_into(address, data, length)
     if not was_started:
         eclock_stop()
     return data

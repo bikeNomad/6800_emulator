@@ -102,13 +102,23 @@ def bus_read_nmi() -> bool:
 def bus_read_reset() -> bool:
     return reset_pin.value() == 0
 
+@micropython.native
 def bus_write_cycle(address: int, data: int) -> None:
     sm = bus_cycle_sm
     sm.put(_WRITE_PINDIRS)
     sm.put((address << _ADDR_SHIFT) | data)
 
+@micropython.native
 def bus_read_cycle(address: int) -> int:
     sm = bus_cycle_sm
     sm.put(_READ_PINDIRS)
     sm.put(address << _ADDR_SHIFT)
     return sm.get()
+
+@micropython.native
+def bus_read_block_into(address: int, data: bytearray, length: int):
+    sm = bus_cycle_sm
+    for i in range(length):
+        sm.put(_READ_PINDIRS)
+        sm.put((address + i) << _ADDR_SHIFT)
+        data[i] = sm.get()
