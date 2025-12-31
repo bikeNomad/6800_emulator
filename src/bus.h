@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include "board_config.h"
 #include "hardware/gpio.h"
+#include "clock.h"
 
 // GPIO pin assignments are defined in board_config.h
 
@@ -63,14 +64,6 @@ static inline uint32_t addr_to_gpio_mask(uint16_t address) {
 // Initialize bus interface (configure GPIO)
 void bus_init(void);
 
-// Perform one read bus cycle (address -> data)
-// Synchronized to E clock
-uint8_t bus_read_cycle(uint16_t address);
-
-// Perform one write bus cycle (address + data -> bus)
-// Synchronized to E clock
-void bus_write_cycle(uint16_t address, uint8_t data);
-
 // Read interrupt request lines (active low)
 static inline bool bus_read_irq(void) {
     return !gpio_get(GPIO_IRQ);  // Active low, so invert
@@ -102,6 +95,20 @@ uint8_t bus_read_cycle_pio(uint16_t address);
 // Perform one write bus cycle using PIO
 // PIO handles E clock synchronization
 void bus_write_cycle_pio(uint16_t address, uint8_t data);
+
+// Perform one read bus cycle (address -> data)
+// Synchronized to E clock
+static inline uint8_t bus_read_cycle(uint16_t address) {
+    bus_sync();
+    return bus_read_cycle_pio(address);
+}
+
+// Perform one write bus cycle (address + data -> bus)
+// Synchronized to E clock
+static inline void bus_write_cycle(uint16_t address, uint8_t data) {
+    bus_sync();
+    bus_write_cycle_pio(address, data);
+}
 
 
 #endif // BUS_H

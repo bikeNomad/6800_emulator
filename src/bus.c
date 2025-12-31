@@ -140,18 +140,6 @@ void bus_init(void) {
 #endif
 }
 
-// Perform one read bus cycle
-uint8_t __time_critical_func(bus_read_cycle)(uint16_t address) {
-    bus_sync();
-    return bus_read_cycle_pio(address);
-}
-
-// Perform one write bus cycle
-void __time_critical_func(bus_write_cycle)(uint16_t address, uint8_t data) {
-    bus_sync();
-    bus_write_cycle_pio(address, data);
-}
-
 // ============================================================================
 // PIO-Based Bus Cycle Implementation (Two Dedicated State Machines)
 // ============================================================================

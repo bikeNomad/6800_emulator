@@ -66,8 +66,11 @@ void eclock_start(void) {
 
 // Stop E clock generation
 void eclock_stop(void) {
+    if (!eclock_is_running()) {
+        return;  // already stopped
+    }
     // Cache current PIO cycles before stopping (non-blocking)
-    eclock_get_pio_cycles();  // Updates last_pio_cycles
+    last_pio_cycles = eclock_get_pio_cycles();  // Update last_pio_cycles
     // Disable PIO state machine
     pio_sm_set_enabled(ECLK_PIO, E_SM, false);
     eclock_force_low();

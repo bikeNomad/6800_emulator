@@ -202,8 +202,7 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 #if BOARD_TYPE == BOARD_NED_SYS7
     led_set_unmapped();
 #endif
-    uint8_t data = bus_read_cycle(address);
-    return data;
+    return bus_read_cycle(address);
 }
 
 // Fast-path write (no GPIO polling for ROM/RAM)

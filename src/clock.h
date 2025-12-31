@@ -87,11 +87,6 @@ static inline void eclock_wait_cycles(uint32_t cycles) {
 
 // Get real elapsed E clock cycles from PIO
 static inline uint32_t eclock_get_pio_cycles(void) {
-    if (!eclock_is_running()) {
-        // SM is stopped, return cached value
-        return last_pio_cycles;
-    }
-
     // Read PIO X register directly from rxf_putget register
     // The PIO program continuously updates rxfifo[0] with the X value
     // using: mov isr, x; push noblock
@@ -99,12 +94,7 @@ static inline uint32_t eclock_get_pio_cycles(void) {
     uint32_t x_value = ECLK_PIO->rxf_putget[E_SM][0];
 
     // Invert to get elapsed cycles (0xFFFFFFFF - x_value)
-    uint32_t pio_cycles = ~x_value;
-
-    // Cache the value
-    last_pio_cycles = pio_cycles;
-
-    return pio_cycles;
+    return ~x_value;
 }
 
 

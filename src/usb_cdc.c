@@ -285,7 +285,7 @@ static void cmd_status(void) {
                    cpu_get_flag(CCR_C) ? 'C' : '-');
 
     uint32_t cycle_cnt = eclock_get_count();
-    int32_t eclock_pio_cycles = (int32_t)eclock_get_pio_cycles();
+    int32_t eclock_pio_cycles = eclock_is_running() ? (int32_t)eclock_get_pio_cycles() : (int32_t)last_pio_cycles;
 
     usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
     usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
