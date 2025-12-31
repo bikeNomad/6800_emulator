@@ -19,6 +19,7 @@
 extern uint32_t cycle_count;
 extern uint32_t pending_cycles;
 extern int32_t cycle_overage;
+extern int32_t cycle_underage;
 extern uint32_t last_pio_cycles;
 
 // Initialize E clock PIO
@@ -126,6 +127,7 @@ static inline void bus_sync(void) {
             // Still need to wait for additional cycles
             eclock_wait_cycles((uint32_t)diff);
             cycle_overage = 0;
+            cycle_underage += diff;
         } else {
             // Overage covers the difference
             cycle_overage = -diff;

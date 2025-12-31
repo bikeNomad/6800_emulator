@@ -21,6 +21,8 @@ uint32_t pending_cycles = 0;
 // Overage counter (cycles we're ahead of real time)
 int32_t cycle_overage = 0;
 
+int32_t cycle_underage = 0;
+
 // Last known PIO cycles value (cached when SM is stopped)
 uint32_t last_pio_cycles = 0;
 
@@ -58,6 +60,7 @@ void eclock_start(void) {
     pio_sm_set_enabled(ECLK_PIO, E_SM, true);
     cycle_count = 0;
     cycle_overage = 0;
+    cycle_underage = 0;
     last_pio_cycles = 0;
 }
 

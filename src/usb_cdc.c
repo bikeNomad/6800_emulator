@@ -283,18 +283,24 @@ static void cmd_status(void) {
                    cpu_get_flag(CCR_Z) ? 'Z' : '-',
                    cpu_get_flag(CCR_V) ? 'V' : '-',
                    cpu_get_flag(CCR_C) ? 'C' : '-');
+
+    uint32_t cycle_cnt = eclock_get_count();
+    int32_t eclock_pio_cycles = (int32_t)eclock_get_pio_cycles();
+
     usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
     usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
     usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)cpu.instruction_count);
-    usb_cdc_printf("  Cycle Count: %lu\r\n", (unsigned long)eclock_get_count());
-    usb_cdc_printf("  PIO Cycles: %lu\r\n", (unsigned long)eclock_get_pio_cycles());
+    usb_cdc_printf("  Cycle Count: %lu\r\n", (unsigned long)cycle_cnt);
+    usb_cdc_printf("  PIO Cycles: %lu\r\n", (unsigned long)eclock_pio_cycles);
     usb_cdc_printf("  Overage: %ld\r\n", (long)cycle_overage);
+    usb_cdc_printf("  Underage: %ld\r\n", (long)cycle_underage);
+    usb_cdc_printf("  Speed ratio: %fx\r\n",
+            (cycle_cnt + (int32_t)cycle_underage) /
+            (eclock_pio_cycles > 0 ? (float)eclock_pio_cycles : 1.0f));
 
     // Calculate and display speed ratio
-    uint32_t cycle_cnt = eclock_get_count();
-    uint32_t pio_cnt = eclock_get_pio_cycles();
-    if (pio_cnt > 0) {
-        float speed_ratio = (float)cycle_cnt / (float)pio_cnt;
+    if (eclock_pio_cycles > 0) {
+        float speed_ratio = (float)cycle_cnt / (float)eclock_pio_cycles;
         usb_cdc_printf("  Speed: %fx real-time\r\n", speed_ratio);
     }
 
