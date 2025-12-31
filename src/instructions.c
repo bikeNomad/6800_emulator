@@ -1201,7 +1201,7 @@ void __time_critical_func(instruction_execute)(void) {
             break;
         }
 
-        // JMP (Extended)
+        // JMP (Extended) (3 cycles)
         case 0x7E: {
             uint8_t high = memory_read_fast(cpu.pc++);
             uint8_t low = memory_read_fast(cpu.pc++);
@@ -1209,7 +1209,7 @@ void __time_critical_func(instruction_execute)(void) {
             break;
         }
 
-        // CLR - Clear Memory (Extended)
+        // CLR - Clear Memory (Extended) (6 cycles)
         case 0x7F: {
             uint16_t addr = read_extended_operand_fast();
             memory_write_fast(addr, 0x00);
@@ -2147,13 +2147,13 @@ void __time_critical_func(instruction_execute)(void) {
             break;
         }
 
-        // STAB (Indexed)
+        // STAB (Indexed) (6 cycles)
         case 0xE7: {
             uint8_t offset = memory_read_fast(cpu.pc++);
             memory_write_fast(cpu.x + offset, cpu.b);
             cpu_update_nz(cpu.b);
             cpu_set_flag(CCR_V, false);
-            eclock_consume_cycles(4);  // Internal: address calculation
+            eclock_consume_cycles(3);  // Internal: address calculation
             break;
         }
 
