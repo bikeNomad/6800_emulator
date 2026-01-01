@@ -127,15 +127,6 @@ void cpu_clear_breakpoints(void) {
     }
 }
 
-bool cpu_check_breakpoint(uint16_t address) {
-    for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
-        if (cpu.breakpoints[i] == address) {
-            return true;
-        }
-    }
-    return false;
-}
-
 uint8_t cpu_get_breakpoint_count(void) {
     return cpu.breakpoint_count;
 }

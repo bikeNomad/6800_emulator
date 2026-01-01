@@ -210,6 +210,7 @@ int main() {
                 }
 
                 // Execute one instruction (cycle-accurate)
+                bus_sync();
                 instruction_execute();
 
                 // If we just executed an instruction while stopped at a breakpoint,

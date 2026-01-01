@@ -31,7 +31,7 @@ void interrupts_init(void) {
 }
 
 // Check for pending interrupts
-void interrupt_check(void) {
+void __time_critical_func(interrupt_check)(void) {
     bool irq = bus_read_irq();
     bool nmi = bus_read_nmi();
     bool reset = bus_read_reset();

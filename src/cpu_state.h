@@ -62,9 +62,18 @@ void cpu_halt(void);
 bool cpu_add_breakpoint(uint16_t address);
 bool cpu_remove_breakpoint(uint16_t address);
 void cpu_clear_breakpoints(void);
-bool cpu_check_breakpoint(uint16_t address);
 uint8_t cpu_get_breakpoint_count(void);
 const uint16_t* cpu_get_breakpoints(void);
+
+static inline bool cpu_check_breakpoint(uint16_t address) {
+    for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
+        if (cpu.breakpoints[i] == address) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 // Get CCR flag (inline for performance)
 static inline bool cpu_get_flag(uint8_t flag) {
