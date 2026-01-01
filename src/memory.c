@@ -596,7 +596,7 @@ void memory_init_table_config_from_flash(void) {
 
     // Check if table config is erased (all 0xFF = new/empty)
     bool is_erased = true;
-    for (int i = 0; i < sizeof(memory_config_t); i++) {
+    for (size_t i = 0; i < sizeof(memory_config_t); i++) {
         if (flash_ptr[i] != 0xFF) {
             is_erased = false;
             break;
@@ -661,7 +661,7 @@ void memory_clear_all_rom_regions(void) {
     int cleared_count = 0;
     
     // Clear all entries that are currently MEM_TYPE_ROM
-    for (uint8_t i = 0; i < 256; i++) {
+    for (int i = 0; i < 256; i++) {
         if (memory_lookup_table[i].type == MEM_TYPE_ROM) {
             memory_lookup_table[i].type = MEM_TYPE_ROM_BUS;
             memory_lookup_table[i].base_address = 0;
