@@ -28,7 +28,8 @@
 typedef enum {
     MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
     MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
-    MEM_TYPE_RAM        // RAM - read/write from shadow
+    MEM_TYPE_RAM,       // RAM - read/write from shadow
+    MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
 } memory_type_t;
 
 // Memory configuration

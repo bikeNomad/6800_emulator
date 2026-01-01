@@ -160,6 +160,10 @@ memory_type_t __time_critical_func(memory_get_type)(uint16_t address) {
     // Check RAM range (uses original address - RAM is at 0x0000-0x13FF)
     if (address >= mem_config.ram_base &&
         address < mem_config.ram_base + mem_config.ram_size) {
+            if (address >= mem_config.cmos_base &&
+                address < mem_config.cmos_base + mem_config.cmos_size) {
+                    return MEM_TYPE_UNMAPPED;
+            }
         return MEM_TYPE_RAM;
     }
 
