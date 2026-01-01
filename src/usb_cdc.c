@@ -140,6 +140,76 @@ static void cmd_config_show(void) {
     usb_cdc_printf("  Debug SPI: %s\r\n", debug_spi_is_enabled() ? "ON" : "OFF");
 }
 
+static void cmd_memory_map(void) {
+    // Display current memory map with coalesced ranges
+    usb_cdc_send("Memory Map (coalesced ranges):\r\n");
+    
+    memory_type_t current_type = MEM_TYPE_UNMAPPED;
+    unsigned range_start = 0;
+    unsigned range_end = 0;
+    
+    for (unsigned addr = 0; addr <= MAX_ADDRESS; addr++) {
+        uint8_t page = addr >> 8;
+        memory_type_t type = memory_lookup_table[page].type;
+        
+        // Check for A15 aliasing - if A15=1, use the A15=0 equivalent
+        if (addr >= 0x8000) {
+            uint8_t base_page = (addr & 0x7FFF) >> 8;
+            type = memory_lookup_table[base_page].type;
+        }
+        
+        if (addr == 0) {
+            // Initialize first range
+            current_type = type;
+            range_start = addr;
+            range_end = addr;
+        } else if (type == current_type) {
+            // Continue current range
+            range_end = addr;
+        } else {
+            // End current range and start new one
+            const char* type_str;
+            switch (current_type) {
+                case MEM_TYPE_ROM: type_str = "ROM (shadow)"; break;
+                case MEM_TYPE_ROM_BUS: type_str = "ROM (bus)"; break;
+                case MEM_TYPE_RAM: type_str = "RAM"; break;
+                case MEM_TYPE_UNMAPPED: type_str = "UNMAPPED"; break;
+                case MEM_TYPE_CMOS: type_str = "CMOS"; break;
+                default: type_str = "UNKNOWN";
+            }
+            
+            uint16_t range_size = range_end - range_start + 1;
+            usb_cdc_printf("  $%04X-$%04X (%5d bytes): %s\r\n", 
+                           range_start, range_end, range_size, type_str);
+            
+            // Start new range
+            current_type = type;
+            range_start = addr;
+            range_end = addr;
+        }
+    }
+    
+    // Handle the final range
+    if (range_start <= MAX_ADDRESS) {
+        const char* type_str;
+        switch (current_type) {
+            case MEM_TYPE_ROM: type_str = "ROM (shadow)"; break;
+            case MEM_TYPE_ROM_BUS: type_str = "ROM (bus)"; break;
+            case MEM_TYPE_RAM: type_str = "RAM"; break;
+            case MEM_TYPE_UNMAPPED: type_str = "UNMAPPED"; break;
+            case MEM_TYPE_CMOS: type_str = "CMOS"; break;
+            default: type_str = "UNKNOWN";
+        }
+        
+        uint16_t range_size = range_end - range_start + 1;
+        usb_cdc_printf("  $%04X-$%04X (%5d bytes): %s\r\n", 
+                       range_start, range_end, range_size, type_str);
+    }
+    
+    // Show A15 aliasing note
+    usb_cdc_send("\r\nNote: A15 aliasing handled automatically\r\n");
+}
+
 static void cmd_config_rom(void) {
     // Configure ROM region: config rom <base> <size>
     // Expects tokens: [config] [rom] <base> <size>
@@ -215,6 +285,30 @@ static void cmd_cmos_autosave(void) {
     } else {
         usb_cdc_send("ERROR: Usage: cmos autosave on/off\r\n");
     }
+}
+
+static void cmd_clear_rom(void) {
+    // Clear ROM region to MEM_TYPE_ROM_BUS: clear rom <base> <size>
+    // Expects tokens: [clear] [rom] <base> <size>
+    if (cmd_token_count < 2) {
+        usb_cdc_send("ERROR: Usage: clear rom <base_hex> <size_hex>\r\n");
+        return;
+    }
+    
+    unsigned int base, size;
+    if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
+        memory_clear_rom_region(base, size);
+        usb_cdc_printf("OK: Cleared ROM region $%04X-$%04X to MEM_TYPE_ROM_BUS\r\n", base, base + size - 1);
+    } else {
+        usb_cdc_send("ERROR: Usage: clear rom <base_hex> <size_hex>\r\n");
+    }
+}
+
+static void cmd_clear_all_rom(void) {
+    // Clear all ROM regions to MEM_TYPE_ROM_BUS: clear rom all
+    // Expects tokens: [clear] [rom] [all]
+    memory_clear_all_rom_regions();
+    usb_cdc_send("OK: Cleared all ROM regions to MEM_TYPE_ROM_BUS\r\n");
 }
 
 static void cmd_run(void) {
@@ -806,6 +900,7 @@ static const command_entry_t command_table[] = {
     {"cmos save", cmd_cmos_save, false},
     {"cmos dump", cmd_cmos_dump, false},
     {"cmos autosave", cmd_cmos_autosave, true}, // needs on/off
+    {"clear rom", cmd_clear_rom, true},         // needs <base> <size>
     {"debug on", cmd_debug_on, false},
     {"debug off", cmd_debug_off, false},
     {"break clear", cmd_break_clear, true},     // needs optional <addr>
@@ -827,6 +922,8 @@ static const command_entry_t command_table[] = {
     {"load", cmd_load, false},
     {"end", cmd_end, false},
     {"config", cmd_config_show, false},
+    {"memory_map", cmd_memory_map, false},      // display coalesced memory ranges
+    {"clear", cmd_clear_all_rom, false},        // clear all ROM regions
     {"read", cmd_read, true},                   // needs <addr> <len>
     {"write", cmd_write, true},                 // needs <addr> <data...>
     {"status", cmd_status, false},
@@ -982,21 +1079,21 @@ void usb_cdc_task(void) {
                     process_command(cmd_buffer);
                     cmd_pos = 0;
                 }
-            } else if (c == '\b' || c == 0x7F) {
+            } else if ((unsigned char)c == '\b' || (unsigned char)c == 0x7F) {
                 // Backspace
                 if (cmd_pos > 0) {
                     cmd_pos--;
                     tud_cdc_write_str("\b \b");
                     tud_cdc_write_flush();
                 }
-            } else if (c >= 32 && c < 127) {
-                // Printable character
-                if (cmd_pos < CMD_BUFFER_SIZE - 1) {
-                    cmd_buffer[cmd_pos++] = c;
-                    // Echo character
-                    tud_cdc_write_char(c);
-                    tud_cdc_write_flush();  // echo
-                }
+            } else if ((unsigned char)c >= 32 && (unsigned char)c < 127) {
+        // Printable character
+        if (cmd_pos < CMD_BUFFER_SIZE - 1) {
+            cmd_buffer[cmd_pos++] = c;
+            // Echo character
+            tud_cdc_write_char(c);
+            tud_cdc_write_flush();  // echo
+        }
             }
         }
 

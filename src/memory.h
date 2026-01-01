@@ -26,11 +26,21 @@
 
 // Memory region types
 typedef enum {
-    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
-    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
-    MEM_TYPE_RAM,       // RAM - read/write from shadow
-    MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
+    MEM_TYPE_UNMAPPED,      // Unmapped (peripheral) address - routes to physical bus
+    MEM_TYPE_ROM,           // ROM (EPROM) - read only from flash
+    MEM_TYPE_ROM_BUS,       // ROM - read from physical bus (no shadow)
+    MEM_TYPE_RAM,           // RAM - read/write from shadow
+    MEM_TYPE_CMOS           // CMOS RAM - read/write from bus for now
 } memory_type_t;
+
+// Memory lookup table entry for fast address type determination
+typedef struct {
+    memory_type_t type;         // Memory type for this address range
+    uint16_t base_address;      // Base address in shadow memory for ROM/RAM blocks
+} memory_lookup_entry_t;
+
+// 256-entry lookup table (one per 256-byte page in 64KB address space)
+extern memory_lookup_entry_t memory_lookup_table[256];
 
 // Memory configuration
 typedef struct {
@@ -45,6 +55,10 @@ typedef struct {
     uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
     uint32_t cmos_flash_offset;  // Offset in flash for CMOS storage
     bool cmos_dirty;        // CMOS has unsaved changes
+    
+    // Persistent table configuration
+    uint16_t rom_bus_base;  // Base address for bus-only ROM
+    uint16_t rom_bus_size;  // Size of bus-only ROM region
 } memory_config_t;
 
 extern memory_config_t mem_config;
@@ -53,8 +67,12 @@ extern uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
 // Initialize memory subsystem
 void memory_init(void);
 
+// Initialize memory lookup table
+void memory_init_lookup_table(void);
+
 // Configure memory regions (called from USB command)
 void memory_configure_rom(uint16_t base, uint16_t size);
+void memory_configure_rom_bus(uint16_t base, uint16_t size);
 void memory_configure_ram(uint16_t base, uint16_t size);
 
 // Get configuration values
@@ -87,6 +105,16 @@ void memory_init_rom_from_flash(void);
 
 // Initialize CMOS from flash on startup
 void memory_init_cmos_from_flash(void);
+
+// Initialize table configuration from flash
+void memory_init_table_config_from_flash(void);
+
+// Save table configuration to flash
+bool memory_save_table_config(void);
+
+// Clear ROM regions to MEM_TYPE_ROM_BUS
+void memory_clear_rom_region(uint16_t base, uint16_t size);
+void memory_clear_all_rom_regions(void);
 
 // Check if CMOS needs auto-save (call periodically from main loop)
 void memory_check_cmos_autosave(void);

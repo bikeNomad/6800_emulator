@@ -54,6 +54,9 @@ void led_all_off(void) {
 // Memory configuration
 memory_config_t mem_config;
 
+// Memory lookup table for fast address type determination
+memory_lookup_entry_t memory_lookup_table[256];
+
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE];
 uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
@@ -61,6 +64,51 @@ static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flas
 static uint8_t cmos_load_buffer[FLASH_SECTOR_SIZE];  // Buffer for CMOS flash operations
 static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
 static bool cmos_autosave_enabled = true;  // Can be disabled during timing-critical operations
+
+// Initialize memory lookup table
+void memory_init_lookup_table(void) {
+    // Initialize all entries to UNMAPPED
+    for (int i = 0; i < 256; i++) {
+        memory_lookup_table[i].type = MEM_TYPE_UNMAPPED;
+        memory_lookup_table[i].base_address = 0;
+    }
+
+    // Fill ROM range (handles A15 aliasing automatically)
+    if (mem_config.rom_size > 0) {
+        uint16_t rom_end = mem_config.rom_base + mem_config.rom_size;
+        for (uint16_t addr = mem_config.rom_base; addr < rom_end; addr++) {
+            uint8_t page = addr >> 8;  // High 8 bits for table index
+            memory_lookup_table[page].type = MEM_TYPE_ROM;
+            memory_lookup_table[page].base_address = mem_config.rom_base;
+
+            // Handle A15 aliasing: if A15=0, also set the A15=1 alias entry
+            if ((addr & 0x8000) == 0) {
+                uint16_t alias_addr = addr | 0x8000;
+                uint8_t alias_page = alias_addr >> 8;
+                memory_lookup_table[alias_page].type = MEM_TYPE_ROM;
+                memory_lookup_table[alias_page].base_address = mem_config.rom_base;
+            }
+        }
+    }
+
+    // Fill RAM range (excluding CMOS)
+    if (mem_config.ram_size > 0) {
+        uint16_t ram_end = mem_config.ram_base + mem_config.ram_size;
+        for (uint16_t addr = mem_config.ram_base; addr < ram_end; addr++) {
+            // Skip CMOS range
+            if (addr >= mem_config.cmos_base &&
+                addr < mem_config.cmos_base + mem_config.cmos_size) {
+                continue;
+            }
+
+            uint8_t page = addr >> 8;  // High 8 bits for table index
+            memory_lookup_table[page].type = MEM_TYPE_RAM;
+            memory_lookup_table[page].base_address = mem_config.ram_base;
+        }
+    }
+
+    printf("Memory lookup table initialized (%d entries)\n", 256);
+}
 
 // Initialize memory subsystem
 void memory_init(void) {
@@ -82,6 +130,13 @@ void memory_init(void) {
     mem_config.cmos_flash_offset = CMOS_FLASH_OFFSET;
     mem_config.cmos_dirty = false;
     mem_config.configured = true;  // Use defaults
+    
+    // Initialize persistent table configuration
+    mem_config.rom_bus_base = 0;
+    mem_config.rom_bus_size = 0;
+
+    // Initialize lookup table
+    memory_init_lookup_table();
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n",
            mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
@@ -95,9 +150,10 @@ void memory_init(void) {
            mem_config.cmos_base, mem_config.cmos_base + mem_config.cmos_size - 1);
     printf("  Unmapped addresses route to physical bus\n");
 
-    // Restore ROM and CMOS from flash
+    // Restore ROM, CMOS, and table configuration from flash
     memory_init_rom_from_flash();
     memory_init_cmos_from_flash();
+    memory_init_table_config_from_flash();
 }
 
 // Get ROM configuration
@@ -112,7 +168,7 @@ void memory_get_ram_config(uint16_t *base, uint16_t *size) {
     *size = mem_config.ram_size;
 }
 
-// Configure ROM region
+// Configure ROM region (uses RAM shadow for fast access)
 void memory_configure_rom(uint16_t base, uint16_t size) {
     if (size > MAX_ROM_SIZE) {
         printf("ROM size %d exceeds maximum %d\n", size, MAX_ROM_SIZE);
@@ -124,8 +180,40 @@ void memory_configure_rom(uint16_t base, uint16_t size) {
     mem_config.flash_size = size;
     mem_config.configured = true;
 
-    printf("ROM configured: $%04X-$%04X (%d bytes)\n",
+    // Rebuild lookup table to reflect new ROM configuration
+    memory_init_lookup_table();
+
+    printf("ROM configured: $%04X-$%04X (%d bytes, uses RAM shadow)\n",
            base, base + size - 1, size);
+}
+
+// Configure ROM region (reads directly from bus, no shadow)
+void memory_configure_rom_bus(uint16_t base, uint16_t size) {
+    if (size > MAX_ROM_SIZE) {
+        printf("ROM size %d exceeds maximum %d\n", size, MAX_ROM_SIZE);
+        return;
+    }
+
+    // For bus-only ROM, we don't update the main ROM config
+    // Instead, we'll handle this in a separate bus ROM configuration
+    printf("Bus ROM configured: $%04X-$%04X (%d bytes, reads from bus)\n",
+           base, base + size - 1, size);
+    
+    // Update lookup table for this specific range
+    uint16_t end = base + size;
+    for (uint16_t addr = base; addr < end; addr++) {
+        uint8_t page = addr >> 8;
+        memory_lookup_table[page].type = MEM_TYPE_ROM_BUS;
+        memory_lookup_table[page].base_address = 0;  // No shadow base needed
+        
+        // Handle A15 aliasing
+        if ((addr & 0x8000) == 0) {
+            uint16_t alias_addr = addr | 0x8000;
+            uint8_t alias_page = alias_addr >> 8;
+            memory_lookup_table[alias_page].type = MEM_TYPE_ROM_BUS;
+            memory_lookup_table[alias_page].base_address = 0;
+        }
+    }
 }
 
 // Configure RAM region
@@ -141,6 +229,9 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
 
     // Clear RAM shadow
     memset(ram_shadow, 0, size);
+
+    // Rebuild lookup table to reflect new RAM configuration
+    memory_init_lookup_table();
 
     printf("RAM configured: $%04X-$%04X (%d bytes)\n",
            base, base + size - 1, size);
@@ -173,25 +264,40 @@ memory_type_t __time_critical_func(memory_get_type)(uint16_t address) {
 
 // Fast-path read (no GPIO polling for ROM/RAM)
 uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
-    memory_type_t type = memory_get_type(address);
+    // Use table lookup for fast type determination
+    uint8_t page = address >> 8;  // High 8 bits for table index
+    memory_lookup_entry_t entry = memory_lookup_table[page];
 
     // Read from ROM shadow (RAM copy) - fast path
-    if (type == MEM_TYPE_ROM) {
+    if (entry.type == MEM_TYPE_ROM) {
         eclock_accumulate(1);  // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();
 #endif
-        return memory_read_rom_shadow(address);
+        // Use pre-calculated base address for faster access
+        uint16_t rom_offset = address - entry.base_address;
+        return rom_shadow[rom_offset];
+    }
+
+    // Read from physical bus (ROM_BUS) - no shadow
+    if (entry.type == MEM_TYPE_ROM_BUS) {
+        eclock_accumulate(1);  // Track cycle, don't wait
+#if BOARD_TYPE == BOARD_NED_SYS7
+        led_set_rom();
+#endif
+        // Route directly to physical bus
+        return bus_read_cycle(address);
     }
 
     // Read from RAM shadow (with mirroring) - fast path
-    if (type == MEM_TYPE_RAM) {
+    if (entry.type == MEM_TYPE_RAM) {
         eclock_accumulate(1);  // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();
 #endif
 
-        uint16_t ram_offset = address - mem_config.ram_base;
+        // Use pre-calculated base address for faster access
+        uint16_t ram_offset = address - entry.base_address;
 
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
         if (address >= 0x1000 && address <= 0x10FF) {
@@ -211,16 +317,19 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 
 // Fast-path write (no GPIO polling for ROM/RAM)
 void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
-    memory_type_t type = memory_get_type(address);
+    // Use table lookup for fast type determination
+    uint8_t page = address >> 8;  // High 8 bits for table index
+    memory_lookup_entry_t entry = memory_lookup_table[page];
 
     // Write to RAM shadow (with mirroring) - fast path
-    if (type == MEM_TYPE_RAM) {
+    if (entry.type == MEM_TYPE_RAM) {
         eclock_accumulate(1);  // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();
 #endif
 
-        uint16_t ram_offset = address - mem_config.ram_base;
+        // Use pre-calculated base address for faster access
+        uint16_t ram_offset = address - entry.base_address;
 
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
         if (address >= 0x1000 && address <= 0x10FF) {
@@ -245,7 +354,7 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
     }
 
     // ROM writes are ignored but still count cycle
-    if (type == MEM_TYPE_ROM) {
+    if (entry.type == MEM_TYPE_ROM) {
         eclock_accumulate(1);  // Ignored write, still count cycle
         return;
     }
@@ -323,6 +432,17 @@ bool memory_finalize_load(void) {
     printf("Copying ROM to RAM shadow for fast access...\n");
     memcpy(rom_shadow, rom_load_buffer, mem_config.flash_size);
     printf("ROM shadow copy complete (%u bytes)\n", (unsigned int)mem_config.flash_size);
+
+    // Update lookup table to mark ROM addresses as MEM_TYPE_ROM
+    // This handles the case where UNMAPPED addresses were loaded with HEX data
+    uint16_t rom_end = mem_config.rom_base + mem_config.rom_size;
+    for (uint16_t addr = mem_config.rom_base; addr < rom_end; addr++) {
+        uint8_t page = addr >> 8;  // High 8 bits for table index
+        memory_lookup_table[page].type = MEM_TYPE_ROM;
+        memory_lookup_table[page].base_address = mem_config.rom_base;
+    }
+
+    printf("Memory lookup table updated for loaded ROM\n");
 
     return true;
 }
@@ -466,6 +586,114 @@ void memory_check_cmos_autosave(void) {
 // Enable/disable CMOS auto-save (disable during timing-critical operations)
 void memory_set_cmos_autosave_enabled(bool enabled) {
     cmos_autosave_enabled = enabled;
+}
+
+// Initialize table configuration from flash
+void memory_init_table_config_from_flash(void) {
+    // Use a dedicated flash sector for table configuration
+    const uint32_t table_config_offset = CMOS_FLASH_OFFSET + FLASH_SECTOR_SIZE;
+    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + table_config_offset);
+
+    // Check if table config is erased (all 0xFF = new/empty)
+    bool is_erased = true;
+    for (int i = 0; i < sizeof(memory_config_t); i++) {
+        if (flash_ptr[i] != 0xFF) {
+            is_erased = false;
+            break;
+        }
+    }
+
+    if (is_erased) {
+        // No persistent table config - use defaults
+        printf("Table configuration not programmed (flash empty)\n");
+        mem_config.rom_bus_base = 0;
+        mem_config.rom_bus_size = 0;
+    } else {
+        // Restore table configuration from flash
+        const memory_config_t *saved_config = (const memory_config_t *)flash_ptr;
+        mem_config.rom_bus_base = saved_config->rom_bus_base;
+        mem_config.rom_bus_size = saved_config->rom_bus_size;
+        
+        printf("Table configuration restored from flash: Bus ROM $%04X-$%04X\n",
+               mem_config.rom_bus_base, 
+               mem_config.rom_bus_base + mem_config.rom_bus_size - 1);
+        
+        // Rebuild lookup table with persistent configuration
+        memory_init_lookup_table();
+        
+        // Apply bus ROM configuration if present
+        if (mem_config.rom_bus_size > 0) {
+            memory_configure_rom_bus(mem_config.rom_bus_base, mem_config.rom_bus_size);
+        }
+    }
+}
+
+// Clear specific ROM region to MEM_TYPE_ROM_BUS
+void memory_clear_rom_region(uint16_t base, uint16_t size) {
+    uint16_t end = base + size;
+    int cleared_count = 0;
+    
+    for (uint16_t addr = base; addr < end; addr++) {
+        uint8_t page = addr >> 8;
+        
+        // Only clear if currently set to MEM_TYPE_ROM
+        if (memory_lookup_table[page].type == MEM_TYPE_ROM) {
+            memory_lookup_table[page].type = MEM_TYPE_ROM_BUS;
+            memory_lookup_table[page].base_address = 0;
+            cleared_count++;
+            
+            // Handle A15 aliasing
+            if ((addr & 0x8000) == 0) {
+                uint16_t alias_addr = addr | 0x8000;
+                uint8_t alias_page = alias_addr >> 8;
+                memory_lookup_table[alias_page].type = MEM_TYPE_ROM_BUS;
+                memory_lookup_table[alias_page].base_address = 0;
+            }
+        }
+    }
+    
+    printf("Cleared %d table entries from $%04X-$%04X to MEM_TYPE_ROM_BUS\n",
+           cleared_count, base, end - 1);
+}
+
+// Clear all ROM regions to MEM_TYPE_ROM_BUS
+void memory_clear_all_rom_regions(void) {
+    int cleared_count = 0;
+    
+    // Clear all entries that are currently MEM_TYPE_ROM
+    for (uint8_t i = 0; i < 256; i++) {
+        if (memory_lookup_table[i].type == MEM_TYPE_ROM) {
+            memory_lookup_table[i].type = MEM_TYPE_ROM_BUS;
+            memory_lookup_table[i].base_address = 0;
+            cleared_count++;
+        }
+    }
+    
+    printf("Cleared all %d ROM entries to MEM_TYPE_ROM_BUS\n", cleared_count);
+}
+
+// Save table configuration to flash
+bool memory_save_table_config(void) {
+    // Use a dedicated flash sector for table configuration
+    const uint32_t table_config_offset = CMOS_FLASH_OFFSET + FLASH_SECTOR_SIZE;
+    
+    printf("Saving table configuration to flash at offset 0x%08lX...\n", 
+           (unsigned long)table_config_offset);
+
+    // Disable interrupts during flash write
+    uint32_t ints = save_and_disable_interrupts();
+
+    // Erase flash sector
+    flash_range_erase(table_config_offset, FLASH_SECTOR_SIZE);
+
+    // Program flash with current configuration
+    flash_range_program(table_config_offset, (const uint8_t *)&mem_config, sizeof(memory_config_t));
+
+    // Restore interrupts
+    restore_interrupts(ints);
+
+    printf("Table configuration saved to flash\n");
+    return true;
 }
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
