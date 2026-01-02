@@ -76,6 +76,8 @@ void memory_init_lookup_table(void) {
     // Fill ROM range (handles A15 aliasing automatically)
     if (mem_config.rom_size > 0) {
         uint16_t rom_end = mem_config.rom_base + mem_config.rom_size;
+        uint16_t translated_rom_base = mem_config.rom_base & ADDR_MASK_A15;
+        
         for (uint16_t addr = mem_config.rom_base; addr < rom_end; addr++) {
             uint8_t page = addr >> 8;  // High 8 bits for table index
             memory_lookup_table[page].type = MEM_TYPE_ROM;
@@ -86,7 +88,7 @@ void memory_init_lookup_table(void) {
                 uint16_t alias_addr = addr | 0x8000;
                 uint8_t alias_page = alias_addr >> 8;
                 memory_lookup_table[alias_page].type = MEM_TYPE_ROM;
-                memory_lookup_table[alias_page].base_address = mem_config.rom_base;
+                memory_lookup_table[alias_page].base_address = translated_rom_base;
             }
         }
     }
@@ -274,8 +276,11 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();
 #endif
-        // Use pre-calculated base address for faster access
-        uint16_t rom_offset = address - entry.base_address;
+        // Use pre-calculated base address from lookup table (handles A15 aliasing)
+        // For A15 aliased addresses (0xC000-0xFFFF), the base_address is already translated
+        // but we need to use the translated address for offset calculation
+        uint16_t translated_addr = address & ADDR_MASK_A15;
+        uint16_t rom_offset = translated_addr - entry.base_address;
         return rom_shadow[rom_offset];
     }
 
@@ -379,15 +384,19 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
     // (e.g., $D800 -> $5800, $FFF8 -> $7FF8)
     uint16_t physical_addr = address & ADDR_MASK_A15;
 
-    // Check if address is in ROM range
-    if (physical_addr < mem_config.rom_base ||
-        physical_addr >= mem_config.rom_base + mem_config.rom_size) {
-        printf("HEX address $%04X (physical $%04X) outside ROM/CMOS range\n",
-               address, physical_addr);
+    // Check if translated address is in translated ROM range
+    uint16_t translated_rom_base = mem_config.rom_base & ADDR_MASK_A15;
+    uint16_t translated_rom_end = translated_rom_base + mem_config.rom_size;
+
+    if (physical_addr < translated_rom_base ||
+        physical_addr >= translated_rom_end) {
+        printf("HEX address $%04X (physical $%04X) outside ROM range $%04X-$%04X\n",
+               address, physical_addr, translated_rom_base, translated_rom_end - 1);
         return false;
     }
 
-    uint16_t rom_offset = physical_addr - mem_config.rom_base;
+    // Calculate offset in ROM shadow using translated addresses
+    uint16_t rom_offset = physical_addr - translated_rom_base;
     if (rom_offset + length > mem_config.rom_size) {
         printf("HEX data exceeds ROM size\n");
         return false;
@@ -436,10 +445,20 @@ bool memory_finalize_load(void) {
     // Update lookup table to mark ROM addresses as MEM_TYPE_ROM
     // This handles the case where UNMAPPED addresses were loaded with HEX data
     uint16_t rom_end = mem_config.rom_base + mem_config.rom_size;
+    uint16_t translated_rom_base = mem_config.rom_base & ADDR_MASK_A15;
+    
     for (uint16_t addr = mem_config.rom_base; addr < rom_end; addr++) {
         uint8_t page = addr >> 8;  // High 8 bits for table index
         memory_lookup_table[page].type = MEM_TYPE_ROM;
         memory_lookup_table[page].base_address = mem_config.rom_base;
+
+        // Handle A15 aliasing: if A15=0, also update the A15=1 alias entry
+        if ((addr & 0x8000) == 0) {
+            uint16_t alias_addr = addr | 0x8000;
+            uint8_t alias_page = alias_addr >> 8;
+            memory_lookup_table[alias_page].type = MEM_TYPE_ROM;
+            memory_lookup_table[alias_page].base_address = translated_rom_base;
+        }
     }
 
     printf("Memory lookup table updated for loaded ROM\n");
