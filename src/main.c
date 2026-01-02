@@ -171,6 +171,9 @@ int main() {
     instruction_count_initialize();
 #endif
 
+    // TODO: make autosave persistent
+    memory_set_cmos_autosave_enabled(false);
+
     printf("Core 0: CPU emulation started\n");
     fflush(stdout);
     printf("Waiting for EPROM load via USB...\n\n");

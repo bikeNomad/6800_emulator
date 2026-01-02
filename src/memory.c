@@ -441,6 +441,14 @@ bool memory_save_cmos(void) {
     return true;
 }
 
+bool memory_is_cmos_autosave_enabled(void) {
+    return cmos_autosave_enabled;
+}
+
+bool memory_is_cmos_dirty(void) {
+    return mem_config.cmos_dirty;
+}
+
 // Check if CMOS needs auto-save (call periodically from main loop)
 void memory_check_cmos_autosave(void) {
     // Skip if auto-save is disabled (e.g., during timing-critical operations)

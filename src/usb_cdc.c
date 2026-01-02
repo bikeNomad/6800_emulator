@@ -138,7 +138,12 @@ static void cmd_config_show(void) {
                    ram_size, ram_size / 1024);
     usb_cdc_send("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
     usb_cdc_printf("  Debug SPI: %s\r\n", debug_spi_is_enabled() ? "ON" : "OFF");
-}
+    usb_cdc_printf("  CMOS Autosave: %s\r\n",
+                   memory_is_cmos_autosave_enabled() ? "ENABLED" : "DISABLED");
+    usb_cdc_printf("  CMOS Dirty: %s\r\n",
+                   memory_is_cmos_dirty() ? "YES" : "NO");
+
+                }
 
 static void cmd_config_rom(void) {
     // Configure ROM region: config rom <base> <size>
@@ -285,13 +290,15 @@ static void cmd_status(void) {
                    cpu_get_flag(CCR_C) ? 'C' : '-');
 
     uint32_t cycle_cnt = eclock_get_count();
-    int32_t eclock_pio_cycles = eclock_is_running() ? (int32_t)eclock_get_pio_cycles() : (int32_t)last_pio_cycles;
+    uint32_t eclock_pio_cycles = eclock_is_running()
+        ? eclock_get_pio_cycles()
+        : last_pio_cycles;
 
     usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
     usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
     usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)cpu.instruction_count);
-    usb_cdc_printf("  Cycle Count: %lu\r\n", (unsigned long)cycle_cnt);
-    usb_cdc_printf("  PIO Cycles: %lu\r\n", (unsigned long)eclock_pio_cycles);
+    usb_cdc_printf("  Cycle Count: %lu\r\n", cycle_cnt);
+    usb_cdc_printf("  PIO Cycles: %lu\r\n", eclock_pio_cycles);
     usb_cdc_printf("  Overage: %ld\r\n", (long)cycle_overage);
     usb_cdc_printf("  Underage: %ld\r\n", (long)cycle_underage);
     usb_cdc_printf("  Speed ratio: %fx\r\n",
@@ -308,6 +315,19 @@ static void cmd_status(void) {
     uint32_t sys_clock_hz = clock_get_hz(clk_sys);
     uint32_t qspi_freq_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
     usb_cdc_printf("  QSPI Bus: %lu MHz (divisor: %d)\r\n", qspi_freq_hz / 1000000, QSPI_CLOCK_DIVISOR);
+
+    if (bus_read_reset()) {
+        usb_cdc_printf("  /RESET Pin asserted\r\n");
+    }
+    if (bus_read_nmi()) {
+        usb_cdc_printf("  /NMI Pin asserted\r\n");
+    }
+    if (bus_read_irq()) {
+        usb_cdc_printf("  /IRQ Pin asserted\r\n");
+    }
+    if (!eclock_is_running()) {
+        usb_cdc_printf("  E Clock is stopped\r\n");
+    }
 }
 
 static void cmd_read(void) {
