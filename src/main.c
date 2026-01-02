@@ -139,12 +139,12 @@ int main() {
     printf("Initializing bus interface...\n");
     bus_init();
 
+    printf("Initializing PIO bus cycles...\n");
+    bus_cycle_pio_init();
+
     printf("Initializing E clock...\n");
     eclock_init();
     // Note: E clock will be started by cpu_start() when user runs 'run' command
-
-    printf("Initializing PIO bus cycles...\n");
-    bus_cycle_pio_init();
 
     printf("Initializing debug SPI...\n");
     debug_spi_init();

@@ -320,8 +320,7 @@ static void cmd_run(void) {
 static void cmd_halt(void) {
     // Stop CPU execution and save CMOS
     cpu_halt();
-    memory_save_cmos();
-    usb_cdc_send("OK: CPU halted, CMOS saved\r\n");
+    usb_cdc_send("OK: CPU halted\r\n");
 }
 
 static void cmd_reset(void) {
@@ -379,7 +378,9 @@ static void cmd_status(void) {
                    cpu_get_flag(CCR_C) ? 'C' : '-');
 
     uint32_t cycle_cnt = eclock_get_count();
-    int32_t eclock_pio_cycles = eclock_is_running() ? (int32_t)eclock_get_pio_cycles() : (int32_t)last_pio_cycles;
+    uint32_t eclock_pio_cycles = eclock_is_running()
+        ? eclock_get_pio_cycles()
+        : last_pio_cycles;
 
     usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
     usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
@@ -402,6 +403,19 @@ static void cmd_status(void) {
     uint32_t sys_clock_hz = clock_get_hz(clk_sys);
     uint32_t qspi_freq_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
     usb_cdc_printf("  QSPI Bus: %lu MHz (divisor: %d)\r\n", qspi_freq_hz / 1000000, QSPI_CLOCK_DIVISOR);
+
+    if (bus_read_reset()) {
+        usb_cdc_printf("  /RESET Pin asserted\r\n");
+    }
+    if (bus_read_nmi()) {
+        usb_cdc_printf("  /NMI Pin asserted\r\n");
+    }
+    if (bus_read_irq()) {
+        usb_cdc_printf("  /IRQ Pin asserted\r\n");
+    }
+    if (!eclock_is_running()) {
+        usb_cdc_printf("  E Clock is stopped\r\n");
+    }
 }
 
 static void cmd_read(void) {

@@ -63,6 +63,11 @@ bool cpu_is_running(void) {
 
 // Start CPU execution
 void cpu_start(void) {
+    if (cpu_is_running()) {
+        printf("CPU is already running\n");
+        return;  // Already running
+    }
+
     // Check if /RESET is asserted (bus_read_reset() returns true when LOW)
     if (bus_read_reset()) {
         printf("WARNING: Cannot start CPU while /RESET is asserted\n");

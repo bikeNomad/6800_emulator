@@ -54,10 +54,14 @@ void eclock_init(void) {
 
 // Start E clock generation
 void eclock_start(void) {
+    if (eclock_is_running()) {
+        return;  // already started
+    }
     // Reset PIO cycle counter before starting
     eclock_reset_pio_counter();
 
     pio_sm_set_enabled(ECLK_PIO, E_SM, true);
+    pio_sm_restart(ECLK_PIO, SYNC_SM);
     cycle_count = 0;
     cycle_overage = 0;
     cycle_underage = 0;

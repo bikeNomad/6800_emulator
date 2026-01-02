@@ -2389,5 +2389,4 @@ void __time_critical_func(instruction_execute)(void) {
 
     // Sync accumulated cycles once at end of instruction
     eclock_sync_instruction();
-
 }

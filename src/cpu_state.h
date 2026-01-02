@@ -35,7 +35,7 @@ typedef struct {
     bool wai_state;   // CPU waiting for interrupt (WAI instruction)
     bool irq_pending; // IRQ request pending
     bool nmi_pending; // NMI request pending
-    uint64_t instruction_count; // Total instructions executed since reset
+    uint32_t instruction_count; // Total instructions executed since reset
 
     // Breakpoint system
     uint16_t breakpoints[MAX_BREAKPOINTS];
