@@ -37,7 +37,7 @@ void eclock_init(void) {
         return;
     }
     eclock_program_init(ECLK_PIO, E_SM, eclock_offset, GPIO_ECLOCK);
-    
+
     sync_offset = pio_add_program(ECLK_PIO, &sync_program);
     if (sync_offset < 0) {
         printf("Failed to add sync program to PIO\r\n");

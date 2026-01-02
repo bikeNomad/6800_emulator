@@ -38,7 +38,7 @@ void debug_spi_log(void) {
 
     // Prepare 4-byte debug packet:
     // Word 0: PC (high byte, low byte)
-    // Word 1: CPU CCR 
+    // Word 1: CPU CCR
     uint8_t packet[4];
 
     packet[1] = (cpu.pc >> 8) & 0xFF;

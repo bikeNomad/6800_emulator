@@ -143,21 +143,21 @@ static void cmd_config_show(void) {
 static void cmd_memory_map(void) {
     // Display current memory map with coalesced ranges
     usb_cdc_send("Memory Map (coalesced ranges):\r\n");
-    
+
     memory_type_t current_type = MEM_TYPE_UNMAPPED;
     unsigned range_start = 0;
     unsigned range_end = 0;
-    
+
     for (unsigned addr = 0; addr <= MAX_ADDRESS; addr++) {
         uint8_t page = addr >> 8;
         memory_type_t type = memory_lookup_table[page].type;
-        
+
         // Check for A15 aliasing - if A15=1, use the A15=0 equivalent
         if (addr >= 0x8000) {
             uint8_t base_page = (addr & 0x7FFF) >> 8;
             type = memory_lookup_table[base_page].type;
         }
-        
+
         if (addr == 0) {
             // Initialize first range
             current_type = type;
@@ -177,18 +177,18 @@ static void cmd_memory_map(void) {
                 case MEM_TYPE_CMOS: type_str = "CMOS"; break;
                 default: type_str = "UNKNOWN";
             }
-            
+
             uint16_t range_size = range_end - range_start + 1;
-            usb_cdc_printf("  $%04X-$%04X (%5d bytes): %s\r\n", 
+            usb_cdc_printf("  $%04X-$%04X (%5d bytes): %s\r\n",
                            range_start, range_end, range_size, type_str);
-            
+
             // Start new range
             current_type = type;
             range_start = addr;
             range_end = addr;
         }
     }
-    
+
     // Handle the final range
     if (range_start <= MAX_ADDRESS) {
         const char* type_str;
@@ -200,12 +200,12 @@ static void cmd_memory_map(void) {
             case MEM_TYPE_CMOS: type_str = "CMOS"; break;
             default: type_str = "UNKNOWN";
         }
-        
+
         uint16_t range_size = range_end - range_start + 1;
-        usb_cdc_printf("  $%04X-$%04X (%5d bytes): %s\r\n", 
+        usb_cdc_printf("  $%04X-$%04X (%5d bytes): %s\r\n",
                        range_start, range_end, range_size, type_str);
     }
-    
+
     // Show A15 aliasing note
     usb_cdc_send("\r\nNote: A15 aliasing handled automatically\r\n");
 }
@@ -217,7 +217,7 @@ static void cmd_config_rom(void) {
         usb_cdc_send("ERROR: Usage: config rom <base_hex> <size_hex>\r\n");
         return;
     }
-    
+
     unsigned int base, size;
     if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
         memory_configure_rom(base, size);
@@ -234,7 +234,7 @@ static void cmd_config_ram(void) {
         usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
         return;
     }
-    
+
     unsigned int base, size;
     if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
         memory_configure_ram(base, size);
@@ -275,7 +275,7 @@ static void cmd_cmos_autosave(void) {
         usb_cdc_send("ERROR: Usage: cmos autosave on/off\r\n");
         return;
     }
-    
+
     if (strcmp(cmd_tokens[0], "on") == 0) {
         memory_set_cmos_autosave_enabled(true);
         usb_cdc_send("OK: CMOS autosave enabled\r\n");
@@ -294,7 +294,7 @@ static void cmd_clear_rom(void) {
         usb_cdc_send("ERROR: Usage: clear rom <base_hex> <size_hex>\r\n");
         return;
     }
-    
+
     unsigned int base, size;
     if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
         memory_clear_rom_region(base, size);
@@ -886,12 +886,12 @@ static int tokenize_command(char *cmd) {
     // Tokenize the command line into words
     cmd_token_count = 0;
     char *token = strtok(cmd, " \t");
-    
+
     while (token != NULL && cmd_token_count < MAX_TOKENS) {
         cmd_tokens[cmd_token_count++] = token;
         token = strtok(NULL, " \t");
     }
-    
+
     return cmd_token_count;
 }
 
@@ -962,7 +962,7 @@ static void dispatch_command(void) {
         const char *cmd_name = command_table[i].name;
         bool matched = false;
         int tokens_consumed = 0;
-        
+
         // Check if this is a two-word command (contains a space)
         if (strchr(cmd_name, ' ') != NULL) {
             // Two-word command - only match if we have enough tokens
@@ -977,7 +977,7 @@ static void dispatch_command(void) {
                 tokens_consumed = 1;
             }
         }
-        
+
         if (matched) {
             // If command needs arguments, shift remaining tokens
             if (command_table[i].needs_args) {
@@ -986,7 +986,7 @@ static void dispatch_command(void) {
                 }
                 cmd_token_count -= tokens_consumed;
             }
-            
+
             // Call the handler
             command_table[i].handler();
             return;

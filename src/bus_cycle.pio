@@ -71,7 +71,7 @@ static inline void bus_cycle_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_set_pindirs_with_mask(pio, sm,
         (1u << GPIO_VMA) | (1u << GPIO_RW),     // dirs
         (1u << GPIO_VMA) | (1u << GPIO_RW));    // mask
-    pio_sm_set_pins_with_mask(pio, sm, 
+    pio_sm_set_pins_with_mask(pio, sm,
         (0u << GPIO_VMA) | (1u << GPIO_RW),     // init
         (1u << GPIO_VMA) | (1u << GPIO_RW));    // mask
 

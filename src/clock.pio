@@ -80,7 +80,7 @@ static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) 
 }
 
 static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_pin, uint test_pin) {
-    pio_gpio_init(pio, test_pin); 
+    pio_gpio_init(pio, test_pin);
 
     // Configure test pin as PIO output
     pio_sm_set_consecutive_pindirs(pio, sm, test_pin, 1, true);
@@ -89,7 +89,7 @@ static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_p
     pio_sm_config c = sync_program_get_default_config(offset);
     sm_config_set_set_pins(&c, test_pin, 1);
     sm_config_set_in_pins(&c, clock_pin);
-    
+
     sm_config_set_clkdiv_int_frac(&c, 1, 0);
 
     pio_sm_init(pio, sm, offset, &c);

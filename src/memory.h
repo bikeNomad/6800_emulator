@@ -55,7 +55,7 @@ typedef struct {
     uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
     uint32_t cmos_flash_offset;  // Offset in flash for CMOS storage
     bool cmos_dirty;        // CMOS has unsaved changes
-    
+
     // Persistent table configuration
     uint16_t rom_bus_base;  // Base address for bus-only ROM
     uint16_t rom_bus_size;  // Size of bus-only ROM region
