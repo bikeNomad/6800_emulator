@@ -137,3 +137,21 @@ const uint16_t* cpu_get_breakpoints(void) {
 
 // Note: cpu_get_flag, cpu_set_flag, cpu_update_nz, cpu_update_nzv,
 // cpu_push, cpu_pull, cpu_push16, cpu_pull16 are now inline in cpu_state.h
+
+void cpu_print_state(printf_func_t printf_func) {
+    printf_func("  PC: $%04X  (%s)\r\n",
+                    cpu.last_opcode_address,
+                    instruction_get_mnemonic(memory_read_rom_shadow(cpu.last_opcode_address)));
+    printf_func("  A:  $%02X\r\n", cpu.a);
+    printf_func("  B:  $%02X\r\n", cpu.b);
+    printf_func("  X:  $%04X\r\n", cpu.x);
+    printf_func("  SP: $%04X\r\n", cpu.sp);
+    printf_func("  CCR: $%02X [%c%c%c%c%c%c]\r\n",
+                   cpu.ccr,
+                   cpu_get_flag(CCR_H) ? 'H' : '-',
+                   cpu_get_flag(CCR_I) ? 'I' : '-',
+                   cpu_get_flag(CCR_N) ? 'N' : '-',
+                   cpu_get_flag(CCR_Z) ? 'Z' : '-',
+                   cpu_get_flag(CCR_V) ? 'V' : '-',
+                   cpu_get_flag(CCR_C) ? 'C' : '-');
+}

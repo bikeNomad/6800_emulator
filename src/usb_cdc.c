@@ -2,9 +2,6 @@
  * USB CDC Interface Implementation
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
 #include "usb_cdc.h"
 #include "cpu_state.h"
 #include "memory.h"
@@ -13,7 +10,6 @@
 #include "interrupts.h"
 #include "clock.h"
 #include "debug_spi.h"
-#include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "hardware/clocks.h"
 #include "tusb.h"
@@ -273,22 +269,7 @@ static void cmd_bus_info(void) {
 static void cmd_status(void) {
     // Get CPU status
     usb_cdc_printf("CPU Status:\r\n");
-    usb_cdc_printf("  PC: $%04X  (%s)\r\n",
-                    cpu.last_opcode_address,
-                    instruction_get_mnemonic(memory_read_rom_shadow(cpu.last_opcode_address)));
-    usb_cdc_printf("  A:  $%02X\r\n", cpu.a);
-    usb_cdc_printf("  B:  $%02X\r\n", cpu.b);
-    usb_cdc_printf("  X:  $%04X\r\n", cpu.x);
-    usb_cdc_printf("  SP: $%04X\r\n", cpu.sp);
-    usb_cdc_printf("  CCR: $%02X [%c%c%c%c%c%c]\r\n",
-                   cpu.ccr,
-                   cpu_get_flag(CCR_H) ? 'H' : '-',
-                   cpu_get_flag(CCR_I) ? 'I' : '-',
-                   cpu_get_flag(CCR_N) ? 'N' : '-',
-                   cpu_get_flag(CCR_Z) ? 'Z' : '-',
-                   cpu_get_flag(CCR_V) ? 'V' : '-',
-                   cpu_get_flag(CCR_C) ? 'C' : '-');
-
+    cpu_print_state(usb_cdc_printf);
     uint32_t cycle_cnt = eclock_get_count();
     uint32_t eclock_pio_cycles = eclock_is_running()
         ? eclock_get_pio_cycles()
@@ -1055,13 +1036,14 @@ void usb_cdc_send(const char *str) {
 }
 
 // Send formatted string to USB
-void usb_cdc_printf(const char *fmt, ...) {
+int usb_cdc_printf(const char * restrict fmt, ...) {
     char buffer[256];
     va_list args;
     va_start(args, fmt);
-    vsnprintf(buffer, sizeof(buffer), fmt, args);
+    int retval = vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
     usb_cdc_send(buffer);
+    return retval;
 }
 
 //--------------------------------------------------------------------+

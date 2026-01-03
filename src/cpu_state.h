@@ -6,8 +6,7 @@
 #ifndef CPU_STATE_H
 #define CPU_STATE_H
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "emulator.h"
 #include "memory.h"  // For memory_read_fast/write_fast in inline stack functions
 
 // Condition Code Register (CCR) flag bits
@@ -18,9 +17,6 @@
 #define CCR_I  0x10  // Interrupt mask
 #define CCR_H  0x20  // Half-carry
 #define CCR_FIXED 0xC0  // Bits 7-6 always set to 1
-
-// Breakpoint system
-#define MAX_BREAKPOINTS 16
 
 // MC6800 CPU state
 typedef struct {
@@ -135,5 +131,7 @@ static inline uint16_t cpu_pull16(void) {
     uint16_t low = cpu_pull();
     return (high << 8) | low;
 }
+
+void cpu_print_state(printf_func_t printf_func);
 
 #endif // CPU_STATE_H

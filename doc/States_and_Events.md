@@ -30,3 +30,8 @@
 - Eclock count (from PIO)
 - over/under cycles (from instruction execution)
 - Per-instruction count and cycles (can be turned off)
+## NOTES
+- WAI instruction shortens IRQ response to 4 cycles
+    - load vector (2 cycles)
+- IRQ response is nornally 12 cycles
+- WAI takes 9 cycles (stacks PC, X, A, B, CCR)

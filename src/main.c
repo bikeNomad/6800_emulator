@@ -7,8 +7,6 @@
  * - Core 1: Dedicated USB CDC processing
  */
 
-#include <stdio.h>
-#include <stdbool.h>
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
 #include "hardware/gpio.h"
@@ -17,7 +15,7 @@
 #include "hardware/regs/qmi.h"
 #include "hardware/structs/qmi.h"
 
-
+#include "emulator.h"
 #include "cpu_state.h"
 #include "memory.h"
 #include "bus.h"
@@ -26,19 +24,6 @@
 #include "interrupts.h"
 #include "usb_cdc.h"
 #include "debug_spi.h"
-
-// Global CPU state
-extern cpu_state_t cpu;
-
-// System clock speed in MHz (configurable at build time)
-#ifndef SYS_CLOCK_MHZ
-#define SYS_CLOCK_MHZ 266  // Default: 266MHz (optimized for 133MHz QSPI flash)
-#endif
-
-// QSPI flash interface speed divisor (configurable at build time)
-#ifndef QSPI_CLOCK_DIVISOR
-#define QSPI_CLOCK_DIVISOR 2  // Default: system clock / 2 (133MHz with 266MHz sys clock)
-#endif
 
 // Get current QSPI flash interface speed
 uint32_t qspi_get_current_speed(void) {

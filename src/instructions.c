@@ -47,7 +47,7 @@ void instruction_count_report(printf_func_t printf_func) {
         uint32_t count = p->count;
         if (count > 0) {
             const char *mnemonic = instruction_get_mnemonic(opcode);
-            printf_func(" $%02X  %2u  %-18s %10u\r\n", opcode, cycles, mnemonic, count);
+            printf_func(" $%02X  %2u  %-18s %10lu\r\n", opcode, cycles, mnemonic, count);
         }
     }
 

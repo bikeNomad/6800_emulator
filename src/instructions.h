@@ -6,11 +6,7 @@
 #ifndef INSTRUCTIONS_H
 #define INSTRUCTIONS_H
 
-// Enable instruction counting for profiling (set to 0 to disable)
-#define COUNT_INSTRUCTIONS 1
-
-#include <stdint.h>
-#include <stdbool.h>
+#include "emulator.h"
 #include "hardware/sync.h"
 
 // Execute one instruction (cycle-accurate)
@@ -62,8 +58,6 @@ static inline void instruction_count_increment(uint8_t opcode) {
 }
 
 void instruction_count_initialize(void);
-
-typedef void (*printf_func_t)(const char *fmt, ...);
 
 void instruction_count_report(printf_func_t printf_func);
 

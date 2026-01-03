@@ -6,8 +6,7 @@
 #ifndef USB_CDC_H
 #define USB_CDC_H
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "emulator.h"
 
 // Initialize USB CDC interface
 void usb_cdc_init(void);
@@ -19,6 +18,6 @@ void usb_cdc_task(void);
 void usb_cdc_send(const char *str);
 
 // Send formatted string to USB
-void usb_cdc_printf(const char *fmt, ...);
+int usb_cdc_printf(const char * restrict fmt, ...);
 
 #endif // USB_CDC_H

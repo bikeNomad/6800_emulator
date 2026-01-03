@@ -6,14 +6,7 @@
 #ifndef INTERRUPTS_H
 #define INTERRUPTS_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
-
-// Debug output control (set via CMakeLists.txt)
-#ifndef DEBUG_INTERRUPTS
-  #define DEBUG_INTERRUPTS 1
-#endif
+#include "emulator.h"
 
 #if DEBUG_INTERRUPTS
   #define DEBUG_INT_PRINTF(...) printf(__VA_ARGS__)
