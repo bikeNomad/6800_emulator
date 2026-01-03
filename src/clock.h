@@ -14,6 +14,7 @@
 #include "board_config.h"
 #include "hardware/pio_instructions.h"
 #include "hardware/structs/iobank0.h"
+#include "instructions.h"
 
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
@@ -29,7 +30,7 @@ void eclock_init(void);
 void eclock_start(void);
 
 // Stop E clock generation
-void eclock_stop(void);
+bool eclock_stop(void);
 
 static inline bool eclock_is_running(void) {
     return ECLK_PIO->ctrl & ((1 << E_SM) << PIO_CTRL_SM_ENABLE_LSB);
@@ -127,6 +128,19 @@ static inline void bus_sync(void) {
         cycle_overage += (-diff);
     }
 }
+
+static inline void clock_reset_counters(void) {
+    cycle_count = 0;
+    pending_cycles = 0;
+    cycle_overage = 0;
+    cycle_underage = 0;
+    last_pio_cycles = 0;
+    eclock_reset_pio_counter();
+#if COUNT_INSTRUCTIONS
+    instruction_count_initialize();
+#endif
+}
+
 
 
 #endif // CLOCK_H

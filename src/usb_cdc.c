@@ -274,8 +274,8 @@ static void cmd_status(void) {
     // Get CPU status
     usb_cdc_printf("CPU Status:\r\n");
     usb_cdc_printf("  PC: $%04X  (%s)\r\n",
-                    cpu.pc,
-                    instruction_get_mnemonic(memory_read_rom_shadow(cpu.pc)));
+                    cpu.last_opcode_address,
+                    instruction_get_mnemonic(memory_read_rom_shadow(cpu.last_opcode_address)));
     usb_cdc_printf("  A:  $%02X\r\n", cpu.a);
     usb_cdc_printf("  B:  $%02X\r\n", cpu.b);
     usb_cdc_printf("  X:  $%04X\r\n", cpu.x);
@@ -743,6 +743,8 @@ static void cmd_reset_instruction_counts(void) {
     bool old = instruction_count_enable(false);
     instruction_count_initialize();
     instruction_count_enable(old);
+    cpu.instruction_count = 0;  // Reset instruction counter
+    clock_reset_counters();
     usb_cdc_printf("OK: Instruction counts reset (counting: %d)\r\n", old);
 }
 

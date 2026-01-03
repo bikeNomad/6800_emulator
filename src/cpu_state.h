@@ -36,6 +36,7 @@ typedef struct {
     bool irq_pending; // IRQ request pending
     bool nmi_pending; // NMI request pending
     uint64_t instruction_count; // Total instructions executed since reset
+    volatile uint16_t last_opcode_address;   // address of last opcode fetched
 
     // Breakpoint system
     uint16_t breakpoints[MAX_BREAKPOINTS];

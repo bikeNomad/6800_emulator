@@ -68,38 +68,47 @@ void __time_critical_func(interrupt_check)(void) {
 void interrupt_service_reset(void) {
     DEBUG_INT_PRINTF("\n*** RESET ***\n");
 
-    // Reset CPU state
-    cpu.a = 0;
-    cpu.b = 0;
-    cpu.x = 0x0000;
-    cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
-    cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
-    cpu.wai_state = false;  // Clear WAI state
-    cpu.instruction_count = 0;  // Reset instruction counter
+    bool clock_was_running = eclock_is_running();
+    if (clock_was_running) {
+        eclock_stop();
+    }
+
+    led_all_off();
 
     // Load PC from reset vector
     uint8_t pch = memory_read_fast(VECTOR_RESET);
     uint8_t pcl = memory_read_fast(VECTOR_RESET + 1);
     cpu.pc = (pch << 8) | pcl;
 
+    // Reset CPU state per datasheet
+    cpu.a = 0;
+    cpu.b = 0;
+    cpu.x = 0x0000;
+    cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
+    cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
+    cpu.wai_state = false;  // Clear WAI state
+
+    cpu.halted = true;
+    cpu.running = false;
+
+    cpu.instruction_count = 0;  // Reset instruction counter
+    clock_reset_counters();
+
     DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
 
-    // Check if /RESET line is HIGH (released)
-    // bus_read_reset() returns true when /RESET is LOW (asserted)
-    if (!bus_read_reset()) {
-        // /RESET is HIGH - automatically start execution (MC6800 behavior)
-        cpu.running = true;
-        cpu.halted = false;
-        eclock_start();
-        DEBUG_INT_PRINTF("CPU started after RESET release\n");
-    } else {
-        // /RESET still LOW - stay halted
-        cpu.halted = true;
-        cpu.running = false;
-        eclock_stop();
-        led_all_off();
-        DEBUG_INT_PRINTF("CPU halted while /RESET asserted\n");
+    // stay halted while /RESET still LOW 
+    while (bus_read_reset()) {
+        tight_loop_contents();
     }
+
+    // /RESET is HIGH - automatically start execution (MC6800 behavior)
+    cpu.running = true;
+    cpu.halted = false;
+    if (clock_was_running) {
+        eclock_start();
+    }
+
+    DEBUG_INT_PRINTF("CPU started after RESET release\n");
 
     // Memory barrier - ensure Core 0 sees updated flags immediately
     __mem_fence_release();

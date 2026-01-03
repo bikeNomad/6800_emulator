@@ -18,7 +18,7 @@ cpu_state_t cpu;
 // Initialize CPU state
 void cpu_init(void) {
     // Initialize registers
-    cpu.pc = 0x0000;
+    cpu.pc = cpu.last_opcode_address = 0x0000;
     cpu.a = 0x00;
     cpu.b = 0x00;
     cpu.x = 0x0000;

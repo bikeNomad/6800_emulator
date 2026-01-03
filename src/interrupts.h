@@ -12,7 +12,7 @@
 
 // Debug output control (set via CMakeLists.txt)
 #ifndef DEBUG_INTERRUPTS
-  #define DEBUG_INTERRUPTS 0
+  #define DEBUG_INTERRUPTS 1
 #endif
 
 #if DEBUG_INTERRUPTS

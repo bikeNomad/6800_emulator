@@ -291,6 +291,7 @@ void __time_critical_func(instruction_execute)(void) {
     // Fetch opcode using fast path (no GPIO polling)
     static uint8_t opcode;
 
+    cpu.last_opcode_address = cpu.pc;
     opcode = memory_read_fast(cpu.pc++);
 
 #if COUNT_INSTRUCTIONS

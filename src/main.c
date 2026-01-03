@@ -208,7 +208,8 @@ int main() {
                     // Breakpoint hit - halt CPU and set flag to skip check on next run
                     cpu_halt();
                     cpu.stopped_at_breakpoint = true;
-                    usb_cdc_printf("CPU halted at breakpoint at PC=$%04X\r\n", cpu.pc);
+                    usb_cdc_printf("CPU halted at breakpoint at PC=$%04X Prior PC=$%04X\r\n",
+                        cpu.pc, cpu.last_opcode_address);
                     continue;  // Skip instruction execution
                 }
 
