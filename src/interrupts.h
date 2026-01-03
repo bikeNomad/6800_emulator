@@ -20,11 +20,19 @@
 #define VECTOR_SWI    0xFFFA  // Software interrupt
 #define VECTOR_IRQ    0xFFF8  // Interrupt request (maskable)
 
+typedef enum interrupt_t {
+  INT_NONE,   // no interrupts detected
+  INT_RESET,
+  INT_NMI,
+  INT_IRQ,
+} interrupt_t;
+
+
 // Initialize interrupt handling
 void interrupts_init(void);
 
 // Check for pending interrupts
-void interrupt_check(void);
+interrupt_t interrupt_check(void);
 
 // Service an interrupt (called by interrupt_check)
 void interrupt_service_reset(void);

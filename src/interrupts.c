@@ -31,18 +31,20 @@ void interrupts_init(void) {
 }
 
 // Check for pending interrupts
-void __time_critical_func(interrupt_check)(void) {
+interrupt_t __time_critical_func(interrupt_check)(void) {
     bool irq = bus_read_irq();
     bool nmi = bus_read_nmi();
     bool reset = bus_read_reset();
 
     // RESET has highest priority (edge-triggered)
-    if (reset && !last_reset_state) {
-        last_reset_state = reset;
-        interrupt_service_reset();
-        return;
+    if (reset) {
+        if (!last_reset_state) {
+            last_reset_state = reset;
+            interrupt_service_reset();
+        }
+        return INT_RESET;
     }
-    last_reset_state = reset;
+    last_reset_state = false;
 
     // NMI second priority (edge-triggered, falling edge)
     if (nmi && !last_nmi_state) {
@@ -55,13 +57,16 @@ void __time_critical_func(interrupt_check)(void) {
     if (cpu.nmi_pending) {
         interrupt_service_nmi();
         cpu.nmi_pending = false;
-        return;
+        return INT_NMI;
     }
 
     // IRQ lowest priority (level-triggered, maskable)
     if (irq && !cpu_get_flag(CCR_I)) {
         interrupt_service_irq();
+        return INT_IRQ;
     }
+    
+    return INT_NONE;
 }
 
 // Service RESET interrupt
