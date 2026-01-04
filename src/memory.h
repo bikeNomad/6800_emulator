@@ -18,11 +18,9 @@
 #define MAX_ROM_SIZE (32 * 1024)  // 32KB max ROM
 #define MAX_RAM_SIZE (8 * 1024)  // 8KB max RAM (supports up to 0x1FFF)
 
-// CMOS RAM persistent storage configuration
-#define CMOS_FLASH_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)  // 0x108000
+// CMOS RAM 
 #define CMOS_SIZE 256
 #define CMOS_BASE 0x0100
-#define CMOS_AUTOSAVE_DELAY_MS 30000  // 30 seconds
 
 // Memory region types
 typedef enum {
@@ -40,15 +38,16 @@ typedef struct {
     uint16_t rom_size;      // Size of ROM region
     uint16_t ram_base;      // Base address of RAM (e.g., $0000)
     uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
-    bool configured;        // Configuration complete
     uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
     uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
-    uint32_t cmos_flash_offset;  // Offset in flash for CMOS storage
-    bool cmos_dirty;        // CMOS has unsaved changes
+    bool configured;        // Configuration complete
 } memory_config_t;
 
 extern memory_config_t mem_config;
-extern uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
+extern uint8_t rom_shadow[MAX_ROM_SIZE] __attribute__((aligned(256)));  // Fast RAM copy of ROM for execution
+
+// Compile-time alignment verification
+_Static_assert(__alignof__(rom_shadow) == 256, "rom_shadow not 256-byte aligned");
 
 // Initialize memory subsystem
 void memory_init(void);

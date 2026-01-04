@@ -55,9 +55,29 @@ void led_all_off(void) {
 memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
-static uint8_t ram_shadow[MAX_RAM_SIZE];
-uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
+static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(256)));
+uint8_t rom_shadow[MAX_ROM_SIZE] __attribute__((aligned(256)));  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
+
+// Verify 256-byte alignment of critical arrays
+static void memory_verify_alignment(void) {
+    uintptr_t rom_addr = (uintptr_t)rom_shadow;
+    uintptr_t ram_addr = (uintptr_t)ram_shadow;
+
+    bool rom_aligned = (rom_addr % 256) == 0;
+    bool ram_aligned = (ram_addr % 256) == 0;
+
+    printf("Alignment verification:\n");
+    printf("  rom_shadow: 0x%08lx %s\n", (unsigned long)rom_addr, rom_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
+    printf("  ram_shadow: 0x%08lx %s\n", (unsigned long)ram_addr, ram_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
+
+    if (!rom_aligned || !ram_aligned) {
+        printf("WARNING: One or more arrays not 256-byte aligned!\n");
+        printf("         Performance optimizations may not be effective.\n");
+    } else {
+        printf("All arrays properly 256-byte aligned for optimal performance.\n");
+    }
+}
 
 // Initialize memory subsystem
 void memory_init(void) {
@@ -88,6 +108,9 @@ void memory_init(void) {
     printf("  CMOS RAM: $%04X-$%04X\n",
            mem_config.cmos_base, mem_config.cmos_base + mem_config.cmos_size - 1);
     printf("  Unmapped addresses route to physical bus\n");
+
+    // Verify 256-byte alignment for performance optimization
+    memory_verify_alignment();
 
     // Restore ROM from flash
     memory_init_rom_from_flash();
