@@ -1,0 +1,11 @@
+Use a table of 256 entries (each representing a 256-byte page of 6800 address space).
+Each entry is a 32-bit word, set up like this:
+bit[31:2] top 30 bits of shadow base address (assumes 4-byte alignment of shadow areas)
+bit[1] flag for write-through (CMOS)
+bit[0] flag for mapped/unmapped
+
+So the bottom 2 bits are encoded like this:
+0b00    mapped ROM/RAM
+0b01    unmapped
+0b10    CMOS RAM (mapped but write-through)
+0b11    unmapped

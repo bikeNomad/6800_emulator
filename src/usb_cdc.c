@@ -168,10 +168,6 @@ static void cmd_config_show(void) {
     usb_cdc_send("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
     usb_cdc_printf("  Debug SPI: %s\r\n",
                    debug_spi_is_enabled() ? "ON" : "OFF");
-    usb_cdc_printf("  CMOS Autosave: %s\r\n",
-                   memory_is_cmos_autosave_enabled() ? "ENABLED" : "DISABLED");
-    usb_cdc_printf("  CMOS Dirty: %s\r\n",
-                   memory_is_cmos_dirty() ? "YES" : "NO");
 }
 
 static void cmd_config_rom(void) {
@@ -212,15 +208,6 @@ static void cmd_config_ram(void) {
     }
 }
 
-static void cmd_cmos_save(void) {
-    // Manually save CMOS to flash
-    if (memory_save_cmos()) {
-        usb_cdc_send("OK: CMOS saved to flash\r\n");
-    } else {
-        usb_cdc_send("ERROR: Failed to save CMOS\r\n");
-    }
-}
-
 static void cmd_cmos_dump(void) {
     // Display CMOS RAM contents
     const uint8_t *cmos = memory_get_cmos_shadow();
@@ -236,24 +223,6 @@ static void cmd_cmos_dump(void) {
     }
 }
 
-static void cmd_cmos_autosave(void) {
-    // Enable/disable CMOS autosave
-    // Expects tokens: [cmos] [autosave] <on|off>
-    if (cmd_token_count < 1) {
-        usb_cdc_send("ERROR: Usage: cmos autosave on/off\r\n");
-        return;
-    }
-
-    if (strcmp(cmd_tokens[0], "on") == 0) {
-        memory_set_cmos_autosave_enabled(true);
-        usb_cdc_send("OK: CMOS autosave enabled\r\n");
-    } else if (strcmp(cmd_tokens[0], "off") == 0) {
-        memory_set_cmos_autosave_enabled(false);
-        usb_cdc_send("OK: CMOS autosave disabled\r\n");
-    } else {
-        usb_cdc_send("ERROR: Usage: cmos autosave on/off\r\n");
-    }
-}
 
 static void cmd_run(void) {
     // Start CPU execution
@@ -264,8 +233,7 @@ static void cmd_run(void) {
 static void cmd_halt(void) {
     // Stop CPU execution and save CMOS
     cpu_halt();
-    memory_save_cmos();
-    usb_cdc_send("OK: CPU halted, CMOS saved\r\n");
+    usb_cdc_send("OK: CPU halted\r\n");
 }
 
 static void cmd_reset(void) {
@@ -798,9 +766,7 @@ static void cmd_help(void) {
         "  config                    - Show memory configuration\r\n"
         "  config rom <b> <s>        - Configure ROM region\r\n"
         "  config ram <b> <s>        - Configure RAM region\r\n"
-        "  cmos save                 - Manually save CMOS to flash\r\n"
         "  cmos dump                 - Display CMOS RAM contents\r\n"
-        "  cmos autosave on/off      - Enable/disable CMOS autosave\r\n"
         "  read <addr> <len>         - Read memory\r\n"
         "  write <addr> <data>       - Write memory\r\n"
         "  status                    - Display CPU status\r\n"
@@ -855,9 +821,7 @@ static const command_entry_t command_table[] = {
     // Two-word commands (require exact match of first two tokens)
     {"config rom", cmd_config_rom, true}, // needs <base> <size>
     {"config ram", cmd_config_ram, true}, // needs <base> <size>
-    {"cmos save", cmd_cmos_save, false},
     {"cmos dump", cmd_cmos_dump, false},
-    {"cmos autosave", cmd_cmos_autosave, true}, // needs on/off
     {"debug on", cmd_debug_on, false},
     {"debug off", cmd_debug_off, false},
     {"break clear", cmd_break_clear, true}, // needs optional <addr>

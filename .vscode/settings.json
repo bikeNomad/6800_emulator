@@ -7,4 +7,5 @@
     "cmake.sourceDirectory": "${workspaceFolder}",
     "cmake.generator": "Ninja",
     "cmake.cmakePath": "/opt/homebrew/bin/cmake",
+    "idf.pythonInstallPath": "/opt/homebrew/Caskroom/miniconda/base/bin/python",
 }

@@ -46,6 +46,7 @@ static inline void notify_error(void) { send_notification(NOTIF_ERROR); }
 static void s_initializing(FSM *fsm, uint8_t event) {
     cpu_init();
     interrupts_init();
+    memory_read_cmos_from_bus();
 
     switch (event) {
     case EVT_INIT:

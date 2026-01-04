@@ -58,9 +58,6 @@ memory_config_t mem_config;
 static uint8_t ram_shadow[MAX_RAM_SIZE];
 uint8_t rom_shadow[MAX_ROM_SIZE];  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
-static uint8_t cmos_load_buffer[FLASH_SECTOR_SIZE];  // Buffer for CMOS flash operations
-static uint64_t cmos_last_write_time = 0;  // Timestamp for deferred save
-static bool cmos_autosave_enabled = true;  // Can be disabled during timing-critical operations
 
 // Initialize memory subsystem
 void memory_init(void) {
@@ -68,7 +65,6 @@ void memory_init(void) {
     memset(ram_shadow, 0, sizeof(ram_shadow));
     memset(rom_shadow, 0xFF, sizeof(rom_shadow));
     memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
-    memset(cmos_load_buffer, 0xFF, sizeof(cmos_load_buffer));
 
     // Default configuration (A15 not decoded)
     mem_config.rom_base = 0x4000;
@@ -79,8 +75,6 @@ void memory_init(void) {
     mem_config.flash_size = mem_config.rom_size;
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
-    mem_config.cmos_flash_offset = CMOS_FLASH_OFFSET;
-    mem_config.cmos_dirty = false;
     mem_config.configured = true;  // Use defaults
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n",
@@ -91,13 +85,12 @@ void memory_init(void) {
            mem_config.rom_base | 0x8000, (mem_config.rom_base | 0x8000) + mem_config.rom_size - 1);
     printf("  Vectors at $FFF8-$FFFF access physical $7FF8-$7FFF\n");
     printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
-    printf("  CMOS RAM: $%04X-$%04X (persistent in flash)\n",
+    printf("  CMOS RAM: $%04X-$%04X\n",
            mem_config.cmos_base, mem_config.cmos_base + mem_config.cmos_size - 1);
     printf("  Unmapped addresses route to physical bus\n");
 
-    // Restore ROM and CMOS from flash
+    // Restore ROM from flash
     memory_init_rom_from_flash();
-    memory_init_cmos_from_flash();
 }
 
 // Get ROM configuration
@@ -162,7 +155,7 @@ memory_type_t __time_critical_func(memory_get_type)(uint16_t address) {
         address < mem_config.ram_base + mem_config.ram_size) {
             if (address >= mem_config.cmos_base &&
                 address < mem_config.cmos_base + mem_config.cmos_size) {
-                    return MEM_TYPE_UNMAPPED;
+                    return MEM_TYPE_CMOS;
             }
         return MEM_TYPE_RAM;
     }
@@ -185,7 +178,7 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
     }
 
     // Read from RAM shadow (with mirroring) - fast path
-    if (type == MEM_TYPE_RAM) {
+    if (type == MEM_TYPE_RAM || type == MEM_TYPE_CMOS) {
         eclock_accumulate(1);  // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();
@@ -214,7 +207,7 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
     memory_type_t type = memory_get_type(address);
 
     // Write to RAM shadow (with mirroring) - fast path
-    if (type == MEM_TYPE_RAM) {
+    if (type == MEM_TYPE_RAM || type == MEM_TYPE_CMOS) {
         eclock_accumulate(1);  // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();
@@ -230,15 +223,9 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
         if (ram_offset < mem_config.ram_size) {
             ram_shadow[ram_offset] = value;
 
-            // Check if this is a write to CMOS region - mark for auto-save
-            if (address >= mem_config.cmos_base &&
-                address < mem_config.cmos_base + mem_config.cmos_size) {
-                // Only call time_us_64() if transitioning from clean to dirty
-                // (avoids expensive timer read on every stack write)
-                if (!mem_config.cmos_dirty) {
-                    cmos_last_write_time = time_us_64();
-                    mem_config.cmos_dirty = true;
-                }
+            // Check if this is a write to CMOS region - if so, write through
+            if (type == MEM_TYPE_CMOS) {
+                bus_write_cycle(address, value);
             }
         }
         return;
@@ -351,33 +338,6 @@ void memory_init_rom_from_flash(void) {
     }
 }
 
-// Initialize CMOS from flash on startup
-void memory_init_cmos_from_flash(void) {
-    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.cmos_flash_offset);
-
-    // Check if flash is erased (all 0xFF = new/empty flash)
-    bool is_erased = true;
-    for (uint16_t i = 0; i < CMOS_SIZE; i++) {
-        if (flash_ptr[i] != 0xFF) {
-            is_erased = false;
-            break;
-        }
-    }
-
-    if (is_erased) {
-        // Initialize CMOS to zeros (default state)
-        memset(&ram_shadow[CMOS_BASE], 0, CMOS_SIZE);
-        printf("CMOS RAM initialized to zeros (flash empty)\n");
-    } else {
-        // Restore CMOS from flash
-        memcpy(&ram_shadow[CMOS_BASE], flash_ptr, CMOS_SIZE);
-        printf("CMOS RAM restored from flash\n");
-    }
-
-    mem_config.cmos_dirty = false;
-    cmos_last_write_time = 0;
-}
-
 // Load Intel HEX data into CMOS shadow copy
 bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t length) {
     // Validate address range
@@ -393,90 +353,21 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
         return false;
     }
 
-    // Copy to both CMOS load buffer and RAM shadow for immediate use
-    memcpy(&cmos_load_buffer[cmos_offset], data, length);
+    // Copy to RAM shadow for immediate use
     memcpy(&ram_shadow[address], data, length);
 
     return true;
 }
 
-// Save CMOS RAM to flash
-bool memory_save_cmos(void) {
-    // Skip if no changes
-    if (!mem_config.cmos_dirty) {
-        return true;
-    }
-
-    printf("Saving CMOS RAM to flash...\n");
-
-    // Copy CMOS from RAM shadow to load buffer
-    memcpy(cmos_load_buffer, &ram_shadow[CMOS_BASE], CMOS_SIZE);
-
-    // Fill rest of sector with 0xFF
-    memset(&cmos_load_buffer[CMOS_SIZE], 0xFF, FLASH_SECTOR_SIZE - CMOS_SIZE);
-
-    // Disable interrupts during flash write
-    uint32_t ints = save_and_disable_interrupts();
-
-    // Erase flash sector (4096 bytes)
-    flash_range_erase(mem_config.cmos_flash_offset, FLASH_SECTOR_SIZE);
-
-    // Program flash sector
-    flash_range_program(mem_config.cmos_flash_offset, cmos_load_buffer, FLASH_SECTOR_SIZE);
-
-    // Restore interrupts
-    restore_interrupts(ints);
-
-    // Verify
-    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.cmos_flash_offset);
-    if (memcmp(flash_ptr, &ram_shadow[CMOS_BASE], CMOS_SIZE) != 0) {
-        printf("CMOS flash verification FAILED\n");
-        return false;
-    }
-
-    printf("CMOS saved successfully\n");
-    mem_config.cmos_dirty = false;
-    cmos_last_write_time = 0;
-
-    return true;
-}
-
-bool memory_is_cmos_autosave_enabled(void) {
-    return cmos_autosave_enabled;
-}
-
-bool memory_is_cmos_dirty(void) {
-    return mem_config.cmos_dirty;
-}
-
-// Check if CMOS needs auto-save (call periodically from main loop)
-void memory_check_cmos_autosave(void) {
-    // Skip if auto-save is disabled (e.g., during timing-critical operations)
-    if (!cmos_autosave_enabled) {
-        return;
-    }
-
-    // Skip if no changes
-    if (!mem_config.cmos_dirty) {
-        return;
-    }
-
-    // Check if enough time has elapsed since last write
-    uint64_t now = time_us_64();
-    uint64_t elapsed_ms = (now - cmos_last_write_time) / 1000;
-
-    if (elapsed_ms >= CMOS_AUTOSAVE_DELAY_MS) {
-        printf("Auto-saving CMOS (idle for %llu ms)...\n", (unsigned long long)elapsed_ms);
-        memory_save_cmos();
-    }
-}
-
-// Enable/disable CMOS auto-save (disable during timing-critical operations)
-void memory_set_cmos_autosave_enabled(bool enabled) {
-    cmos_autosave_enabled = enabled;
-}
-
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t* memory_get_cmos_shadow(void) {
     return &ram_shadow[CMOS_BASE];
+}
+
+void memory_read_cmos_from_bus(void) {
+    uint16_t address = mem_config.cmos_base;
+    for (uint16_t i = 0; i < mem_config.cmos_size; i++) {
+        uint8_t value = bus_read_cycle(address);
+        ram_shadow[address++] = value;
+    }
 }

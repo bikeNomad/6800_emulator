@@ -176,7 +176,7 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
     if (bytes_loaded > 0) {
         if (is_cmos_data) {
             printf("Finalizing CMOS load...\n");
-            return memory_save_cmos();
+            return true;
         } else {
             printf("Finalizing ROM load...\n");
             bool success = memory_finalize_load();

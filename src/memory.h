@@ -85,21 +85,11 @@ bool memory_save_cmos(void);
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void);
 
-// Initialize CMOS from flash on startup
-void memory_init_cmos_from_flash(void);
-
-// Check if CMOS needs auto-save (call periodically from main loop)
-void memory_check_cmos_autosave(void);
-
-// Enable/disable CMOS auto-save (disable during timing-critical operations)
-void memory_set_cmos_autosave_enabled(bool enabled);
-
-bool memory_is_cmos_autosave_enabled(void);
-
-bool memory_is_cmos_dirty(void);
-
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t* memory_get_cmos_shadow(void);
+
+// Read CMOS data from bus into shadow copy
+void memory_read_cmos_from_bus(void);
 
 static inline uint8_t memory_read_rom_shadow(uint16_t address) {
     // Translate address for missing A15 decode
