@@ -327,39 +327,14 @@ static void cmd_read(void) {
     } else {
         usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
 
-        // Check if any addresses in range are unmapped (require bus access)
-        bool has_unmapped = false;
         for (uint32_t i = 0; i < len; i++) {
-            if (memory_get_type((uint16_t)(addr + i)) == MEM_TYPE_UNMAPPED) {
-                has_unmapped = true;
-                break;
+            if (i % 16 == 0) {
+                usb_cdc_printf("%04X: ", addr + i);
             }
-        }
-
-        if (has_unmapped) {
-            // Use bus access with E clock management for unmapped addresses
-            uint8_t buffer[1024]; // Max block size
-            bus_read_block_with_eclock((uint16_t)addr, (uint16_t)len, buffer);
-            for (uint32_t i = 0; i < len; i++) {
-                if (i % 16 == 0) {
-                    usb_cdc_printf("%04X: ", addr + i);
-                }
-                usb_cdc_printf("%02X ", buffer[i]);
-                if (i % 16 == 15 || i == len - 1) {
-                    usb_cdc_send("\r\n");
-                }
-            }
-        } else {
-            // Fast path for mapped memory only
-            for (uint32_t i = 0; i < len; i++) {
-                if (i % 16 == 0) {
-                    usb_cdc_printf("%04X: ", addr + i);
-                }
-                uint8_t value = memory_read_fast(addr + i);
-                usb_cdc_printf("%02X ", value);
-                if (i % 16 == 15 || i == len - 1) {
-                    usb_cdc_send("\r\n");
-                }
+            uint8_t value = memory_read_fast(addr + i);
+            usb_cdc_printf("%02X ", value);
+            if (i % 16 == 15 || i == len - 1) {
+                usb_cdc_send("\r\n");
             }
         }
     }
@@ -406,23 +381,9 @@ static void cmd_write(void) {
         return;
     }
 
-    // Check if any addresses in range are unmapped (require bus access)
-    bool has_unmapped = false;
+    // Fast path for mapped memory only
     for (uint32_t i = 0; i < count; i++) {
-        if (memory_get_type((uint16_t)(addr + i)) == MEM_TYPE_UNMAPPED) {
-            has_unmapped = true;
-            break;
-        }
-    }
-
-    if (has_unmapped) {
-        // Use bus access with E clock management for unmapped addresses
-        bus_write_block_with_eclock((uint16_t)addr, buffer, (uint16_t)count);
-    } else {
-        // Fast path for mapped memory only
-        for (uint32_t i = 0; i < count; i++) {
-            memory_write_fast(addr + i, buffer[i]);
-        }
+        memory_write_fast(addr + i, buffer[i]);
     }
     usb_cdc_send("OK\r\n");
 }

@@ -43,81 +43,80 @@ So the bottom 3 bits are encoded like this:
 uint32_t memory_map[MEMORY_TABLE_SIZE];
 
 void memory_initialize_map(void) {
-  // Set all entries to unmapped
-  for (uint16_t i = 0; i < MEMORY_TABLE_SIZE; i++) {
-    memory_map[i] = ENTRY_UNMAPPED_BUS;
-  }
-  // Set ROM entries (including aliases)
-  for (uint16_t address = mem_config.rom_base;
-       address < mem_config.rom_base + mem_config.rom_size; address += ENTRY_PAGE_SIZE) {
-    uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
-    uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
-    uint32_t shadow_addr =
-        (uint32_t)(uintptr_t)&rom_shadow[0] + (phys_addr - mem_config.rom_base);
-    uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_ROM; // mapped ROM
-    memory_map[table_index] = table_entry;
-    memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry; // high alias
-  }
-  // set RAM entries including aliases
-  for (uint16_t address = mem_config.ram_base;
-       address < mem_config.ram_base + mem_config.ram_size;
-       address += ENTRY_PAGE_SIZE) {
-    uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
-    uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
-    uint32_t shadow_addr =
-        (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
-    uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_RAM; // mapped RAM
-    memory_map[table_index] = table_entry;
-    memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry; // high alias
-    // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
-    if (phys_addr < 0x0100) {
-      uint8_t mirror_table_index = ADDR_TO_TABLE_INDEX(phys_addr + 0x1000);
-      memory_map[mirror_table_index] = table_entry;
-      memory_map[mirror_table_index + HIGH_ALIAS_TABLE_OFFSET] = table_entry;
+    // Set all entries to unmapped
+    for (uint16_t i = 0; i < MEMORY_TABLE_SIZE; i++) {
+        memory_map[i] = ENTRY_UNMAPPED_BUS;
     }
-  }
-  // set CMOS entries including aliases
-  for (uint16_t address = mem_config.cmos_base;
+    // Set ROM entries (including aliases)
+    for (uint16_t address = mem_config.rom_base;
+         address < mem_config.rom_base + mem_config.rom_size; address += ENTRY_PAGE_SIZE) {
+        uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
+        uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+        uint32_t shadow_addr =
+            (uint32_t)(uintptr_t)&rom_shadow[0] + (phys_addr - mem_config.rom_base);
+        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_ROM; // mapped ROM
+        memory_map[table_index] = table_entry;
+        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry; // high alias
+    }
+    // set RAM entries including aliases
+    for (uint16_t address = mem_config.ram_base;
+         address < mem_config.ram_base + mem_config.ram_size; address += ENTRY_PAGE_SIZE) {
+        uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
+        uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+        uint32_t shadow_addr =
+            (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
+        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_RAM; // mapped RAM
+        memory_map[table_index] = table_entry;
+        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry; // high alias
+        // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
+        if (phys_addr < 0x0100) {
+            uint8_t mirror_table_index = ADDR_TO_TABLE_INDEX(phys_addr + 0x1000);
+            memory_map[mirror_table_index] = table_entry;
+            memory_map[mirror_table_index + HIGH_ALIAS_TABLE_OFFSET] = table_entry;
+        }
+    }
+    // set CMOS entries including aliases
+    for (uint16_t address = mem_config.cmos_base;
          address < mem_config.cmos_base + mem_config.cmos_size; address += ENTRY_PAGE_SIZE) {
-    uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
-    uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
-    uint32_t shadow_addr =
-        (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
-    uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_CMOS; // mapped CMOS
-    memory_map[table_index] = table_entry;
-    memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;
-  }
+        uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
+        uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+        uint32_t shadow_addr =
+            (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
+        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_CMOS; // mapped CMOS
+        memory_map[table_index] = table_entry;
+        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;
+    }
 }
 
 uint8_t memory_read_fast(uint16_t address) {
-  uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
-  uint8_t offset = ADDR_TO_TABLE_OFFSET(address);
-  uint32_t table_entry = memory_map[table_index];
-  if (table_entry & ENTRY_UNMAPPED) { // unmapped
-    return bus_read_cycle(address);
-  }
-  uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
-  uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
-  return *shadow_address;
+    uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
+    uint8_t offset = ADDR_TO_TABLE_OFFSET(address);
+    uint32_t table_entry = memory_map[table_index];
+    if (table_entry & ENTRY_UNMAPPED) { // unmapped
+        return bus_read_cycle(address);
+    }
+    uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
+    uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
+    return *shadow_address;
 }
 
 void memory_write_fast(uint16_t address, uint8_t data) {
-  uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
-  uint8_t offset = ADDR_TO_TABLE_OFFSET(address);
-  uint32_t table_entry = memory_map[table_index];
-  if (table_entry & ENTRY_UNMAPPED) { // unmapped
-    bus_write_cycle(address, data);
-    return;
-  }
-  if (!(table_entry & ENTRY_WRITABLE)) { // Ignore writes to ROM
-    return;
-  }
-  uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
-  uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
-  *shadow_address = data;
-  if (table_entry & ENTRY_WRITE_THROUGH) { // CMOS write-through
-    bus_write_cycle(address, data);
-  }
+    uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
+    uint8_t offset = ADDR_TO_TABLE_OFFSET(address);
+    uint32_t table_entry = memory_map[table_index];
+    if (table_entry & ENTRY_UNMAPPED) { // unmapped
+        bus_write_cycle(address, data);
+        return;
+    }
+    if (!(table_entry & ENTRY_WRITABLE)) { // Ignore writes to ROM
+        return;
+    }
+    uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
+    uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
+    *shadow_address = data;
+    if (table_entry & ENTRY_WRITE_THROUGH) { // CMOS write-through
+        bus_write_cycle(address, data);
+    }
 }
 
-# vim: set ts=4 sw=4 et:
+#vim : set ts = 4 sw = 4 et:
