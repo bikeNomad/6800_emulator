@@ -2,6 +2,7 @@
  * USB CDC Interface Implementation
  */
 
+#include "usb_cdc.h"
 #include "bus.h"
 #include "clock.h"
 #include "cpu_state.h"
@@ -14,7 +15,6 @@
 #include "memory.h"
 #include "pico/bootrom.h"
 #include "tusb.h"
-#include "usb_cdc.h"
 
 // Command buffer
 #define CMD_BUFFER_SIZE 4096
@@ -223,7 +223,6 @@ static void cmd_cmos_dump(void) {
     }
 }
 
-
 static void cmd_run(void) {
     // Start CPU execution
     post_sm_event(EV_CMD_RUN);
@@ -272,6 +271,7 @@ static void cmd_bus_info(void) {
 }
 
 static void cmd_status(void) {
+    usb_cdc_printf("Emulator State: %s\r\n", sm_current_state_name());
     // Get CPU status
     usb_cdc_printf("CPU Status:\r\n");
     cpu_print_state(usb_cdc_printf);

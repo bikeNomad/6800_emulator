@@ -60,3 +60,5 @@ bool receive_sm_notification(sm_notification_t *notification);
 
 // Runs until an exception of some sort
 bool run_emulator_sm(void);
+
+const char *sm_current_state_name(void);

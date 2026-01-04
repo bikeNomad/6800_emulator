@@ -21,6 +21,10 @@ static void s_paused(FSM *fsm, uint8_t event);
 static void s_loading(FSM *fsm, uint8_t event);
 static void s_waiting_for_interrupt(FSM *fsm, uint8_t event);
 
+const char *sm_current_state_name(void) {
+    return emulator_fsm.current_state_name ? emulator_fsm.current_state_name : "Unknown";
+}
+
 static bool receive_sm_event(FSM *unused, uint8_t *event) {
     (void)unused;
     return queue_try_remove(&sm_event_queue, event);
@@ -105,9 +109,11 @@ static void s_running(FSM *fsm, uint8_t event) {
         GET_NAME(fsm);
         eclock_start();
         cpu.stopped_at_breakpoint = false;
+        cpu.running = true;
         break;
 
     case EVT_EXIT:
+        cpu.running = false;
         break;
     
     case EV_PAUSE_EMULATOR:
@@ -143,6 +149,7 @@ static void s_halted(FSM *fsm, uint8_t event) {
     case EVT_ENTER:
         GET_NAME(fsm);
         eclock_stop(); // E clock OFF
+        cpu.halted = true;
         break;
     case EVT_EXIT:
         cpu.halted = false;
