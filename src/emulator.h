@@ -1,25 +1,25 @@
 #pragma once
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdarg.h>
 #include "pico.h"
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "pico/util/queue.h"
-#include "pico/multicore.h"
-#include "simple_fsm.h"   // for EVT_USER_START
+#include "simple_fsm.h" // for EVT_USER_START
+#include <stdarg.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
-typedef int	(*printf_func_t)(const char *__restrict, ...)
-               _ATTRIBUTE ((__format__ (__printf__, 1, 2)));
+typedef int (*printf_func_t)(const char *__restrict, ...)
+    _ATTRIBUTE((__format__(__printf__, 1, 2)));
 
 // Enable instruction counting for profiling (set to 0 to disable)
 #define COUNT_INSTRUCTIONS 1
 
 // Debug output control (set via CMakeLists.txt)
 #ifndef DEBUG_INTERRUPTS
-  #define DEBUG_INTERRUPTS 1
+#define DEBUG_INTERRUPTS 1
 #endif
 
 // Breakpoint system
@@ -27,29 +27,29 @@ typedef int	(*printf_func_t)(const char *__restrict, ...)
 
 // System clock speed in MHz (configurable at build time)
 #ifndef SYS_CLOCK_MHZ
-#define SYS_CLOCK_MHZ 266  // Default: 266MHz (optimized for 133MHz QSPI flash)
+#define SYS_CLOCK_MHZ 266 // Default: 266MHz (optimized for 133MHz QSPI flash)
 #endif
 
 // QSPI flash interface speed divisor (configurable at build time)
 #ifndef QSPI_CLOCK_DIVISOR
-#define QSPI_CLOCK_DIVISOR 2  // Default: system clock / 2 (133MHz with 266MHz sys clock)
+#define QSPI_CLOCK_DIVISOR 2 // Default: system clock / 2 (133MHz with 266MHz sys clock)
 #endif
 
 // SM Events
 typedef enum sm_event_t {
-  // Commands from USB CDC
-  EV_CMD_RUN = EVT_USER_START,
-  EV_CMD_HALT,
-  EV_CMD_RESET,
-  EV_CMD_LOAD,
-  EV_PAUSE_EMULATOR,  // freeze emulation
-  EV_RESUME_EMULATOR,
+    // Commands from USB CDC
+    EV_CMD_RUN = EVT_USER_START,
+    EV_CMD_HALT,
+    EV_CMD_RESET,
+    EV_CMD_LOAD,
+    EV_PAUSE_EMULATOR, // freeze emulation
+    EV_RESUME_EMULATOR,
 } sm_event_t;
 
 // Notifications to USB CDC
 typedef enum sm_notification_t {
-  NOTIF_OK,
-  NOTIF_ERROR,
+    NOTIF_OK,
+    NOTIF_ERROR,
 } sm_notification_t;
 
 // Returns false if the queue is full

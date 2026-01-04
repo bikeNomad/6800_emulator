@@ -3,45 +3,46 @@
  */
 
 #include "memory.h"
+#include "board_config.h"
 #include "bus.h"
 #include "clock.h"
 #include "cpu_state.h"
-#include "interrupts.h"
-#include "board_config.h"
 #include "debug_spi.h"
 #include "hardware/flash.h"
-#include "hardware/sync.h"
 #include "hardware/gpio.h"
-#include "pico/time.h"
+#include "hardware/sync.h"
+#include "interrupts.h"
 #include "pico.h"
+#include "pico/time.h"
 #include <stdio.h>
 #include <string.h>
 
 // LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
-// GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (supporting >32 GPIOs)
+// GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (supporting
+// >32 GPIOs)
 #if BOARD_TYPE == BOARD_NED_SYS7
 // LED GPIO values for masked writes: bit positions correspond to GPIO numbers
 #define LED_MASK ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))
-#define LED_ROM_ON ((0ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))  // ROM=0, others=1
-#define LED_RAM_ON ((1ULL << GPIO_LED_ROM) | (0ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))  // RAM=0, others=1
-#define LED_UNMAPPED_ON ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (0ULL << GPIO_LED_UNMAPPED))  // UNMAPPED=0, others=1
-#define LED_ALL_OFF ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))  // All LEDs off (all=1)
+#define LED_ROM_ON                                                                                 \
+    ((0ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                             \
+     (1ULL << GPIO_LED_UNMAPPED)) // ROM=0, others=1
+#define LED_RAM_ON                                                                                 \
+    ((1ULL << GPIO_LED_ROM) | (0ULL << GPIO_LED_RAM) |                                             \
+     (1ULL << GPIO_LED_UNMAPPED)) // RAM=0, others=1
+#define LED_UNMAPPED_ON                                                                            \
+    ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                             \
+     (0ULL << GPIO_LED_UNMAPPED)) // UNMAPPED=0, others=1
+#define LED_ALL_OFF                                                                                \
+    ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                             \
+     (1ULL << GPIO_LED_UNMAPPED)) // All LEDs off (all=1)
 
-static inline void led_set_rom(void) {
-    gpio_put_masked64(LED_MASK, LED_ROM_ON);
-}
+static inline void led_set_rom(void) { gpio_put_masked64(LED_MASK, LED_ROM_ON); }
 
-static inline void led_set_ram(void) {
-    gpio_put_masked64(LED_MASK, LED_RAM_ON);
-}
+static inline void led_set_ram(void) { gpio_put_masked64(LED_MASK, LED_RAM_ON); }
 
-static inline void led_set_unmapped(void) {
-    gpio_put_masked64(LED_MASK, LED_UNMAPPED_ON);
-}
+static inline void led_set_unmapped(void) { gpio_put_masked64(LED_MASK, LED_UNMAPPED_ON); }
 
-static inline void led_all_off_inline(void) {
-    gpio_put_masked64(LED_MASK, LED_ALL_OFF);
-}
+static inline void led_all_off_inline(void) { gpio_put_masked64(LED_MASK, LED_ALL_OFF); }
 #endif
 
 // Public function to turn off all LEDs (for use outside memory.c)
@@ -56,8 +57,9 @@ memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(256)));
-uint8_t rom_shadow[MAX_ROM_SIZE] __attribute__((aligned(256)));  // Fast RAM copy of ROM for execution
-static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
+uint8_t rom_shadow[MAX_ROM_SIZE]
+    __attribute__((aligned(256)));            // Fast RAM copy of ROM for execution
+static uint8_t rom_load_buffer[MAX_ROM_SIZE]; // Buffer for loading before flash write
 
 // Verify 256-byte alignment of critical arrays
 static void memory_verify_alignment(void) {
@@ -68,8 +70,10 @@ static void memory_verify_alignment(void) {
     bool ram_aligned = (ram_addr % 256) == 0;
 
     printf("Alignment verification:\n");
-    printf("  rom_shadow: 0x%08lx %s\n", (unsigned long)rom_addr, rom_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
-    printf("  ram_shadow: 0x%08lx %s\n", (unsigned long)ram_addr, ram_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
+    printf("  rom_shadow: 0x%08lx %s\n", (unsigned long)rom_addr,
+           rom_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
+    printf("  ram_shadow: 0x%08lx %s\n", (unsigned long)ram_addr,
+           ram_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
 
     if (!rom_aligned || !ram_aligned) {
         printf("WARNING: One or more arrays not 256-byte aligned!\n");
@@ -88,25 +92,25 @@ void memory_init(void) {
 
     // Default configuration (A15 not decoded)
     mem_config.rom_base = 0x4000;
-    mem_config.rom_size = 0x4000;  // 16KB (4000-7FFF, aliased at C000-FFFF)
+    mem_config.rom_size = 0x4000; // 16KB (4000-7FFF, aliased at C000-FFFF)
     mem_config.ram_base = 0x0000;
-    mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
+    mem_config.ram_size = 0x1400; // 5KB (0000-13FF)
     mem_config.flash_offset = FLASH_TARGET_OFFSET;
     mem_config.flash_size = mem_config.rom_size;
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
-    mem_config.configured = true;  // Use defaults
+    mem_config.configured = true; // Use defaults
 
-    printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n",
-           mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
-           mem_config.ram_base, mem_config.ram_base + mem_config.ram_size - 1);
+    printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n", mem_config.rom_base,
+           mem_config.rom_base + mem_config.rom_size - 1, mem_config.ram_base,
+           mem_config.ram_base + mem_config.ram_size - 1);
     printf("  ROM aliasing: A15 not decoded, $%04X-$%04X aliases at $%04X-$%04X\n",
            mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
            mem_config.rom_base | 0x8000, (mem_config.rom_base | 0x8000) + mem_config.rom_size - 1);
     printf("  Vectors at $FFF8-$FFFF access physical $7FF8-$7FFF\n");
     printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
-    printf("  CMOS RAM: $%04X-$%04X\n",
-           mem_config.cmos_base, mem_config.cmos_base + mem_config.cmos_size - 1);
+    printf("  CMOS RAM: $%04X-$%04X\n", mem_config.cmos_base,
+           mem_config.cmos_base + mem_config.cmos_size - 1);
     printf("  Unmapped addresses route to physical bus\n");
 
     // Verify 256-byte alignment for performance optimization
@@ -140,8 +144,7 @@ void memory_configure_rom(uint16_t base, uint16_t size) {
     mem_config.flash_size = size;
     mem_config.configured = true;
 
-    printf("ROM configured: $%04X-$%04X (%d bytes)\n",
-           base, base + size - 1, size);
+    printf("ROM configured: $%04X-$%04X (%d bytes)\n", base, base + size - 1, size);
 }
 
 // Configure RAM region
@@ -158,8 +161,7 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
     // Clear RAM shadow
     memset(ram_shadow, 0, size);
 
-    printf("RAM configured: $%04X-$%04X (%d bytes)\n",
-           base, base + size - 1, size);
+    printf("RAM configured: $%04X-$%04X (%d bytes)\n", base, base + size - 1, size);
 }
 
 // Get memory type for address
@@ -174,12 +176,11 @@ memory_type_t __time_critical_func(memory_get_type)(uint16_t address) {
     }
 
     // Check RAM range (uses original address - RAM is at 0x0000-0x13FF)
-    if (address >= mem_config.ram_base &&
-        address < mem_config.ram_base + mem_config.ram_size) {
-            if (address >= mem_config.cmos_base &&
-                address < mem_config.cmos_base + mem_config.cmos_size) {
-                    return MEM_TYPE_CMOS;
-            }
+    if (address >= mem_config.ram_base && address < mem_config.ram_base + mem_config.ram_size) {
+        if (address >= mem_config.cmos_base &&
+            address < mem_config.cmos_base + mem_config.cmos_size) {
+            return MEM_TYPE_CMOS;
+        }
         return MEM_TYPE_RAM;
     }
 
@@ -193,7 +194,7 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 
     // Read from ROM shadow (RAM copy) - fast path
     if (type == MEM_TYPE_ROM) {
-        eclock_accumulate(1);  // Track cycle, don't wait
+        eclock_accumulate(1); // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_rom();
 #endif
@@ -202,7 +203,7 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
 
     // Read from RAM shadow (with mirroring) - fast path
     if (type == MEM_TYPE_RAM || type == MEM_TYPE_CMOS) {
-        eclock_accumulate(1);  // Track cycle, don't wait
+        eclock_accumulate(1); // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();
 #endif
@@ -231,7 +232,7 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
 
     // Write to RAM shadow (with mirroring) - fast path
     if (type == MEM_TYPE_RAM || type == MEM_TYPE_CMOS) {
-        eclock_accumulate(1);  // Track cycle, don't wait
+        eclock_accumulate(1); // Track cycle, don't wait
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_ram();
 #endif
@@ -256,7 +257,7 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
 
     // ROM writes are ignored but still count cycle
     if (type == MEM_TYPE_ROM) {
-        eclock_accumulate(1);  // Ignored write, still count cycle
+        eclock_accumulate(1); // Ignored write, still count cycle
         return;
     }
 
@@ -271,8 +272,7 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t value) {
 // Load Intel HEX data into ROM load buffer
 bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length) {
     // Check if address is in CMOS range - route to CMOS loader
-    if (address >= mem_config.cmos_base &&
-        address < mem_config.cmos_base + mem_config.cmos_size) {
+    if (address >= mem_config.cmos_base && address < mem_config.cmos_base + mem_config.cmos_size) {
         return memory_load_cmos_data(address, data, length);
     }
 
@@ -283,8 +283,8 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
     // Check if address is in ROM range
     if (physical_addr < mem_config.rom_base ||
         physical_addr >= mem_config.rom_base + mem_config.rom_size) {
-        printf("HEX address $%04X (physical $%04X) outside ROM/CMOS range\n",
-               address, physical_addr);
+        printf("HEX address $%04X (physical $%04X) outside ROM/CMOS range\n", address,
+               physical_addr);
         return false;
     }
 
@@ -302,14 +302,15 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
 
 // Finalize EPROM load (write buffer to flash)
 bool memory_finalize_load(void) {
-    printf("Writing %u bytes to flash at offset 0x%08lX...\n",
-           (unsigned int)mem_config.flash_size, (unsigned long)mem_config.flash_offset);
+    printf("Writing %u bytes to flash at offset 0x%08lX...\n", (unsigned int)mem_config.flash_size,
+           (unsigned long)mem_config.flash_offset);
 
     // Disable interrupts during flash write
     uint32_t ints = save_and_disable_interrupts();
 
     // Erase flash sector(s)
-    uint32_t erase_size = (mem_config.flash_size + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
+    uint32_t erase_size =
+        (mem_config.flash_size + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
     flash_range_erase(mem_config.flash_offset, erase_size);
 
     // Program flash
@@ -364,8 +365,7 @@ void memory_init_rom_from_flash(void) {
 // Load Intel HEX data into CMOS shadow copy
 bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t length) {
     // Validate address range
-    if (address < mem_config.cmos_base ||
-        address >= mem_config.cmos_base + mem_config.cmos_size) {
+    if (address < mem_config.cmos_base || address >= mem_config.cmos_base + mem_config.cmos_size) {
         printf("CMOS address $%04X outside CMOS range\n", address);
         return false;
     }
@@ -383,9 +383,7 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 }
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
-const uint8_t* memory_get_cmos_shadow(void) {
-    return &ram_shadow[CMOS_BASE];
-}
+const uint8_t *memory_get_cmos_shadow(void) { return &ram_shadow[CMOS_BASE]; }
 
 void memory_read_cmos_from_bus(void) {
     eclock_start();

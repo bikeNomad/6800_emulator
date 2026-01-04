@@ -3,17 +3,20 @@
  */
 
 #include "ihex_parser.h"
-#include "memory.h"
 #include "interrupts.h"
+#include "memory.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 
 // Convert hex character to value
 static uint8_t hex_to_value(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'A' && c <= 'F')
+        return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f')
+        return c - 'a' + 10;
     return 0;
 }
 
@@ -70,10 +73,10 @@ ihex_result_t ihex_parse_line(const char *line, ihex_record_t *record) {
 bool ihex_load_data(const char *hex_data, uint32_t length) {
     const char *ptr = hex_data;
     const char *end = hex_data + length;
-    uint32_t base_address = 0;  // Extended address for 32-bit addressing
+    uint32_t base_address = 0; // Extended address for 32-bit addressing
     uint32_t bytes_loaded = 0;
     bool eof_reached = false;
-    bool is_cmos_data = false;  // Auto-detect based on first data record
+    bool is_cmos_data = false; // Auto-detect based on first data record
     bool detection_done = false;
 
     printf("Loading Intel HEX data...\n");
@@ -84,7 +87,8 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
             ptr++;
         }
 
-        if (ptr >= end) break;
+        if (ptr >= end)
+            break;
 
         // Find end of line
         const char *line_end = ptr;
@@ -108,59 +112,60 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
 
         if (result == IHEX_OK) {
             switch (record.record_type) {
-                case IHEX_TYPE_DATA:
-                    // Auto-detect ROM vs CMOS based on first data record
-                    if (!detection_done) {
-                        uint32_t full_address = base_address + record.address;
-                        // CMOS region: 0x0100-0x01FF
-                        // ROM region: typically 0xD000-0xFFFF or 0x5000-0x7FFF
-                        if (full_address >= 0x0100 && full_address < 0x0200) {
-                            is_cmos_data = true;
-                            printf("Detected CMOS data (address $%04lX)\n", (unsigned long)full_address);
-                        } else {
-                            is_cmos_data = false;
-                            printf("Detected ROM data (address $%04lX)\n", (unsigned long)full_address);
-                        }
-                        detection_done = true;
+            case IHEX_TYPE_DATA:
+                // Auto-detect ROM vs CMOS based on first data record
+                if (!detection_done) {
+                    uint32_t full_address = base_address + record.address;
+                    // CMOS region: 0x0100-0x01FF
+                    // ROM region: typically 0xD000-0xFFFF or 0x5000-0x7FFF
+                    if (full_address >= 0x0100 && full_address < 0x0200) {
+                        is_cmos_data = true;
+                        printf("Detected CMOS data (address $%04lX)\n",
+                               (unsigned long)full_address);
+                    } else {
+                        is_cmos_data = false;
+                        printf("Detected ROM data (address $%04lX)\n", (unsigned long)full_address);
                     }
+                    detection_done = true;
+                }
 
-                    // Load data into memory
-                    {
-                        uint32_t full_address = base_address + record.address;
-                        if (!memory_load_hex_data(full_address, record.data, record.byte_count)) {
-                            printf("Failed to load data at address $%04lX\n", (unsigned long)full_address);
-                            return false;
-                        }
-                        bytes_loaded += record.byte_count;
+                // Load data into memory
+                {
+                    uint32_t full_address = base_address + record.address;
+                    if (!memory_load_hex_data(full_address, record.data, record.byte_count)) {
+                        printf("Failed to load data at address $%04lX\n",
+                               (unsigned long)full_address);
+                        return false;
                     }
-                    break;
+                    bytes_loaded += record.byte_count;
+                }
+                break;
 
-                case IHEX_TYPE_EOF:
-                    printf("End of HEX file reached\n");
-                    eof_reached = true;
-                    break;
+            case IHEX_TYPE_EOF:
+                printf("End of HEX file reached\n");
+                eof_reached = true;
+                break;
 
-                case IHEX_TYPE_EXLINEAR:
-                    // Extended linear address (upper 16 bits)
-                    if (record.byte_count == 2) {
-                        base_address = ((uint32_t)record.data[0] << 24) |
-                                      ((uint32_t)record.data[1] << 16);
-                        printf("Extended address: $%08lX\n", (unsigned long)base_address);
-                    }
-                    break;
+            case IHEX_TYPE_EXLINEAR:
+                // Extended linear address (upper 16 bits)
+                if (record.byte_count == 2) {
+                    base_address =
+                        ((uint32_t)record.data[0] << 24) | ((uint32_t)record.data[1] << 16);
+                    printf("Extended address: $%08lX\n", (unsigned long)base_address);
+                }
+                break;
 
-                case IHEX_TYPE_EXSEG:
-                    // Extended segment address
-                    if (record.byte_count == 2) {
-                        base_address = (((uint32_t)record.data[0] << 8) |
-                                       record.data[1]) << 4;
-                        printf("Extended segment: $%08lX\n", (unsigned long)base_address);
-                    }
-                    break;
+            case IHEX_TYPE_EXSEG:
+                // Extended segment address
+                if (record.byte_count == 2) {
+                    base_address = (((uint32_t)record.data[0] << 8) | record.data[1]) << 4;
+                    printf("Extended segment: $%08lX\n", (unsigned long)base_address);
+                }
+                break;
 
-                default:
-                    printf("Unsupported record type: %02X\n", record.record_type);
-                    break;
+            default:
+                printf("Unsupported record type: %02X\n", record.record_type);
+                break;
             }
         } else {
             printf("Parse error: %d\n", result);

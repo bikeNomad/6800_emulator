@@ -1,11 +1,9 @@
 #include "simple_fsm.h"
 #include "pico.h"
 
-static inline void fsm_dispatch(FSM* fsm, uint8_t event) {
-    fsm->current_state(fsm, event);
-}
-    
-bool fsm_init(FSM* fsm, state_method initial_state) {
+static inline void fsm_dispatch(FSM *fsm, uint8_t event) { fsm->current_state(fsm, event); }
+
+bool fsm_init(FSM *fsm, state_method initial_state) {
     fsm->last_event_received = EVT_INIT;
     fsm->current_state = initial_state;
     fsm->next_state = NULL;
@@ -19,17 +17,17 @@ bool fsm_init(FSM* fsm, state_method initial_state) {
     return true;
 }
 
-static inline void fsm_handle_event(FSM* fsm, uint8_t event) {
+static inline void fsm_handle_event(FSM *fsm, uint8_t event) {
     fsm_dispatch(fsm, event);
     if (fsm->next_state != NULL) {
         fsm_dispatch(fsm, EVT_EXIT);
         fsm->current_state = fsm->next_state;
         fsm->next_state = NULL;
         fsm_dispatch(fsm, EVT_ENTER);
-    } 
+    }
 }
 
-bool __time_critical_func(fsm_run)(FSM* fsm, state_method initial_state) {
+bool __time_critical_func(fsm_run)(FSM *fsm, state_method initial_state) {
     if (!fsm_init(fsm, initial_state)) {
         return false;
     }

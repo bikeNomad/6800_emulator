@@ -54,17 +54,12 @@ static bool send_command_to_emulator(sm_event_t event) {
     return notification == NOTIF_OK;
 }
 
-static inline bool pause_emulator(void) {
-    return send_command_to_emulator(EV_PAUSE_EMULATOR);
-}
+static inline bool pause_emulator(void) { return send_command_to_emulator(EV_PAUSE_EMULATOR); }
 
-static inline bool resume_emulator(void) {
-    return send_command_to_emulator(EV_RESUME_EMULATOR);
-}
+static inline bool resume_emulator(void) { return send_command_to_emulator(EV_RESUME_EMULATOR); }
 
 // Helper functions for bus operations with E clock management
-static void bus_read_block_with_eclock(uint16_t address, uint16_t length,
-                                       uint8_t *buffer) {
+static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_t *buffer) {
     if (!pause_emulator()) {
         return;
     }
@@ -89,8 +84,7 @@ static void bus_read_block_with_eclock(uint16_t address, uint16_t length,
     resume_emulator();
 }
 
-static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer,
-                                        uint16_t length) {
+static void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer, uint16_t length) {
     if (!pause_emulator()) {
         return;
     }
@@ -161,13 +155,12 @@ static void cmd_config_show(void) {
     memory_get_ram_config(&ram_base, &ram_size);
 
     usb_cdc_send("Memory Configuration:\r\n");
-    usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes, %dKB)\r\n", rom_base,
-                   rom_base + rom_size - 1, rom_size, rom_size / 1024);
-    usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes, %dKB)\r\n", ram_base,
-                   ram_base + ram_size - 1, ram_size, ram_size / 1024);
+    usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes, %dKB)\r\n", rom_base, rom_base + rom_size - 1,
+                   rom_size, rom_size / 1024);
+    usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes, %dKB)\r\n", ram_base, ram_base + ram_size - 1,
+                   ram_size, ram_size / 1024);
     usb_cdc_send("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
-    usb_cdc_printf("  Debug SPI: %s\r\n",
-                   debug_spi_is_enabled() ? "ON" : "OFF");
+    usb_cdc_printf("  Debug SPI: %s\r\n", debug_spi_is_enabled() ? "ON" : "OFF");
 }
 
 static void cmd_config_rom(void) {
@@ -179,11 +172,9 @@ static void cmd_config_rom(void) {
     }
 
     unsigned int base, size;
-    if (sscanf(cmd_tokens[0], "%x", &base) == 1 &&
-        sscanf(cmd_tokens[1], "%x", &size) == 1) {
+    if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
         memory_configure_rom(base, size);
-        usb_cdc_printf("OK: ROM configured at $%04X, size $%04X\r\n", base,
-                       size);
+        usb_cdc_printf("OK: ROM configured at $%04X, size $%04X\r\n", base, size);
     } else {
         usb_cdc_send("ERROR: Usage: config rom <base_hex> <size_hex>\r\n");
     }
@@ -198,11 +189,9 @@ static void cmd_config_ram(void) {
     }
 
     unsigned int base, size;
-    if (sscanf(cmd_tokens[0], "%x", &base) == 1 &&
-        sscanf(cmd_tokens[1], "%x", &size) == 1) {
+    if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
         memory_configure_ram(base, size);
-        usb_cdc_printf("OK: RAM configured at $%04X, size $%04X\r\n", base,
-                       size);
+        usb_cdc_printf("OK: RAM configured at $%04X, size $%04X\r\n", base, size);
     } else {
         usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
     }
@@ -276,21 +265,18 @@ static void cmd_status(void) {
     usb_cdc_printf("CPU Status:\r\n");
     cpu_print_state(usb_cdc_printf);
     uint32_t cycle_cnt = eclock_get_count();
-    uint32_t eclock_pio_cycles =
-        eclock_is_running() ? eclock_get_pio_cycles() : last_pio_cycles;
+    uint32_t eclock_pio_cycles = eclock_is_running() ? eclock_get_pio_cycles() : last_pio_cycles;
 
     usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
     usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
-    usb_cdc_printf("  Instructions: %llu\r\n",
-                   (unsigned long long)cpu.instruction_count);
+    usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)cpu.instruction_count);
     usb_cdc_printf("  Cycle Count: %lu\r\n", cycle_cnt);
     usb_cdc_printf("  PIO Cycles: %lu\r\n", eclock_pio_cycles);
     usb_cdc_printf("  Overage: %ld\r\n", (long)cycle_overage);
     usb_cdc_printf("  Underage: %ld\r\n", (long)cycle_underage);
-    usb_cdc_printf(
-        "  Speed ratio: %fx\r\n",
-        (cycle_cnt + (int32_t)cycle_underage) /
-            (eclock_pio_cycles > 0 ? (float)eclock_pio_cycles : 1.0f));
+    usb_cdc_printf("  Speed ratio: %fx\r\n",
+                   (cycle_cnt + (int32_t)cycle_underage) /
+                       (eclock_pio_cycles > 0 ? (float)eclock_pio_cycles : 1.0f));
 
     // Calculate and display speed ratio
     if (eclock_pio_cycles > 0) {
@@ -301,8 +287,8 @@ static void cmd_status(void) {
     // Include QSPI information
     uint32_t sys_clock_hz = clock_get_hz(clk_sys);
     uint32_t qspi_freq_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
-    usb_cdc_printf("  QSPI Bus: %lu MHz (divisor: %d)\r\n",
-                   qspi_freq_hz / 1000000, QSPI_CLOCK_DIVISOR);
+    usb_cdc_printf("  QSPI Bus: %lu MHz (divisor: %d)\r\n", qspi_freq_hz / 1000000,
+                   QSPI_CLOCK_DIVISOR);
 
     if (bus_read_reset()) {
         usb_cdc_printf("  /RESET Pin asserted\r\n");
@@ -327,8 +313,7 @@ static void cmd_read(void) {
     }
 
     unsigned int addr, len;
-    if (sscanf(cmd_tokens[0], "%x", &addr) != 1 ||
-        sscanf(cmd_tokens[1], "%x", &len) != 1) {
+    if (sscanf(cmd_tokens[0], "%x", &addr) != 1 || sscanf(cmd_tokens[1], "%x", &len) != 1) {
         usb_cdc_send("ERROR: Usage: read <addr_hex> <len_hex>\r\n");
         return;
     }
@@ -632,8 +617,7 @@ static void cmd_bus_write(void) {
     }
 
     unsigned int address, data;
-    if (sscanf(cmd_tokens[0], "%x", &address) != 1 ||
-        sscanf(cmd_tokens[1], "%x", &data) != 1) {
+    if (sscanf(cmd_tokens[0], "%x", &address) != 1 || sscanf(cmd_tokens[1], "%x", &data) != 1) {
         usb_cdc_send("ERROR: Usage: bus_write <address_hex> <data_hex>\r\n");
         return;
     }
@@ -652,16 +636,13 @@ static void cmd_bus_read_block(void) {
     // Bus read block: bus_read_block <address> <length>
     // Expects tokens: [bus_read_block] <address> <length>
     if (cmd_token_count < 2) {
-        usb_cdc_send(
-            "ERROR: Usage: bus_read_block <address_hex> <length_hex>\r\n");
+        usb_cdc_send("ERROR: Usage: bus_read_block <address_hex> <length_hex>\r\n");
         return;
     }
 
     unsigned int address, length;
-    if (sscanf(cmd_tokens[0], "%x", &address) != 1 ||
-        sscanf(cmd_tokens[1], "%x", &length) != 1) {
-        usb_cdc_send(
-            "ERROR: Usage: bus_read_block <address_hex> <length_hex>\r\n");
+    if (sscanf(cmd_tokens[0], "%x", &address) != 1 || sscanf(cmd_tokens[1], "%x", &length) != 1) {
+        usb_cdc_send("ERROR: Usage: bus_read_block <address_hex> <length_hex>\r\n");
         return;
     }
 
@@ -688,15 +669,13 @@ static void cmd_bus_write_block(void) {
     // Bus write block: bus_write_block <address> <hex_data...>
     // Expects tokens: [bus_write_block] <address> <data1> <data2> ...
     if (cmd_token_count < 2) {
-        usb_cdc_send(
-            "ERROR: Usage: bus_write_block <address_hex> <byte_hex> ...\r\n");
+        usb_cdc_send("ERROR: Usage: bus_write_block <address_hex> <byte_hex> ...\r\n");
         return;
     }
 
     unsigned int address;
     if (sscanf(cmd_tokens[0], "%x", &address) != 1) {
-        usb_cdc_send(
-            "ERROR: Usage: bus_write_block <address_hex> <byte_hex> ...\r\n");
+        usb_cdc_send("ERROR: Usage: bus_write_block <address_hex> <byte_hex> ...\r\n");
         return;
     }
 
@@ -733,9 +712,7 @@ static void cmd_bus_write_block(void) {
 }
 
 #if COUNT_INSTRUCTIONS
-static void cmd_print_instruction_counts(void) {
-    instruction_count_report(usb_cdc_printf);
-}
+static void cmd_print_instruction_counts(void) { instruction_count_report(usb_cdc_printf); }
 
 static void cmd_reset_instruction_counts(void) {
     bool old = instruction_count_enable(false);
@@ -759,44 +736,43 @@ static void cmd_count_off(void) {
 
 static void cmd_help(void) {
     // Send as single string to avoid buffer overflow
-    usb_cdc_send(
-        "MC6800 Emulator Commands:\r\n"
-        "  load                      - Load Intel HEX (auto-detects "
-        "ROM/CMOS)\r\n"
-        "  config                    - Show memory configuration\r\n"
-        "  config rom <b> <s>        - Configure ROM region\r\n"
-        "  config ram <b> <s>        - Configure RAM region\r\n"
-        "  cmos dump                 - Display CMOS RAM contents\r\n"
-        "  read <addr> <len>         - Read memory\r\n"
-        "  write <addr> <data>       - Write memory\r\n"
-        "  status                    - Display CPU status\r\n"
-        "  run                       - Start CPU execution\r\n"
-        "  halt                      - Stop CPU execution (auto-saves CMOS)\r\n"
-        "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
+    usb_cdc_send("MC6800 Emulator Commands:\r\n"
+                 "  load                      - Load Intel HEX (auto-detects "
+                 "ROM/CMOS)\r\n"
+                 "  config                    - Show memory configuration\r\n"
+                 "  config rom <b> <s>        - Configure ROM region\r\n"
+                 "  config ram <b> <s>        - Configure RAM region\r\n"
+                 "  cmos dump                 - Display CMOS RAM contents\r\n"
+                 "  read <addr> <len>         - Read memory\r\n"
+                 "  write <addr> <data>       - Write memory\r\n"
+                 "  status                    - Display CPU status\r\n"
+                 "  run                       - Start CPU execution\r\n"
+                 "  halt                      - Stop CPU execution (auto-saves CMOS)\r\n"
+                 "  reset                     - Reset CPU (auto-saves CMOS)\r\n"
 #if COUNT_INSTRUCTIONS
-        "  count print               - Print instruction execution counts\r\n"
-        "  count reset               - Reset instruction execution counts\r\n"
-        "  count on                  - Enable instruction counting\r\n"
-        "  count off                 - Disable instruction counting\r\n"
+                 "  count print               - Print instruction execution counts\r\n"
+                 "  count reset               - Reset instruction execution counts\r\n"
+                 "  count on                  - Enable instruction counting\r\n"
+                 "  count off                 - Disable instruction counting\r\n"
 #endif
-        "  debug on/off              - Enable/disable SPI debug output\r\n"
-        "  break <addr>              - Set breakpoint at address\r\n"
-        "  break clear               - Clear all breakpoints\r\n"
-        "  break clear <addr>        - Clear specific breakpoint\r\n"
-        "  break list                - List all breakpoints\r\n"
-        "  reg pc <val>              - Set program counter\r\n"
-        "  reg a <val>               - Set accumulator A\r\n"
-        "  reg b <val>               - Set accumulator B\r\n"
-        "  reg x <val>               - Set index register X\r\n"
-        "  reg sp <val>              - Set stack pointer\r\n"
-        "  reg ccr <val>             - Set condition code register\r\n"
-        "  bus_read <addr>           - Read byte from hardware bus\r\n"
-        "  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
-        "  bus_read_block <addr> <len> - Read block from hardware bus\r\n"
-        "  bus_write_block <addr> <data...> - Write block to hardware bus\r\n"
-        "  bus_info                  - Show bus configuration\r\n"
-        "  bootloader                - Enter bootloader mode\r\n"
-        "  help                      - Show this help\r\n");
+                 "  debug on/off              - Enable/disable SPI debug output\r\n"
+                 "  break <addr>              - Set breakpoint at address\r\n"
+                 "  break clear               - Clear all breakpoints\r\n"
+                 "  break clear <addr>        - Clear specific breakpoint\r\n"
+                 "  break list                - List all breakpoints\r\n"
+                 "  reg pc <val>              - Set program counter\r\n"
+                 "  reg a <val>               - Set accumulator A\r\n"
+                 "  reg b <val>               - Set accumulator B\r\n"
+                 "  reg x <val>               - Set index register X\r\n"
+                 "  reg sp <val>              - Set stack pointer\r\n"
+                 "  reg ccr <val>             - Set condition code register\r\n"
+                 "  bus_read <addr>           - Read byte from hardware bus\r\n"
+                 "  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
+                 "  bus_read_block <addr> <len> - Read block from hardware bus\r\n"
+                 "  bus_write_block <addr> <data...> - Write block to hardware bus\r\n"
+                 "  bus_info                  - Show bus configuration\r\n"
+                 "  bootloader                - Enter bootloader mode\r\n"
+                 "  help                      - Show this help\r\n");
 }
 
 //--------------------------------------------------------------------+
@@ -870,8 +846,7 @@ static void dispatch_command(void) {
     // Build two-word command string if we have at least 2 tokens
     char two_word[64];
     if (cmd_token_count >= 2) {
-        snprintf(two_word, sizeof(two_word), "%s %s", cmd_tokens[0],
-                 cmd_tokens[1]);
+        snprintf(two_word, sizeof(two_word), "%s %s", cmd_tokens[0], cmd_tokens[1]);
     }
 
     // Search through command table
@@ -967,18 +942,16 @@ void usb_cdc_task(void) {
             // Check for end of line (both CR and LF)
             if (c == '\n' || c == '\r') {
                 // Check for 'end' command
-                if (hex_pos >= 4 &&
-                    strncmp(&hex_buffer[hex_pos - 4], "end", 3) == 0) {
+                if (hex_pos >= 4 && strncmp(&hex_buffer[hex_pos - 4], "end", 3) == 0) {
                     // Remove 'end' from buffer and process
                     hex_pos -= 4;
                     process_command("end");
                 }
                 // Check for Intel HEX EOF record (:00000001FF)
-                else if (hex_pos >= 12 && strncmp(&hex_buffer[hex_pos - 12],
-                                                  ":00000001FF", 11) == 0) {
+                else if (hex_pos >= 12 &&
+                         strncmp(&hex_buffer[hex_pos - 12], ":00000001FF", 11) == 0) {
                     // Found EOF record - auto-exit hex mode and process
-                    usb_cdc_send(
-                        "EOF record detected, processing HEX data...\r\n");
+                    usb_cdc_send("EOF record detected, processing HEX data...\r\n");
                     hex_buffer[hex_pos] = '\0';
                     if (ihex_load_data(hex_buffer, hex_pos)) {
                         usb_cdc_send("OK: EPROM loaded successfully\r\n");
@@ -989,7 +962,6 @@ void usb_cdc_task(void) {
                     hex_pos = 0;
                 }
             }
-
         } else {
             // Normal command mode - echo as we go
             if (c == '\r' || c == '\n') {
@@ -1040,8 +1012,7 @@ void usb_cdc_send(const char *str) {
     while (sent < len) {
         size_t available = tud_cdc_write_available();
         if (available > 0) {
-            size_t to_send =
-                (len - sent) < available ? (len - sent) : available;
+            size_t to_send = (len - sent) < available ? (len - sent) : available;
             uint32_t written = tud_cdc_write(str + sent, to_send);
             sent += written;
             tud_cdc_write_flush();

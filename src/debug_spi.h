@@ -6,8 +6,8 @@
 #ifndef DEBUG_SPI_H
 #define DEBUG_SPI_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 // Initialize debug SPI
 void debug_spi_init(void);

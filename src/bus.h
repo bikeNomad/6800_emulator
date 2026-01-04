@@ -7,11 +7,11 @@
 #ifndef BUS_H
 #define BUS_H
 
-#include <stdint.h>
-#include <stdbool.h>
 #include "board_config.h"
-#include "hardware/gpio.h"
 #include "clock.h"
+#include "hardware/gpio.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 // GPIO pin assignments are defined in board_config.h
 
@@ -31,13 +31,13 @@
 
 static inline uint32_t addr_to_gpio_mask(uint16_t address) {
     // Apply address mask (only bits 0,1,10-14 used)
-    address &= ADDR_MASK;  // 0x7C03
+    address &= ADDR_MASK; // 0x7C03
 
     // Map non-contiguous address bits to contiguous GPIO pins:
     // A0-A1 (bits 0-1) → GPIO 8-9 (shift left by 8)
     // A10-A14 (bits 10-14) → GPIO 10-14 (already aligned at bit 10)
-    uint32_t gpio_value = ((address & 0x0003) << 8) |  // A0-A1 → GPIO 8-9
-                          (address & 0x7C00);           // A10-A14 → GPIO 10-14
+    uint32_t gpio_value = ((address & 0x0003) << 8) | // A0-A1 → GPIO 8-9
+                          (address & 0x7C00);         // A10-A14 → GPIO 10-14
     return gpio_value;
 }
 
@@ -49,7 +49,7 @@ static inline uint32_t addr_to_gpio_mask(uint16_t address) {
 
 static inline uint32_t addr_to_gpio_mask(uint16_t address) {
     // Apply address mask (all 16 bits used)
-    address &= ADDR_MASK;  // 0xFFFF
+    address &= ADDR_MASK; // 0xFFFF
 
     // Map contiguous address bits to GPIO pins:
     // A0-A15 (bits 0-15) → GPIO 8-23 (shift left by 8)
@@ -66,17 +66,16 @@ void bus_init(void);
 
 // Read interrupt request lines (active low)
 static inline bool bus_read_irq(void) {
-    return !gpio_get(GPIO_IRQ);  // Active low, so invert
+    return !gpio_get(GPIO_IRQ); // Active low, so invert
 }
 
 static inline bool bus_read_nmi(void) {
-    return !gpio_get(GPIO_NMI);  // Active low, so invert
+    return !gpio_get(GPIO_NMI); // Active low, so invert
 }
 
 static inline bool bus_read_reset(void) {
-    return !gpio_get(GPIO_RESET);  // Active low, so invert
+    return !gpio_get(GPIO_RESET); // Active low, so invert
 }
-
 
 // ============================================================================
 // PIO-Based Bus Cycle Functions (precise hardware timing)
@@ -109,6 +108,5 @@ static inline void bus_write_cycle(uint16_t address, uint8_t data) {
     bus_sync();
     bus_write_cycle_pio(address, data);
 }
-
 
 #endif // BUS_H

@@ -18,6 +18,6 @@ void usb_cdc_task(void);
 void usb_cdc_send(const char *str);
 
 // Send formatted string to USB
-int usb_cdc_printf(const char * restrict fmt, ...);
+int usb_cdc_printf(const char *restrict fmt, ...);
 
 #endif // USB_CDC_H

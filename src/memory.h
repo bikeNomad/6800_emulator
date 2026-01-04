@@ -7,44 +7,45 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 // Address translation for missing A15 decode
-#define ADDR_MASK_A15 0x7FFF  // Mask off A15
+#define ADDR_MASK_A15 0x7FFF // Mask off A15
 
 // Flash storage for ROM (at the end of program flash)
-#define FLASH_TARGET_OFFSET (1024 * 1024)  // 1MB offset (adjust based on program size)
-#define MAX_ROM_SIZE (32 * 1024)  // 32KB max ROM
-#define MAX_RAM_SIZE (8 * 1024)  // 8KB max RAM (supports up to 0x1FFF)
+#define FLASH_TARGET_OFFSET (1024 * 1024) // 1MB offset (adjust based on program size)
+#define MAX_ROM_SIZE (32 * 1024)          // 32KB max ROM
+#define MAX_RAM_SIZE (8 * 1024)           // 8KB max RAM (supports up to 0x1FFF)
 
-// CMOS RAM 
+// CMOS RAM
 #define CMOS_SIZE 256
 #define CMOS_BASE 0x0100
 
 // Memory region types
 typedef enum {
-    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
-    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
-    MEM_TYPE_RAM,       // RAM - read/write from shadow
-    MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
+    MEM_TYPE_UNMAPPED, // Unmapped (peripheral) address - routes to physical bus
+    MEM_TYPE_ROM,      // ROM (EPROM) - read only from flash
+    MEM_TYPE_RAM,      // RAM - read/write from shadow
+    MEM_TYPE_CMOS      // CMOS RAM - read/write from bus for now
 } memory_type_t;
 
 // Memory configuration
 typedef struct {
-    uint32_t flash_offset;  // Offset in RP2350 flash for ROM shadow copy
-    uint32_t flash_size;    // Size of ROM image
-    uint16_t rom_base;      // Base address in MC6800 space (e.g., $E000)
-    uint16_t rom_size;      // Size of ROM region
-    uint16_t ram_base;      // Base address of RAM (e.g., $0000)
-    uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
-    uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
-    uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
-    bool configured;        // Configuration complete
+    uint32_t flash_offset; // Offset in RP2350 flash for ROM shadow copy
+    uint32_t flash_size;   // Size of ROM image
+    uint16_t rom_base;     // Base address in MC6800 space (e.g., $E000)
+    uint16_t rom_size;     // Size of ROM region
+    uint16_t ram_base;     // Base address of RAM (e.g., $0000)
+    uint16_t ram_size;     // Size of RAM (e.g., 512 bytes)
+    uint16_t cmos_base;    // Base address of CMOS RAM (0x0100)
+    uint16_t cmos_size;    // Size of CMOS RAM (256 bytes)
+    bool configured;       // Configuration complete
 } memory_config_t;
 
 extern memory_config_t mem_config;
-extern uint8_t rom_shadow[MAX_ROM_SIZE] __attribute__((aligned(256)));  // Fast RAM copy of ROM for execution
+extern uint8_t rom_shadow[MAX_ROM_SIZE]
+    __attribute__((aligned(256))); // Fast RAM copy of ROM for execution
 
 // Compile-time alignment verification
 _Static_assert(__alignof__(rom_shadow) == 256, "rom_shadow not 256-byte aligned");
@@ -85,7 +86,7 @@ bool memory_save_cmos(void);
 void memory_init_rom_from_flash(void);
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
-const uint8_t* memory_get_cmos_shadow(void);
+const uint8_t *memory_get_cmos_shadow(void);
 
 // Read CMOS data from bus into shadow copy
 void memory_read_cmos_from_bus(void);

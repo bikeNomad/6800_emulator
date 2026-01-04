@@ -7,23 +7,23 @@
  * - Core 1: Dedicated USB CDC processing
  */
 
-#include "pico/stdlib.h"
-#include "pico/multicore.h"
-#include "hardware/gpio.h"
 #include "hardware/clocks.h"
-#include "hardware/vreg.h"
+#include "hardware/gpio.h"
 #include "hardware/regs/qmi.h"
 #include "hardware/structs/qmi.h"
+#include "hardware/vreg.h"
+#include "pico/multicore.h"
+#include "pico/stdlib.h"
 
-#include "emulator.h"
-#include "cpu_state.h"
-#include "memory.h"
 #include "bus.h"
 #include "clock.h"
+#include "cpu_state.h"
+#include "debug_spi.h"
+#include "emulator.h"
 #include "instructions.h"
 #include "interrupts.h"
+#include "memory.h"
 #include "usb_cdc.h"
-#include "debug_spi.h"
 
 // Get current QSPI flash interface speed
 uint32_t qspi_get_current_speed(void) {
@@ -34,9 +34,10 @@ uint32_t qspi_get_current_speed(void) {
 // Configure QSPI (XIP) clock divisor
 // This must be called after set_sys_clock_khz() to apply the configured divisor
 void qspi_configure_clock(void) {
-    // On RP2350, the QSPI interface uses the QMI (Quad Memory Interface) peripheral
-    // The clock divisor is configured in the QMI_M0_TIMING register
-    // CLKDIV field controls the divisor: 0 = div by 1, 1 = div by 2, 2 = div by 3, etc.
+    // On RP2350, the QSPI interface uses the QMI (Quad Memory Interface)
+    // peripheral The clock divisor is configured in the QMI_M0_TIMING register
+    // CLKDIV field controls the divisor: 0 = div by 1, 1 = div by 2, 2 = div by
+    // 3, etc.
 
     // Read current timing configuration
     uint32_t timing = qmi_hw->m[0].timing;
@@ -59,14 +60,14 @@ void qspi_report_speed(void) {
     // Read actual divisor from QMI hardware
     uint32_t timing = qmi_hw->m[0].timing;
     uint32_t clkdiv_field = (timing >> QMI_M0_TIMING_CLKDIV_LSB) & 0xFF;
-    uint32_t actual_divisor = clkdiv_field + 1;  // Hardware uses 0-based divisor
+    uint32_t actual_divisor = clkdiv_field + 1; // Hardware uses 0-based divisor
 
     uint32_t qspi_target_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
     uint32_t qspi_actual_hz = sys_clock_hz / actual_divisor;
 
-    printf("QSPI bus speed: target %lu MHz (divisor: %d), actual %lu MHz (divisor: %lu)\r\n",
-           qspi_target_hz / 1000000, QSPI_CLOCK_DIVISOR,
-           qspi_actual_hz / 1000000, actual_divisor);
+    printf("QSPI bus speed: target %lu MHz (divisor: %d), actual %lu MHz "
+           "(divisor: %lu)\r\n",
+           qspi_target_hz / 1000000, QSPI_CLOCK_DIVISOR, qspi_actual_hz / 1000000, actual_divisor);
 }
 
 // Core 1: Dedicated USB CDC processing
@@ -84,21 +85,23 @@ void core1_entry() {
 
 int main() {
     // Set system clock based on build-time configuration
-    // Default is 300MHz for better emulation performance (>2x speedup over default 150MHz)
-    // RP2350 can safely run at 300MHz with proper voltage
+    // Default is 300MHz for better emulation performance (>2x speedup over
+    // default 150MHz) RP2350 can safely run at 300MHz with proper voltage
     vreg_set_voltage(VREG_VOLTAGE_1_25);
     sleep_ms(10);
     set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, true);
 
     // NOTE: Do NOT call qspi_configure_clock() here!
     // Modifying QSPI timing while executing from XIP flash causes a crash.
-    // The Pico SDK's set_sys_clock_khz() already handles QSPI timing appropriately.
+    // The Pico SDK's set_sys_clock_khz() already handles QSPI timing
+    // appropriately.
 
     // Report QSPI bus speed configuration (read-only, safe to call)
     qspi_report_speed();
 
     // Initialize Pico SDK
-    // NOTE: UART moved to GPIO 24 (TX) and GPIO 25 (RX) to avoid conflict with data bus
+    // NOTE: UART moved to GPIO 24 (TX) and GPIO 25 (RX) to avoid conflict with
+    // data bus
     stdio_init_all();
 
     // Small delay for USB to enumerate

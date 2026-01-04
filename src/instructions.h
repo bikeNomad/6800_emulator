@@ -13,7 +13,7 @@
 void instruction_execute(void);
 
 // Get instruction mnemonic for disassembly
-const char* instruction_get_mnemonic(uint8_t opcode);
+const char *instruction_get_mnemonic(uint8_t opcode);
 
 #if COUNT_INSTRUCTIONS
 typedef struct instruction_count_info {

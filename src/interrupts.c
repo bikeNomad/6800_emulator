@@ -2,15 +2,15 @@
  * MC6800 Interrupt Handling Implementation
  */
 
+#include "interrupts.h"
+#include "board_config.h"
+#include "bus.h"
+#include "clock.h"
+#include "cpu_state.h"
+#include "emulator.h"
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
-#include "emulator.h"
-#include "board_config.h"
-#include "interrupts.h"
-#include "cpu_state.h"
-#include "bus.h"
 #include "memory.h"
-#include "clock.h"
 
 // Previous interrupt line states (for edge detection)
 static bool last_irq_state = false;
@@ -60,7 +60,7 @@ interrupt_t __time_critical_func(interrupt_check)(void) {
         interrupt_service_irq();
         return INT_IRQ;
     }
-    
+
     return INT_NONE;
 }
 
@@ -84,14 +84,14 @@ void interrupt_service_reset(void) {
     cpu.a = 0;
     cpu.b = 0;
     cpu.x = 0x0000;
-    cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
-    cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
-    cpu.wai_state = false;  // Clear WAI state
+    cpu.sp = 0x0000;             // Stack pointer will be initialized by reset routine
+    cpu.ccr = CCR_FIXED | CCR_I; // Interrupts masked
+    cpu.wai_state = false;       // Clear WAI state
 
     cpu.halted = true;
     cpu.running = false;
 
-    cpu.instruction_count = 0;  // Reset instruction counter
+    cpu.instruction_count = 0; // Reset instruction counter
     clock_reset_counters();
 
     DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
@@ -105,7 +105,7 @@ void interrupt_service_nmi(void) {
     if (!cpu.wai_state) {
         cpu_stack_registers();
     }
-    cpu.wai_state = false; // Clear WAI state if we were waiting
+    cpu.wai_state = false;     // Clear WAI state if we were waiting
     cpu_set_flag(CCR_I, true); // Set interrupt mask
     cpu_load_pc_from_vector(VECTOR_NMI);
 

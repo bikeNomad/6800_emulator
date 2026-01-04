@@ -1,8 +1,8 @@
+#include "emulator.h"
 #include "bus.h"
 #include "clock.h"
 #include "cpu_state.h"
 #include "debug_spi.h"
-#include "emulator.h"
 #include "instructions.h"
 #include "interrupts.h"
 #include "memory.h"
@@ -11,7 +11,7 @@
 static queue_t sm_event_queue;     // Events => Emulator State Machine
 static queue_t notification_queue; // Notifications => USB CDC console
 static FSM emulator_fsm;
-static state_method paused_state;   // history
+static state_method paused_state; // history
 
 static void s_initializing(FSM *fsm, uint8_t event);
 static void s_resetting(FSM *fsm, uint8_t event);
@@ -30,9 +30,7 @@ static bool receive_sm_event(FSM *unused, uint8_t *event) {
     return queue_try_remove(&sm_event_queue, event);
 }
 
-bool post_sm_event(sm_event_t event) {
-    return queue_try_add(&sm_event_queue, &event);
-}
+bool post_sm_event(sm_event_t event) { return queue_try_add(&sm_event_queue, &event); }
 
 bool receive_sm_notification(sm_notification_t *notification) {
     return queue_try_remove(&notification_queue, notification);
@@ -87,9 +85,8 @@ static void s_running(FSM *fsm, uint8_t event) {
         if (cpu_check_breakpoint(cpu.pc) && !cpu.stopped_at_breakpoint) {
             // Breakpoint hit - halt CPU and set flag to skip check on next run
             cpu.stopped_at_breakpoint = true;
-            usb_cdc_printf(
-                "CPU halted at breakpoint at PC=$%04X Prior PC=$%04X\r\n",
-                cpu.pc, cpu.last_opcode_address);
+            usb_cdc_printf("CPU halted at breakpoint at PC=$%04X Prior PC=$%04X\r\n", cpu.pc,
+                           cpu.last_opcode_address);
             fsm_change_state(fsm, &s_halted);
         } else {
             // Execute one instruction (cycle-accurate)
@@ -115,13 +112,13 @@ static void s_running(FSM *fsm, uint8_t event) {
     case EVT_EXIT:
         cpu.running = false;
         break;
-    
+
     case EV_PAUSE_EMULATOR:
         paused_state = &s_running;
         fsm_change_state(fsm, &s_paused);
         notify_ok();
         break;
-    
+
     case EV_CMD_RUN:
         notify_ok();
         break;
@@ -130,12 +127,12 @@ static void s_running(FSM *fsm, uint8_t event) {
         fsm_change_state(fsm, &s_halted);
         notify_ok();
         break;
-    
+
     case EV_CMD_RESET:
         fsm_change_state(fsm, &s_resetting);
         notify_ok();
         break;
-    
+
     case EV_CMD_LOAD:
         fsm_change_state(fsm, &s_loading);
         notify_ok();

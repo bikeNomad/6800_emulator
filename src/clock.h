@@ -6,15 +6,15 @@
 #ifndef CLOCK_H
 #define CLOCK_H
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "pico.h"
-#include "hardware/pio.h"
-#include "clock.pio.h"
 #include "board_config.h"
+#include "clock.pio.h"
+#include "hardware/pio.h"
 #include "hardware/pio_instructions.h"
 #include "hardware/structs/iobank0.h"
 #include "instructions.h"
+#include "pico.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
@@ -50,9 +50,7 @@ static inline void eclock_reset_pio_counter(void) {
 }
 
 // Accumulate cycles without GPIO polling (inline for performance)
-static inline void eclock_accumulate(uint32_t cycles) {
-    pending_cycles += cycles;
-}
+static inline void eclock_accumulate(uint32_t cycles) { pending_cycles += cycles; }
 
 // Synchronize accumulated cycles at end of instruction (inline for performance)
 static inline void eclock_sync_instruction(void) {
@@ -62,28 +60,23 @@ static inline void eclock_sync_instruction(void) {
     pending_cycles = 0;
 }
 
-// Consume N internal cycles - fast-path: accumulate without GPIO polling (inline for performance)
-static inline void eclock_consume_cycles(uint8_t cycles) {
-    eclock_accumulate(cycles);
-}
+// Consume N internal cycles - fast-path: accumulate without GPIO polling
+// (inline for performance)
+static inline void eclock_consume_cycles(uint8_t cycles) { eclock_accumulate(cycles); }
 
 // Get cycle count (inline for performance)
-static inline uint32_t eclock_get_count(void) {
-    return cycle_count;
-}
+static inline uint32_t eclock_get_count(void) { return cycle_count; }
 
 // Get accumulated cycle count for debugging (inline for performance)
-static inline uint32_t eclock_get_pending(void) {
-    return pending_cycles;
-}
+static inline uint32_t eclock_get_pending(void) { return pending_cycles; }
 
 static inline void eclock_wait_cycles(uint32_t cycles) {
     // Wait for the specified number of E clock cycles
     if (!cycles) {
-        return;  // no cycles to wait for
+        return; // no cycles to wait for
     }
-    pio_sm_put(ECLK_PIO, SYNC_SM, cycles-1);  // push cycles to FIFO
-    (void)pio_sm_get_blocking(ECLK_PIO, SYNC_SM);  // wait for completion
+    pio_sm_put(ECLK_PIO, SYNC_SM, cycles - 1);    // push cycles to FIFO
+    (void)pio_sm_get_blocking(ECLK_PIO, SYNC_SM); // wait for completion
 }
 
 // Get real elapsed E clock cycles from PIO
@@ -97,7 +90,6 @@ static inline uint32_t eclock_get_pio_cycles(void) {
     // Invert to get elapsed cycles (0xFFFFFFFF - x_value)
     return ~x_value;
 }
-
 
 // Wait for next E clock edge (with real-time tracking)
 static inline void bus_sync(void) {
@@ -140,7 +132,5 @@ static inline void clock_reset_counters(void) {
     instruction_count_initialize();
 #endif
 }
-
-
 
 #endif // CLOCK_H
