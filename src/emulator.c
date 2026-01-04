@@ -11,6 +11,7 @@
 static queue_t sm_event_queue;     // Events => Emulator State Machine
 static queue_t notification_queue; // Notifications => USB CDC console
 static FSM emulator_fsm;
+static state_method paused_state;   // history
 
 static void s_initializing(FSM *fsm, uint8_t event);
 static void s_resetting(FSM *fsm, uint8_t event);
@@ -64,8 +65,8 @@ static void s_resetting(FSM *fsm, uint8_t event) {
         break;
     case EVT_ENTER:
         GET_NAME(fsm);
+        eclock_stop();
         break;
-    case EVT_EXIT:
     }
 }
 
@@ -92,6 +93,9 @@ static void s_running(FSM *fsm, uint8_t event) {
             debug_spi_log();
             if (cpu.wai_state) {
                 fsm_change_state(fsm, &s_waiting_for_interrupt);
+            } else if (cpu.halted) {
+                // unimplemented opcode or HCF
+                fsm_change_state(fsm, &s_halted);
             }
         }
         break;
@@ -104,6 +108,31 @@ static void s_running(FSM *fsm, uint8_t event) {
 
     case EVT_EXIT:
         break;
+    
+    case EV_PAUSE_EMULATOR:
+        paused_state = &s_running;
+        fsm_change_state(fsm, &s_paused);
+        notify_ok();
+        break;
+    
+    case EV_CMD_RUN:
+        notify_ok();
+        break;
+
+    case EV_CMD_HALT:
+        fsm_change_state(fsm, &s_halted);
+        notify_ok();
+        break;
+    
+    case EV_CMD_RESET:
+        fsm_change_state(fsm, &s_resetting);
+        notify_ok();
+        break;
+    
+    case EV_CMD_LOAD:
+        fsm_change_state(fsm, &s_loading);
+        notify_ok();
+        break;
     }
 }
 
@@ -115,6 +144,25 @@ static void s_halted(FSM *fsm, uint8_t event) {
         eclock_stop(); // E clock OFF
         break;
     case EVT_EXIT:
+        cpu.halted = false;
+        cpu.stopped_at_breakpoint = false;
+        break;
+    case EV_CMD_RUN:
+        fsm_change_state(fsm, &s_running);
+        notify_ok();
+        break;
+    case EV_PAUSE_EMULATOR:
+    case EV_RESUME_EMULATOR:
+    case EV_CMD_HALT:
+        notify_ok();
+        break;
+    case EV_CMD_RESET:
+        fsm_change_state(fsm, &s_resetting);
+        notify_ok();
+        break;
+    case EV_CMD_LOAD:
+        fsm_change_state(fsm, &s_loading);
+        notify_ok();
         break;
     }
 }
@@ -126,6 +174,16 @@ static void s_paused(FSM *fsm, uint8_t event) {
         GET_NAME(fsm);
         break;
     case EVT_EXIT:
+        break;
+    case EV_RESUME_EMULATOR:
+        if (paused_state) {
+            fsm_change_state(fsm, paused_state);
+            paused_state = NULL;
+        }
+        notify_ok();
+        break;
+    case EV_PAUSE_EMULATOR:
+        notify_ok();
         break;
     }
 }

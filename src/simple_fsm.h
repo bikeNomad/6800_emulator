@@ -46,7 +46,9 @@ struct FSM {
 bool fsm_run(FSM* fsm, state_method initial_state);
 
 static inline void fsm_change_state(FSM* fsm, state_method new_state) {
-    fsm->next_state = new_state;
+    if (new_state != fsm->current_state) {
+        fsm->next_state = new_state;
+    }
 }
 
 static inline void fsm_terminate(FSM* fsm) {

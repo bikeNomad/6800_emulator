@@ -9,8 +9,7 @@
 #include "pico/stdlib.h"
 #include "pico/util/queue.h"
 #include "pico/multicore.h"
-
-#include "simple_fsm.h"
+#include "simple_fsm.h"   // for EVT_USER_START
 
 typedef int	(*printf_func_t)(const char *__restrict, ...)
                _ATTRIBUTE ((__format__ (__printf__, 1, 2)));
@@ -42,32 +41,22 @@ typedef enum sm_event_t {
   EV_CMD_RUN = EVT_USER_START,
   EV_CMD_HALT,
   EV_CMD_RESET,
-  EV_CMD_BOOTLOADER,
-  EV_CMD_READ,
-  EV_CMD_WRITE,
   EV_CMD_LOAD,
   EV_PAUSE_EMULATOR,  // freeze emulation
   EV_RESUME_EMULATOR,
-
-  // Events from hardware
-  EV_IRQ_ASSERTED,
-  EV_NMI_ASSERTED,
-  EV_RESET_ASSERTED,
-
-  // Events from emulated instructions
-  EV_WAI,
-  EV_UNIMPLEMENTED_OPCODE,  // halts
-  EV_HCF, // halt and catch fire
-  EV_BREAKPOINT_HIT,
 } sm_event_t;
 
+// Notifications to USB CDC
 typedef enum sm_notification_t {
-  // Notifications to USB CDC
   NOTIF_OK,
   NOTIF_ERROR,
-  NOTIF_STATUS,
 } sm_notification_t;
 
+// Returns false if the queue is full
 bool post_sm_event(sm_event_t event);
+
+// Returns false if no notification in queue (yet)
 bool receive_sm_notification(sm_notification_t *notification);
+
+// Runs until an exception of some sort
 bool run_emulator_sm(void);
