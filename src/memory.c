@@ -388,9 +388,11 @@ const uint8_t* memory_get_cmos_shadow(void) {
 }
 
 void memory_read_cmos_from_bus(void) {
+    eclock_start();
     uint16_t address = mem_config.cmos_base;
     for (uint16_t i = 0; i < mem_config.cmos_size; i++) {
         uint8_t value = bus_read_cycle(address);
         ram_shadow[address++] = value;
     }
+    eclock_stop();
 }
