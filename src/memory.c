@@ -52,6 +52,21 @@ void led_all_off(void) {
 #endif
 }
 
+/* Memory map
+The memory_map is a table of 256 entries (each representing a 256-byte page of
+6800 address space). Each entry is a 32-bit word, set up like this:
+bit[31:8] top 24 bits of shadow base address (assumes 256-byte alignment of shadow areas)
+bit[2] flag for write-through (CMOS)
+bit[1] 1: writable/RAM, 0: ROM
+bit[0] flag for mapped/unmapped (0: mapped, 1: unmapped)
+
+So the bottom 3 bits are encoded like this:
+0b000   mapped ROM (read from ROM shadow)
+0b001   unmapped (read/write bus)
+0b010   mapped RAM (read/write from/to RAM shadow)
+0b110   mapped CMOS RAM (read from RAM shadow, write to both shadow and bus)
+*/
+
 #define ENTRY_MAPPED 0b000
 #define ENTRY_UNMAPPED 0b001
 #define ENTRY_RAM 0b010
@@ -79,9 +94,9 @@ uint32_t memory_map[MEMORY_TABLE_SIZE];
 memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
-static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(256)));
+static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(ENTRY_PAGE_SIZE)));
 uint8_t rom_shadow[MAX_ROM_SIZE]
-    __attribute__((aligned(256)));            // Fast RAM copy of ROM for execution
+    __attribute__((aligned(ENTRY_PAGE_SIZE)));            // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE]; // Buffer for loading before flash write
 
 void memory_initialize_map(void) {
@@ -130,28 +145,6 @@ void memory_initialize_map(void) {
     }
 }
 
-// Verify 256-byte alignment of critical arrays
-static void memory_verify_alignment(void) {
-    uintptr_t rom_addr = (uintptr_t)rom_shadow;
-    uintptr_t ram_addr = (uintptr_t)ram_shadow;
-
-    bool rom_aligned = (rom_addr % 256) == 0;
-    bool ram_aligned = (ram_addr % 256) == 0;
-
-    printf("Alignment verification:\n");
-    printf("  rom_shadow: 0x%08lx %s\n", (unsigned long)rom_addr,
-           rom_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
-    printf("  ram_shadow: 0x%08lx %s\n", (unsigned long)ram_addr,
-           ram_aligned ? "✓ 256-byte aligned" : "✗ NOT aligned");
-
-    if (!rom_aligned || !ram_aligned) {
-        printf("WARNING: One or more arrays not 256-byte aligned!\n");
-        printf("         Performance optimizations may not be effective.\n");
-    } else {
-        printf("All arrays properly 256-byte aligned for optimal performance.\n");
-    }
-}
-
 // Initialize memory subsystem
 void memory_init(void) {
     memset(&mem_config, 0, sizeof(mem_config));
@@ -169,9 +162,6 @@ void memory_init(void) {
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
     mem_config.configured = true; // Use defaults
-
-    // Verify 256-byte alignment for performance optimization
-    memory_verify_alignment();
 
     memory_initialize_map();
 
