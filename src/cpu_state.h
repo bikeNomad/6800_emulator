@@ -29,8 +29,6 @@ typedef struct {
     bool halted;      // CPU halt state (waiting for EPROM or manual halt)
     bool running;     // CPU running state (set by USB RUN command)
     bool wai_state;   // CPU waiting for interrupt (WAI instruction)
-    bool irq_pending; // IRQ request pending
-    bool nmi_pending; // NMI request pending
     uint64_t instruction_count; // Total instructions executed since reset
     volatile uint16_t last_opcode_address;   // address of last opcode fetched
 
@@ -130,6 +128,22 @@ static inline uint16_t cpu_pull16(void) {
     uint16_t high = cpu_pull();
     uint16_t low = cpu_pull();
     return (high << 8) | low;
+}
+
+// Push registers onto stack (7 cycles total)
+static inline void cpu_stack_registers(void) {
+    cpu_push16(cpu.pc);    // Push PC
+    cpu_push16(cpu.x);     // Push X
+    cpu_push(cpu.a);       // Push A
+    cpu_push(cpu.b);       // Push B
+    cpu_push(cpu.ccr);     // Push CCR 
+}
+
+// Set PC from vector (2 cycles total)
+static inline void cpu_load_pc_from_vector(uint16_t address) {
+    uint8_t pch = memory_read_fast(address);
+    uint8_t pcl = memory_read_fast(address + 1);
+    cpu.pc = (pch << 8) | pcl;
 }
 
 void cpu_print_state(printf_func_t printf_func);

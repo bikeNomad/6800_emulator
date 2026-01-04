@@ -2,15 +2,15 @@
  * MC6800 Interrupt Handling Implementation
  */
 
+#include "hardware/gpio.h"
+#include "hardware/sync.h"
+#include "emulator.h"
+#include "board_config.h"
 #include "interrupts.h"
 #include "cpu_state.h"
 #include "bus.h"
 #include "memory.h"
 #include "clock.h"
-#include "board_config.h"
-#include "hardware/gpio.h"
-#include "hardware/sync.h"
-#include <stdio.h>
 
 // Previous interrupt line states (for edge detection)
 static bool last_irq_state = false;
@@ -36,8 +36,9 @@ interrupt_t __time_critical_func(interrupt_check)(void) {
     bool nmi = bus_read_nmi();
     bool reset = bus_read_reset();
 
-    // RESET has highest priority (edge-triggered)
+    // RESET has highest priority (level-triggered)
     if (reset) {
+        // reset CPU state on leading edge
         if (!last_reset_state) {
             last_reset_state = reset;
             interrupt_service_reset();
@@ -49,16 +50,10 @@ interrupt_t __time_critical_func(interrupt_check)(void) {
     // NMI second priority (edge-triggered, falling edge)
     if (nmi && !last_nmi_state) {
         last_nmi_state = nmi;
-        cpu.nmi_pending = true;
-    }
-    last_nmi_state = nmi;
-
-    // Service NMI if pending and not already in interrupt
-    if (cpu.nmi_pending) {
         interrupt_service_nmi();
-        cpu.nmi_pending = false;
         return INT_NMI;
     }
+    last_nmi_state = nmi;
 
     // IRQ lowest priority (level-triggered, maskable)
     if (irq && !cpu_get_flag(CCR_I)) {
@@ -100,23 +95,6 @@ void interrupt_service_reset(void) {
     clock_reset_counters();
 
     DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
-
-    // stay halted while /RESET still LOW 
-    while (bus_read_reset()) {
-        tight_loop_contents();
-    }
-
-    // /RESET is HIGH - automatically start execution (MC6800 behavior)
-    cpu.running = true;
-    cpu.halted = false;
-    if (clock_was_running) {
-        eclock_start();
-    }
-
-    DEBUG_INT_PRINTF("CPU started after RESET release\n");
-
-    // Memory barrier - ensure Core 0 sees updated flags immediately
-    __mem_fence_release();
 }
 
 // Service NMI interrupt
@@ -125,24 +103,11 @@ void interrupt_service_nmi(void) {
 
     // If coming from WAI, registers are already on stack
     if (!cpu.wai_state) {
-        // Push registers onto stack (12 cycles total)
-        cpu_push16(cpu.pc);    // Push PC
-        cpu_push16(cpu.x);     // Push X
-        cpu_push(cpu.a);       // Push A
-        cpu_push(cpu.b);       // Push B
-        cpu_push(cpu.ccr);     // Push CCR
+        cpu_stack_registers();
     }
-
-    // Clear WAI state if we were waiting
-    cpu.wai_state = false;
-
-    // Set interrupt mask
-    cpu_set_flag(CCR_I, true);
-
-    // Load PC from NMI vector
-    uint8_t pch = memory_read_fast(VECTOR_NMI);
-    uint8_t pcl = memory_read_fast(VECTOR_NMI + 1);
-    cpu.pc = (pch << 8) | pcl;
+    cpu.wai_state = false; // Clear WAI state if we were waiting
+    cpu_set_flag(CCR_I, true); // Set interrupt mask
+    cpu_load_pc_from_vector(VECTOR_NMI);
 
     DEBUG_INT_PRINTF("NMI vector: $%04X\n", cpu.pc);
 }
@@ -153,24 +118,14 @@ void interrupt_service_irq(void) {
 
     // If coming from WAI, registers are already on stack
     if (!cpu.wai_state) {
-        // Push registers onto stack (12 cycles total)
-        cpu_push16(cpu.pc);    // Push PC
-        cpu_push16(cpu.x);     // Push X
-        cpu_push(cpu.a);       // Push A
-        cpu_push(cpu.b);       // Push B
-        cpu_push(cpu.ccr);     // Push CCR
+        cpu_stack_registers();
     }
 
-    // Clear WAI state if we were waiting
-    cpu.wai_state = false;
+    cpu.wai_state = false; // Clear WAI state if we were waiting
 
-    // Set interrupt mask
-    cpu_set_flag(CCR_I, true);
+    cpu_set_flag(CCR_I, true); // Set interrupt mask
 
-    // Load PC from IRQ vector
-    uint8_t pch = memory_read_fast(VECTOR_IRQ);
-    uint8_t pcl = memory_read_fast(VECTOR_IRQ + 1);
-    cpu.pc = (pch << 8) | pcl;
+    cpu_load_pc_from_vector(VECTOR_IRQ); // Load PC from IRQ vector
 
     DEBUG_INT_PRINTF("IRQ vector: $%04X\n", cpu.pc);
 }

@@ -42,6 +42,7 @@ add_executable(mc6800_emulator
     src/ihex_parser.c
     src/debug_spi.c
     src/emulator.c
+    src/simple_fsm.c
 )
 
 # Create the PIO headers for clock generation and bus cycles

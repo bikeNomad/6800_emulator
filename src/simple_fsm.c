@@ -1,7 +1,7 @@
 #include "simple_fsm.h"
 
 static inline void fsm_dispatch(FSM* fsm, uint8_t event) {
-    fsm->current_state(evt);
+    fsm->current_state(fsm, event);
 }
     
 bool fsm_init(FSM* fsm, state_method initial_state) {
@@ -35,7 +35,7 @@ bool fsm_run(FSM* fsm, state_method initial_state) {
 
     while (fsm->current_state != NULL) {
         uint8_t event;
-        while (fsm->receive_event(&event)) {
+        while (fsm->receive_event(fsm, &event)) {
             fsm->last_event_received = event;
             fsm_handle_event(fsm, event);
         }

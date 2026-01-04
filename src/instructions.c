@@ -6,6 +6,7 @@
 #include "instructions.h"
 #include "cpu_state.h"
 #include "memory.h"
+#include "interrupts.h"
 #include "pico.h"
 #include "clock.h"
 #include <stdio.h>
@@ -53,7 +54,8 @@ void instruction_count_report(printf_func_t printf_func) {
 
     instruction_count_enable(was_counting);
 }
-#endif
+
+#endif  // COUNT_INSTRUCTIONS
 
 // Instruction mnemonics
 static const char* mnemonics[256] = {
@@ -644,44 +646,34 @@ void __time_critical_func(instruction_execute)(void) {
             cpu.pc = cpu_pull16();
             break;
 
-        // RTI - Return from Interrupt
+        // RTI - Return from Interrupt (10 cycles)
         case 0x3B:
-            eclock_consume_cycles(2);  // Internal: setup
             cpu.ccr = cpu_pull();
             cpu.b = cpu_pull();
             cpu.a = cpu_pull();
             cpu.x = cpu_pull16();
             cpu.pc = cpu_pull16();
+            eclock_consume_cycles(2);  // Internal: setup
             break;
 
-        // WAI - Wait for Interrupt
+        // WAI - Wait for Interrupt (9 cycles)
         case 0x3E:
-            eclock_consume_cycles(1);  // Internal: setup
             // Push registers onto stack (saved for when interrupt arrives)
-            cpu_push16(cpu.pc);
-            cpu_push16(cpu.x);
-            cpu_push(cpu.a);
-            cpu_push(cpu.b);
-            cpu_push(cpu.ccr);
+            cpu_stack_registers();   // 7 cycles
             // Enter WAI state - continue emulating but wait for interrupt
             cpu.wai_state = true;
+            eclock_consume_cycles(1);  // Internal: setup
             break;
 
-        // SWI - Software Interrupt
+        // SWI - Software Interrupt (12 cycles)
         case 0x3F:
             // Push registers onto stack
-            cpu_push16(cpu.pc);
-            cpu_push16(cpu.x);
-            cpu_push(cpu.a);
-            cpu_push(cpu.b);
-            cpu_push(cpu.ccr);
-            eclock_consume_cycles(2);  // Internal: setup
+            cpu_stack_registers();   // 7 cycles
             // Set interrupt mask
             cpu_set_flag(CCR_I, true);
             // Load PC from SWI vector (0xFFFA-0xFFFB)
-            uint8_t pch = memory_read_fast(0xFFFA);
-            uint8_t pcl = memory_read_fast(0xFFFB);
-            cpu.pc = (pch << 8) | pcl;
+            cpu_load_pc_from_vector(VECTOR_SWI);    // 2 cycles
+            eclock_consume_cycles(2);  // Internal: setup
             break;
 
         // NEGA - Negate A (two's complement)
@@ -2390,5 +2382,4 @@ void __time_critical_func(instruction_execute)(void) {
 
     // Sync accumulated cycles once at end of instruction
     eclock_sync_instruction();
-
 }

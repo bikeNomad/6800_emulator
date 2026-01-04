@@ -64,14 +64,14 @@ void qspi_report_speed(void) {
     uint32_t qspi_target_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
     uint32_t qspi_actual_hz = sys_clock_hz / actual_divisor;
 
-    printf("QSPI bus speed: target %lu MHz (divisor: %d), actual %lu MHz (divisor: %lu)\n",
+    printf("QSPI bus speed: target %lu MHz (divisor: %d), actual %lu MHz (divisor: %lu)\r\n",
            qspi_target_hz / 1000000, QSPI_CLOCK_DIVISOR,
            qspi_actual_hz / 1000000, actual_divisor);
 }
 
 // Core 1: Dedicated USB CDC processing
 void core1_entry() {
-    printf("Core 1: USB CDC processing started\n");
+    printf("Core 1: USB CDC processing started\r\n");
 
     while (1) {
         // Dedicated USB CDC task processing on Core 1
@@ -106,44 +106,44 @@ int main() {
 
     uint32_t sys_clock_hz = clock_get_hz(clk_sys);
 
-    printf("\n\n========================================\n");
-    printf("MC6800 Emulator Starting...\n");
-    printf("Version 1.0\n");
-    printf("Target: RP2350 (Pico 2 W)\n");
-    printf("System Clock: %lu MHz\n", sys_clock_hz / 1000000);
-    printf("UART Debug Output Active\n");
-    printf("========================================\n\n");
+    printf("\r\n\n========================================\n");
+    printf("MC6800 Emulator Starting...\r\n");
+    printf("Version 1.0\r\n");
+    printf("Target: RP2350 (Pico 2 W)\r\n");
+    printf("System Clock: %lu MHz\r\n", sys_clock_hz / 1000000);
+    printf("UART Debug Output Active\r\n");
+    printf("========================================\r\n\n");
 
     // Initialize all subsystems
-    printf("Initializing USB CDC...\n");
+    printf("Initializing USB CDC...\r\n");
     usb_cdc_init();
 
-    printf("Initializing memory subsystem...\n");
+    printf("Initializing memory subsystem...\r\n");
     memory_init();
 
-    printf("Initializing bus interface...\n");
+    printf("Initializing bus interface...\r\n");
     bus_init();
 
-    printf("Initializing E clock...\n");
+    printf("Initializing E clock...\r\n");
     eclock_init();
     // Note: E clock will be started by cpu_start() when user runs 'run' command
 
-    printf("Initializing PIO bus cycles...\n");
+    printf("Initializing PIO bus cycles...\r\n");
     bus_cycle_pio_init();
 
-    printf("Initializing debug SPI...\n");
+    printf("Initializing debug SPI...\r\n");
     debug_spi_init();
 
-    printf("Initializing CPU state...\n");
+    printf("Initializing CPU state...\r\n");
     cpu_init();
 
-    printf("Initializing interrupt handling...\n");
+    printf("Initializing interrupt handling...\r\n");
     interrupts_init();
 
-    printf("\nMC6800 Emulator Ready\n");
+    printf("\r\nMC6800 Emulator Ready\n");
     fflush(stdout);
 
-    printf("Launching Core 1 for USB CDC processing...\n");
+    printf("Launching Core 1 for USB CDC processing...\r\n");
     fflush(stdout);
     sleep_ms(100);
 
@@ -152,75 +152,19 @@ int main() {
     sleep_ms(100);
 
 #if COUNT_INSTRUCTIONS
-    printf("Initializing instruction counting...\n");
+    printf("Initializing instruction counting...\r\n");
     instruction_count_initialize();
 #endif
 
-    // TODO: make autosave persistent
-    memory_set_cmos_autosave_enabled(false);
-
-    printf("Core 0: CPU emulation started\n");
+    printf("Core 0: CPU emulation started\r\n");
     fflush(stdout);
-    printf("Waiting for EPROM load via USB...\n\n");
+    printf("Waiting for EPROM load via USB...\r\n");
     fflush(stdout);
 
-    // Main execution loop (Core 0)
-    while (1) {
-        // Core 1 handles all USB CDC processing
-
-        // Check for hardware /RESET assertion (active LOW)
-        // bus_read_reset() returns true when /RESET is asserted (LOW)
-        if (bus_read_reset()) {
-            // /RESET is asserted - force halt if running
-            if (cpu_is_running()) {
-                cpu_halt();
-                usb_cdc_printf("CPU halted by /RESET assertion\r\n");
-            }
-            // Stay halted while /RESET is LOW
-            tight_loop_contents();
-            continue;
+    for (;;) {
+        if (!run_emulator_sm()) {
+            printf("Emulator SM stopped!\r\n");
         }
-
-        // If CPU is running (not halted), execute instructions
-        if (cpu_is_running()) {
-            // Check for interrupt requests (always check, even during WAI)
-            interrupt_check();
-
-            // Only execute instructions if not in WAI state
-            if (!cpu.wai_state) {
-                // Check for breakpoints before executing instruction
-                if (cpu_check_breakpoint(cpu.pc) && !cpu.stopped_at_breakpoint) {
-                    // Breakpoint hit - halt CPU and set flag to skip check on next run
-                    cpu_halt();
-                    cpu.stopped_at_breakpoint = true;
-                    usb_cdc_printf("CPU halted at breakpoint at PC=$%04X Prior PC=$%04X\r\n",
-                        cpu.pc, cpu.last_opcode_address);
-                    continue;  // Skip instruction execution
-                }
-
-                // Execute one instruction (cycle-accurate)
-                bus_sync();
-                instruction_execute();
-
-                // If we just executed an instruction while stopped at a breakpoint,
-                // clear the flag so breakpoint checking resumes
-                if (cpu.stopped_at_breakpoint) {
-                    cpu.stopped_at_breakpoint = false;
-                }
-
-                // Log execution to debug SPI
-                debug_spi_log();
-            }
-            // If in WAI state, we continue looping to check for interrupts
-            // but don't execute instructions until an interrupt wakes us
-        } else {
-            // CPU halted, yield to reduce power consumption
-            tight_loop_contents();
-        }
-
-        // Check if CMOS needs auto-save (deferred write after idle period)
-        memory_check_cmos_autosave();
     }
-
     return 0;
 }

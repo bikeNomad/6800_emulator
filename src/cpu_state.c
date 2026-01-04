@@ -27,8 +27,6 @@ void cpu_init(void) {
     cpu.halted = true;   // Start halted
     cpu.running = false;
     cpu.wai_state = false;  // Not waiting for interrupt
-    cpu.irq_pending = false;
-    cpu.nmi_pending = false;
     cpu.instruction_count = 0;
 
     // Initialize breakpoints

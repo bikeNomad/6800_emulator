@@ -36,6 +36,7 @@ struct FSM {
     state_method next_state;
     rx_event_t receive_event;
     uint8_t last_event_received;
+    char const * current_state_name;  // set by GET_NAME(fsm) macro
     // timer_expires TODO 
     // poll_interval TODO
     // entered_state TODO
@@ -51,3 +52,5 @@ static inline void fsm_change_state(FSM* fsm, state_method new_state) {
 static inline void fsm_terminate(FSM* fsm) {
     fsm->current_state = NULL;
 }
+
+#define GET_NAME(fsm) do { fsm->current_state_name = __FUNCTION__; } while (0)
