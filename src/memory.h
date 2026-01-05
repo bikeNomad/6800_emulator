@@ -7,9 +7,9 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include "emulator.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "emulator.h"
 
 // Address translation for missing A15 decode
 #define ADDR_MASK_A15 0x7FFF // Mask off A15
@@ -30,6 +30,8 @@ typedef enum {
     MEM_TYPE_RAM,      // RAM - read/write from shadow
     MEM_TYPE_CMOS      // CMOS RAM - read/write from bus for now
 } memory_type_t;
+
+#define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
 
 // Memory configuration
 typedef struct {
@@ -94,6 +96,14 @@ void memory_print_summary(printf_func_t printf_func);
 
 // Read CMOS data from bus into shadow copy
 void memory_read_cmos_from_bus(void);
+
+// ROM mapping management functions
+void memory_set_rom_mapping(uint16_t address, bool mapped);
+bool memory_is_rom_mapped(uint16_t address);
+void memory_update_rom_mapping_from_bitmap(void);
+void memory_save_rom_mapping_to_flash(void);
+void memory_load_rom_mapping_from_flash(void);
+void memory_clear_rom_mapping(void);
 
 static inline uint8_t memory_read_rom_shadow(uint16_t address) {
     // Translate address for missing A15 decode

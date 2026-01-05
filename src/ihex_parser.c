@@ -137,6 +137,22 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
                                (unsigned long)full_address);
                         return false;
                     }
+
+                    // If this is ROM data, mark the affected pages as mapped
+                    if (!is_cmos_data) {
+                        uint16_t start_addr = (uint16_t)full_address;
+                        uint16_t end_addr = start_addr + record.byte_count - 1;
+
+                        // Mark all pages that contain this data as mapped
+                        uint16_t start_page = start_addr & 0xFF00;
+                        uint16_t end_page = end_addr & 0xFF00;
+
+                        for (uint16_t page_addr = start_page; page_addr <= end_page;
+                             page_addr += 0x100) {
+                            memory_set_rom_mapping(page_addr, true);
+                        }
+                    }
+
                     bytes_loaded += record.byte_count;
                 }
                 break;
@@ -186,6 +202,9 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
             printf("Finalizing ROM load...\n");
             bool success = memory_finalize_load();
             if (success) {
+                // Save the updated mapping to flash
+                memory_save_rom_mapping_to_flash();
+
                 // Automatically reset CPU to load reset vector from new ROM
                 printf("Resetting CPU to load reset vector...\n");
                 interrupt_service_reset();

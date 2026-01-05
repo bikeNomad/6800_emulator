@@ -741,6 +741,56 @@ static void cmd_count_off(void) {
 }
 #endif
 
+static void cmd_map_show(void) {
+    // Display ROM mapping state
+    usb_cdc_send("ROM Mapping State:\r\n");
+    uint16_t total_pages = mem_config.rom_size / ENTRY_PAGE_SIZE;
+
+    for (uint16_t page_index = 0; page_index < total_pages; page_index++) {
+        uint16_t address = mem_config.rom_base + (page_index * ENTRY_PAGE_SIZE);
+        bool is_mapped = memory_is_rom_mapped(address);
+        const char *status = is_mapped ? "MAPPED" : "UNMAPPED";
+        usb_cdc_printf("  Page %02u ($%04X): %s\r\n", page_index, address, status);
+    }
+
+    // Show alias mappings too
+    usb_cdc_send("\nAlias mappings (A15 high):\r\n");
+    for (uint16_t page_index = 0; page_index < total_pages; page_index++) {
+        uint16_t address = mem_config.rom_base + (page_index * ENTRY_PAGE_SIZE);
+        uint16_t alias_addr = address | 0x8000;
+        bool is_mapped = memory_is_rom_mapped(address); // Same as low alias
+        const char *status = is_mapped ? "MAPPED" : "UNMAPPED";
+        usb_cdc_printf("  Page %02u ($%04X): %s\r\n", page_index, alias_addr, status);
+    }
+}
+
+static void cmd_map_clear(void) {
+    // Clear all ROM mapping
+    memory_clear_rom_mapping();
+    usb_cdc_send("OK: All ROM pages unmapped\r\n");
+}
+
+static void cmd_map_program(void) {
+    // Manually map a specific ROM page (for debugging)
+    // Expects tokens: [map] [program] <addr>
+    if (cmd_token_count < 1) {
+        usb_cdc_send("ERROR: Usage: map program <address_hex>\r\n");
+        return;
+    }
+
+    unsigned int address;
+    if (sscanf(cmd_tokens[0], "%x", &address) == 1) {
+        if (address >= mem_config.rom_base && address < mem_config.rom_base + mem_config.rom_size) {
+            memory_set_rom_mapping(address, true);
+            usb_cdc_printf("OK: Mapped ROM page at $%04X\r\n", address);
+        } else {
+            usb_cdc_send("ERROR: Address outside ROM range\r\n");
+        }
+    } else {
+        usb_cdc_send("ERROR: Usage: map program <address_hex>\r\n");
+    }
+}
+
 static void cmd_help(void) {
     // Send as single string to avoid buffer overflow
     usb_cdc_send("MC6800 Emulator Commands:\r\n"
@@ -778,6 +828,9 @@ static void cmd_help(void) {
                  "  bus_read_block <addr> <len> - Read block from hardware bus\r\n"
                  "  bus_write_block <addr> <data...> - Write block to hardware bus\r\n"
                  "  bus_info                  - Show bus configuration\r\n"
+                 "  map show                  - Show ROM mapping state\r\n"
+                 "  map clear                 - Clear all ROM mapping\r\n"
+                 "  map program <addr>        - Manually map ROM page\r\n"
                  "  bootloader                - Enter bootloader mode\r\n"
                  "  help                      - Show this help\r\n");
 }
@@ -840,6 +893,9 @@ static const command_entry_t command_table[] = {
     {"bus_write", cmd_bus_write, true},             // needs <addr> <data>
     {"bus_read", cmd_bus_read, true},               // needs <addr>
     {"bus_info", cmd_bus_info, false},
+    {"map show", cmd_map_show, false},
+    {"map clear", cmd_map_clear, false},
+    {"map program", cmd_map_program, true}, // needs <addr>
     {"help", cmd_help, false},
     {NULL, NULL, false} // Terminator
 };
