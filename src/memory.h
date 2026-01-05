@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "emulator.h"
 
 // Address translation for missing A15 decode
 #define ADDR_MASK_A15 0x7FFF // Mask off A15
@@ -87,6 +88,9 @@ void memory_init_rom_from_flash(void);
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void);
+
+// Print a summary of the various memory ranges defined in the memory_map
+void memory_print_summary(printf_func_t printf_func);
 
 // Read CMOS data from bus into shadow copy
 void memory_read_cmos_from_bus(void);

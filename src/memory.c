@@ -96,8 +96,8 @@ memory_config_t mem_config;
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(ENTRY_PAGE_SIZE)));
 uint8_t rom_shadow[MAX_ROM_SIZE]
-    __attribute__((aligned(ENTRY_PAGE_SIZE)));            // Fast RAM copy of ROM for execution
-static uint8_t rom_load_buffer[MAX_ROM_SIZE]; // Buffer for loading before flash write
+    __attribute__((aligned(ENTRY_PAGE_SIZE))); // Fast RAM copy of ROM for execution
+static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
 
 void memory_initialize_map(void) {
     // Set all entries to unmapped
@@ -266,11 +266,11 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t data) {
         return;
     }
     if (!(table_entry & ENTRY_WRITABLE)) { // Ignore writes to ROM
-        eclock_accumulate(1); // Track cycle, don't wait
+        eclock_accumulate(1);              // Track cycle, don't wait
         return;
     }
 #if BOARD_TYPE == BOARD_NED_SYS7
-        led_set_ram();
+    led_set_ram();
 #endif
     eclock_accumulate(1); // Track cycle, don't wait
     uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
@@ -396,6 +396,50 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void) { return &ram_shadow[CMOS_BASE]; }
+
+// Print a summary of the various memory ranges defined in the memory_map
+void memory_print_summary(printf_func_t printf_func) {
+    printf_func("Memory Map Summary:\n");
+    printf_func("  ROM: $%04X-$%04X (%d bytes)\n", mem_config.rom_base,
+                mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
+    printf_func("  RAM: $%04X-$%04X (%d bytes)\n", mem_config.ram_base,
+                mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
+    printf_func("  CMOS: $%04X-$%04X (%d bytes)\n", mem_config.cmos_base,
+                mem_config.cmos_base + mem_config.cmos_size - 1, mem_config.cmos_size);
+    printf_func("  Flash offset: 0x%08lX, size: %u bytes\n", (unsigned long)mem_config.flash_offset,
+                (unsigned int)mem_config.flash_size);
+    printf_func("  Configuration: %s\n", mem_config.configured ? "configured" : "default");
+
+    // Count mapped vs unmapped pages
+    uint16_t mapped_pages = 0;
+    uint16_t rom_pages = 0;
+    uint16_t ram_pages = 0;
+    uint16_t cmos_pages = 0;
+    uint16_t unmapped_pages = 0;
+
+    for (uint16_t i = 0; i < MEMORY_TABLE_SIZE; i++) {
+        uint32_t entry = memory_map[i];
+        if (entry & ENTRY_UNMAPPED) {
+            unmapped_pages++;
+        } else {
+            mapped_pages++;
+            if (entry & ENTRY_WRITABLE) {
+                if (entry & ENTRY_WRITE_THROUGH) {
+                    cmos_pages++;
+                } else {
+                    ram_pages++;
+                }
+            } else {
+                rom_pages++;
+            }
+        }
+    }
+
+    printf_func("  Memory map: %u mapped pages (%u ROM, %u RAM, %u CMOS), %u unmapped pages\n",
+                mapped_pages, rom_pages, ram_pages, cmos_pages, unmapped_pages);
+    printf_func("  Total address space: %u pages (%u bytes)\n", MEMORY_TABLE_SIZE,
+                MEMORY_TABLE_SIZE * ENTRY_PAGE_SIZE);
+}
 
 void memory_read_cmos_from_bus(void) {
     eclock_start();

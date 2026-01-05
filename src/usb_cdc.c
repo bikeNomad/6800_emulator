@@ -150,20 +150,14 @@ static void cmd_end(void) {
 
 static void cmd_config_show(void) {
     // Display current memory configuration
-    uint16_t rom_base, rom_size, ram_base, ram_size;
-    memory_get_rom_config(&rom_base, &rom_size);
-    memory_get_ram_config(&ram_base, &ram_size);
-
-    usb_cdc_send("Memory Configuration:\r\n");
-    usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes, %dKB)\r\n", rom_base, rom_base + rom_size - 1,
-                   rom_size, rom_size / 1024);
-    usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes, %dKB)\r\n", ram_base, ram_base + ram_size - 1,
-                   ram_size, ram_size / 1024);
-    usb_cdc_send("  RAM mirroring: $0000-$00FF <-> $1000-$10FF\r\n");
+    memory_print_summary(usb_cdc_printf);
     usb_cdc_printf("  Debug SPI: %s\r\n", debug_spi_is_enabled() ? "ON" : "OFF");
 }
 
 static void cmd_config_rom(void) {
+    if (!pause_emulator()) {
+        return;
+    }
     // Configure ROM region: config rom <base> <size>
     // Expects tokens: [config] [rom] <base> <size>
     if (cmd_token_count < 2) {
@@ -178,9 +172,14 @@ static void cmd_config_rom(void) {
     } else {
         usb_cdc_send("ERROR: Usage: config rom <base_hex> <size_hex>\r\n");
     }
+
+    resume_emulator();
 }
 
 static void cmd_config_ram(void) {
+    if (!pause_emulator()) {
+        return;
+    }
     // Configure RAM region: config ram <base> <size>
     // Expects tokens: [config] [ram] <base> <size>
     if (cmd_token_count < 2) {
@@ -195,6 +194,8 @@ static void cmd_config_ram(void) {
     } else {
         usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
     }
+
+    resume_emulator();
 }
 
 static void cmd_cmos_dump(void) {
@@ -214,19 +215,28 @@ static void cmd_cmos_dump(void) {
 
 static void cmd_run(void) {
     // Start CPU execution
-    post_sm_event(EV_CMD_RUN);
+    if (!send_command_to_emulator(EV_CMD_RUN)) {
+        usb_cdc_send("ERROR: Failed to start CPU\r\n");
+        return;
+    }
     usb_cdc_send("OK: CPU started\r\n");
 }
 
 static void cmd_halt(void) {
-    // Stop CPU execution and save CMOS
-    cpu_halt();
+    // Stop CPU execution
+    if (!send_command_to_emulator(EV_CMD_HALT)) {
+        usb_cdc_send("ERROR: Failed to halt CPU\r\n");
+        return;
+    }
     usb_cdc_send("OK: CPU halted\r\n");
 }
 
 static void cmd_reset(void) {
     // Reset CPU (CMOS will be auto-saved by background task if needed)
-    interrupt_service_reset();
+    if (!send_command_to_emulator(EV_CMD_RESET)) {
+        usb_cdc_send("ERROR: Failed to reset CPU\r\n");
+        return;
+    }
     usb_cdc_send("OK: CPU reset\r\n");
 }
 
@@ -325,6 +335,10 @@ static void cmd_read(void) {
     } else if (addr + len > MAX_ADDRESS + 1) {
         usb_cdc_send("ERROR: Block exceeds address space\r\n");
     } else {
+        if (pause_emulator() == false) {
+            return;
+        }
+
         usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
 
         for (uint32_t i = 0; i < len; i++) {
@@ -337,6 +351,8 @@ static void cmd_read(void) {
                 usb_cdc_send("\r\n");
             }
         }
+
+        resume_emulator();
     }
 }
 
@@ -381,10 +397,16 @@ static void cmd_write(void) {
         return;
     }
 
-    // Fast path for mapped memory only
+    if (pause_emulator() == false) {
+        return;
+    }
+
     for (uint32_t i = 0; i < count; i++) {
         memory_write_fast(addr + i, buffer[i]);
     }
+
+    resume_emulator();
+
     usb_cdc_send("OK\r\n");
 }
 
@@ -456,7 +478,11 @@ static void cmd_reg_pc(void) {
 
     unsigned int value;
     if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
+        if (pause_emulator() == false) {
+            return;
+        }
         cpu.pc = (uint16_t)value;
+        resume_emulator();
         usb_cdc_printf("OK: PC set to $%04X\r\n", cpu.pc);
     } else {
         usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -473,7 +499,11 @@ static void cmd_reg_a(void) {
 
     unsigned int value;
     if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
+        if (pause_emulator() == false) {
+            return;
+        }
         cpu.a = (uint8_t)value;
+        resume_emulator();
         usb_cdc_printf("OK: A set to $%02X\r\n", cpu.a);
     } else {
         usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -490,7 +520,11 @@ static void cmd_reg_b(void) {
 
     unsigned int value;
     if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
+        if (pause_emulator() == false) {
+            return;
+        }
         cpu.b = (uint8_t)value;
+        resume_emulator();
         usb_cdc_printf("OK: B set to $%02X\r\n", cpu.b);
     } else {
         usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -507,7 +541,11 @@ static void cmd_reg_x(void) {
 
     unsigned int value;
     if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
+        if (pause_emulator() == false) {
+            return;
+        }
         cpu.x = (uint16_t)value;
+        resume_emulator();
         usb_cdc_printf("OK: X set to $%04X\r\n", cpu.x);
     } else {
         usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -524,7 +562,11 @@ static void cmd_reg_sp(void) {
 
     unsigned int value;
     if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
+        if (pause_emulator() == false) {
+            return;
+        }
         cpu.sp = (uint16_t)value;
+        resume_emulator();
         usb_cdc_printf("OK: SP set to $%04X\r\n", cpu.sp);
     } else {
         usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -541,7 +583,11 @@ static void cmd_reg_ccr(void) {
 
     unsigned int value;
     if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
+        if (pause_emulator() == false) {
+            return;
+        }
         cpu.ccr = ((uint8_t)value & 0x3F) | CCR_FIXED; // Preserve bits 7-6
+        resume_emulator();
         usb_cdc_printf("OK: CCR set to $%02X\r\n", cpu.ccr);
     } else {
         usb_cdc_send("ERROR: Invalid register value\r\n");
