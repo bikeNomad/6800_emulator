@@ -104,7 +104,7 @@ memory_config_t mem_config;
 static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(ENTRY_PAGE_SIZE)));
 uint8_t        rom_shadow[MAX_ROM_SIZE]
     __attribute__((aligned(ENTRY_PAGE_SIZE)));  // Fast RAM copy of ROM for execution
-static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
+static uint8_t rom_load_buffer[MAX_ROM_SIZE];   // Buffer for loading before flash write
 
 // ROM mapping bitmap - tracks which 256-byte pages have valid ROM data
 // 256 pages maximum, 1 bit per page = 32 bytes
@@ -116,18 +116,17 @@ static uint8_t rom_mapping_bitmap[32] = { 0 };
 memory_type_t memory_get_type(uint16_t address) {
     uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
     uint32_t table_entry = memory_map[table_index];
-    uint8_t flags = table_entry & ENTRY_FLAG_MASK;
+    uint8_t  flags = table_entry & ENTRY_FLAG_MASK;
     switch (flags) {
-        case ENTRY_MAPPED_ROM:
-            return MEM_TYPE_ROM;
-        case ENTRY_MAPPED_RAM:
-            return MEM_TYPE_RAM;
-        case ENTRY_MAPPED_CMOS:
-            return MEM_TYPE_CMOS;
-        default:
-            return MEM_TYPE_UNMAPPED;
+    case ENTRY_MAPPED_ROM:
+        return MEM_TYPE_ROM;
+    case ENTRY_MAPPED_RAM:
+        return MEM_TYPE_RAM;
+    case ENTRY_MAPPED_CMOS:
+        return MEM_TYPE_CMOS;
+    default:
+        return MEM_TYPE_UNMAPPED;
     }
-    
 }
 
 // Initialize memory map
@@ -148,7 +147,7 @@ void memory_initialize_map(void) {
             (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
         uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_RAM;  // mapped RAM
         memory_map[table_index] = table_entry;
-        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;  // high alias
+        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;          // high alias
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
         if (phys_addr < 0x0100) {
             uint8_t mirror_table_index = ADDR_TO_TABLE_INDEX(phys_addr + 0x1000);
@@ -302,7 +301,7 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t data) {
         return;
     }
     if (!(table_entry & ENTRY_WRITABLE)) {  // Ignore writes to ROM
-        eclock_accumulate(1);  // Track cycle, don't wait
+        eclock_accumulate(1);               // Track cycle, don't wait
         return;
     }
 #if BOARD_TYPE == BOARD_NED_SYS7
@@ -389,12 +388,12 @@ bool memory_finalize_load(void) {
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void) {
     const uint8_t *src_addr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
-    uint8_t *dest_addr = (uint8_t *)rom_shadow;
-    uint16_t bytes_loaded = 0;
+    uint8_t       *dest_addr = (uint8_t *)rom_shadow;
+    uint16_t       bytes_loaded = 0;
 
     for (uint16_t address = mem_config.rom_base;
-        address < mem_config.rom_base + mem_config.rom_size;
-        address += ENTRY_PAGE_SIZE) {
+         address < mem_config.rom_base + mem_config.rom_size;
+         address += ENTRY_PAGE_SIZE) {
         memory_type_t type = memory_get_mapping_type(address);
         if (type == MEM_TYPE_ROM) {
             memcpy(dest_addr, src_addr, ENTRY_PAGE_SIZE);
@@ -407,8 +406,8 @@ void memory_init_rom_from_flash(void) {
         dest_addr += ENTRY_PAGE_SIZE;
     }
 
-    printf("ROM restored from flash (%u/%u bytes)\n", 
-        bytes_loaded, (unsigned int)mem_config.flash_size);
+    printf("ROM restored from flash (%u/%u bytes)\n",
+           bytes_loaded, (unsigned int)mem_config.flash_size);
 }
 
 // Load Intel HEX data into CMOS shadow copy

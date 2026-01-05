@@ -7,22 +7,21 @@
  * - Core 1: Dedicated USB CDC processing
  */
 
-#include "hardware/clocks.h"
-#include "hardware/gpio.h"
-#include "hardware/regs/qmi.h"
-#include "hardware/structs/qmi.h"
-#include "hardware/vreg.h"
-#include "pico/multicore.h"
-#include "pico/stdlib.h"
-
 #include "bus.h"
 #include "clock.h"
 #include "cpu_state.h"
 #include "debug_spi.h"
 #include "emulator.h"
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+#include "hardware/regs/qmi.h"
+#include "hardware/structs/qmi.h"
+#include "hardware/vreg.h"
 #include "instructions.h"
 #include "interrupts.h"
 #include "memory.h"
+#include "pico/multicore.h"
+#include "pico/stdlib.h"
 #include "usb_cdc.h"
 
 // Get current QSPI flash interface speed
@@ -60,7 +59,7 @@ void qspi_report_speed(void) {
     // Read actual divisor from QMI hardware
     uint32_t timing = qmi_hw->m[0].timing;
     uint32_t clkdiv_field = (timing >> QMI_M0_TIMING_CLKDIV_LSB) & 0xFF;
-    uint32_t actual_divisor = clkdiv_field + 1; // Hardware uses 0-based divisor
+    uint32_t actual_divisor = clkdiv_field + 1;  // Hardware uses 0-based divisor
 
     uint32_t qspi_target_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
     uint32_t qspi_actual_hz = sys_clock_hz / actual_divisor;

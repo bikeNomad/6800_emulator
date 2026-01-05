@@ -31,13 +31,15 @@ static inline uint32_t calculate_pio_cycles_for_ns(uint32_t target_ns) {
 }
 
 // Get current system clock frequency in MHz
-static inline uint32_t get_sys_clock_mhz(void) { return clock_get_hz(clk_sys) / 1000000; }
+static inline uint32_t get_sys_clock_mhz(void) {
+    return clock_get_hz(clk_sys) / 1000000;
+}
 
 // Print timing configuration for debugging
 static inline void print_timing_config(void) {
     uint32_t sys_clock_hz = clock_get_hz(clk_sys);
     uint32_t sys_clock_mhz = sys_clock_hz / 1000000;
-    float cycle_time_ns = 1000.0f / sys_clock_mhz;
+    float    cycle_time_ns = 1000.0f / sys_clock_mhz;
 
     uint32_t hold_cycles = calculate_pio_cycles_for_ns(BUS_DATA_HOLD_TIME_NS);
 
@@ -50,4 +52,4 @@ static inline void print_timing_config(void) {
            actual_hold_ns, BUS_DATA_HOLD_TIME_NS);
 }
 
-#endif // BUS_TIMING_H
+#endif  // BUS_TIMING_H

@@ -7,7 +7,7 @@
 #define CPU_STATE_H
 
 #include "emulator.h"
-#include "memory.h" // For memory_read_fast/write_fast in inline stack functions
+#include "memory.h"  // For memory_read_fast/write_fast in inline stack functions
 
 // Condition Code Register (CCR) flag bits
 #define CCR_C 0x01     // Carry
@@ -20,23 +20,23 @@
 
 // MC6800 CPU state
 typedef struct {
-    uint16_t pc;                           // Program counter
-    uint8_t a;                             // Accumulator A
-    uint8_t b;                             // Accumulator B
-    uint16_t x;                            // Index register
-    uint16_t sp;                           // Stack pointer
-    uint8_t ccr;                           // Condition code register
-    bool halted;                           // CPU halt state (waiting for EPROM or manual halt)
-    bool running;                          // CPU running state (set by USB RUN command)
-    bool wai_state;                        // CPU waiting for interrupt (WAI instruction)
-    uint64_t instruction_count;            // Total instructions executed since reset
-    volatile uint16_t last_opcode_address; // address of last opcode fetched
+    uint16_t          pc;                   // Program counter
+    uint8_t           a;                    // Accumulator A
+    uint8_t           b;                    // Accumulator B
+    uint16_t          x;                    // Index register
+    uint16_t          sp;                   // Stack pointer
+    uint8_t           ccr;                  // Condition code register
+    bool              halted;               // CPU halt state (waiting for EPROM or manual halt)
+    bool              running;              // CPU running state (set by USB RUN command)
+    bool              wai_state;            // CPU waiting for interrupt (WAI instruction)
+    uint64_t          instruction_count;    // Total instructions executed since reset
+    volatile uint16_t last_opcode_address;  // address of last opcode fetched
 
     // Breakpoint system
     uint16_t breakpoints[MAX_BREAKPOINTS];
-    uint8_t breakpoint_count;
-    bool stopped_at_breakpoint; // True when halted at breakpoint, skip next
-                                // breakpoint check
+    uint8_t  breakpoint_count;
+    bool     stopped_at_breakpoint;  // True when halted at breakpoint, skip next
+                                     // breakpoint check
 } cpu_state_t;
 
 // Global CPU state (defined in cpu_state.c)
@@ -55,10 +55,10 @@ void cpu_start(void);
 void cpu_halt(void);
 
 // Breakpoint functions
-bool cpu_add_breakpoint(uint16_t address);
-bool cpu_remove_breakpoint(uint16_t address);
-void cpu_clear_breakpoints(void);
-uint8_t cpu_get_breakpoint_count(void);
+bool            cpu_add_breakpoint(uint16_t address);
+bool            cpu_remove_breakpoint(uint16_t address);
+void            cpu_clear_breakpoints(void);
+uint8_t         cpu_get_breakpoint_count(void);
 const uint16_t *cpu_get_breakpoints(void);
 
 static inline bool cpu_check_breakpoint(uint16_t address) {
@@ -71,7 +71,9 @@ static inline bool cpu_check_breakpoint(uint16_t address) {
 }
 
 // Get CCR flag (inline for performance)
-static inline bool cpu_get_flag(uint8_t flag) { return (cpu.ccr & flag) != 0; }
+static inline bool cpu_get_flag(uint8_t flag) {
+    return (cpu.ccr & flag) != 0;
+}
 
 // Set CCR flag (inline for performance)
 static inline void cpu_set_flag(uint8_t flag, bool value) {
@@ -109,18 +111,18 @@ static inline void cpu_update_nzv(uint8_t result, uint8_t operand1, uint8_t oper
 
 // Stack operations (inline for performance)
 static inline void cpu_push(uint8_t value) {
-    memory_write_fast(cpu.sp, value); // Fast-path for stack RAM
+    memory_write_fast(cpu.sp, value);  // Fast-path for stack RAM
     cpu.sp--;
 }
 
 static inline uint8_t cpu_pull(void) {
     cpu.sp++;
-    return memory_read_fast(cpu.sp); // Fast-path for stack RAM
+    return memory_read_fast(cpu.sp);  // Fast-path for stack RAM
 }
 
 static inline void cpu_push16(uint16_t value) {
-    cpu_push(value & 0xFF);        // Low byte first
-    cpu_push((value >> 8) & 0xFF); // High byte second
+    cpu_push(value & 0xFF);         // Low byte first
+    cpu_push((value >> 8) & 0xFF);  // High byte second
 }
 
 static inline uint16_t cpu_pull16(void) {
@@ -131,11 +133,11 @@ static inline uint16_t cpu_pull16(void) {
 
 // Push registers onto stack (7 cycles total)
 static inline void cpu_stack_registers(void) {
-    cpu_push16(cpu.pc); // Push PC
-    cpu_push16(cpu.x);  // Push X
-    cpu_push(cpu.a);    // Push A
-    cpu_push(cpu.b);    // Push B
-    cpu_push(cpu.ccr);  // Push CCR
+    cpu_push16(cpu.pc);  // Push PC
+    cpu_push16(cpu.x);   // Push X
+    cpu_push(cpu.a);     // Push A
+    cpu_push(cpu.b);     // Push B
+    cpu_push(cpu.ccr);   // Push CCR
 }
 
 // Set PC from vector (2 cycles total)
@@ -147,4 +149,4 @@ static inline void cpu_load_pc_from_vector(uint16_t address) {
 
 void cpu_print_state(printf_func_t printf_func);
 
-#endif // CPU_STATE_H
+#endif  // CPU_STATE_H

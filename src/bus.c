@@ -16,13 +16,15 @@
 #if BOARD_TYPE == BOARD_NED_SYS7
 #define WRITE_PINDIRS 0xFFFFFFFFUL
 #define READ_PINDIRS 0xFFFFFF00UL
-static inline uint32_t address_to_gpio(uint16_t addr) { return addr << 8; }
-#else // BOARD_PICO2
+static inline uint32_t address_to_gpio(uint16_t addr) {
+    return addr << 8;
+}
+#else  // BOARD_PICO2
 #define WRITE_PINDIRS 0x00000000UL
 #define READ_PINDIRS 0xFFFFFF00UL
 // We're only using 7 address lines (A0,A1,A10-A14), so mask out the rest
 static inline uint32_t address_to_gpio(uint16_t addr) {
-    return addr << 8; // TODO
+    return addr << 8;  // TODO
 }
 #endif
 #define DATA_MASK 0x000000FFUL
@@ -36,8 +38,8 @@ void bus_init(void) {
         gpio_init(i);
         gpio_set_dir(i, GPIO_IN);
         gpio_set_drive_strength(i,
-                                GPIO_DRIVE_STRENGTH_12MA); // Set once during init
-        gpio_pull_up(i);                                   // Weak pull-ups for floating data bus
+                                GPIO_DRIVE_STRENGTH_12MA);  // Set once during init
+        gpio_pull_up(i);                                    // Weak pull-ups for floating data bus
     }
 
     // Configure address bus (board-specific GPIO assignments)
@@ -63,12 +65,12 @@ void bus_init(void) {
     gpio_init(GPIO_VMA);
     gpio_set_dir(GPIO_VMA, GPIO_OUT);
     gpio_set_drive_strength(GPIO_VMA, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_put(GPIO_VMA, 0); // VMA inactive
+    gpio_put(GPIO_VMA, 0);  // VMA inactive
 
     gpio_init(GPIO_RW);
     gpio_set_dir(GPIO_RW, GPIO_OUT);
     gpio_set_drive_strength(GPIO_RW, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_put(GPIO_RW, 1); // Default to read
+    gpio_put(GPIO_RW, 1);  // Default to read
 
     // Configure interrupt inputs with pull-ups (active low)
     gpio_init(GPIO_IRQ);
@@ -86,7 +88,7 @@ void bus_init(void) {
     // Initialize unused GPIO pins as inputs with pull-ups to prevent floating
 #if BOARD_TYPE == BOARD_PICO2
     // PICO2 unused pins: 15, 20, 24, 25, 26
-    const int unused_pins[] = {15, 20, 24, 25, 26};
+    const int unused_pins[] = { 15, 20, 24, 25, 26 };
     for (int i = 0; i < 5; i++) {
         gpio_init(unused_pins[i]);
         gpio_set_dir(unused_pins[i], GPIO_IN);
@@ -96,7 +98,7 @@ void bus_init(void) {
     // NED_SYS7: Initialize unused GPIO pins as inputs with pull-ups
     // Unused: 31-32 (after control signals), 35-36 (old UART pins), 42-47
     // (after LEDs/UART) Allow for either 36 or 39 to be used for yellow LED.
-    const int unused_pins[] = {30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
+    const int unused_pins[] = { 30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47 };
     for (int i = 0; i < 11; i++) {
         gpio_init(unused_pins[i]);
         gpio_set_dir(unused_pins[i], GPIO_IN);
@@ -107,20 +109,20 @@ void bus_init(void) {
     gpio_init(GPIO_LED_ROM);
     gpio_set_dir(GPIO_LED_ROM, GPIO_OUT);
     gpio_set_drive_strength(GPIO_LED_ROM,
-                            GPIO_DRIVE_STRENGTH_12MA); // Increase brightness
-    gpio_put(GPIO_LED_ROM, 1);                         // Off
+                            GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
+    gpio_put(GPIO_LED_ROM, 1);                          // Off
 
     gpio_init(GPIO_LED_RAM);
     gpio_set_dir(GPIO_LED_RAM, GPIO_OUT);
     gpio_set_drive_strength(GPIO_LED_RAM,
-                            GPIO_DRIVE_STRENGTH_12MA); // Increase brightness
-    gpio_put(GPIO_LED_RAM, 1);                         // Off
+                            GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
+    gpio_put(GPIO_LED_RAM, 1);                          // Off
 
     gpio_init(GPIO_LED_UNMAPPED);
     gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
     gpio_set_drive_strength(GPIO_LED_UNMAPPED,
-                            GPIO_DRIVE_STRENGTH_12MA); // Increase brightness
-    gpio_put(GPIO_LED_UNMAPPED, 1);                    // Off
+                            GPIO_DRIVE_STRENGTH_12MA);  // Increase brightness
+    gpio_put(GPIO_LED_UNMAPPED, 1);                     // Off
 #endif
 
     printf("Bus interface initialized for %s\r\n", BOARD_NAME);

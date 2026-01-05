@@ -18,12 +18,12 @@ const char *instruction_get_mnemonic(uint8_t opcode);
 #if COUNT_INSTRUCTIONS
 typedef struct instruction_count_info {
     uint32_t count;
-    uint8_t opcode;
-    uint8_t cycles;
+    uint8_t  opcode;
+    uint8_t  cycles;
 } instruction_count_info;
 
 extern volatile instruction_count_info instruction_counts[256];
-extern volatile bool instruction_counting;
+extern volatile bool                   instruction_counting;
 
 static inline bool instruction_count_enabled(void) {
     __dmb();
@@ -61,6 +61,6 @@ void instruction_count_initialize(void);
 
 void instruction_count_report(printf_func_t printf_func);
 
-#endif // COUNT_INSTRUCTIONS
+#endif  // COUNT_INSTRUCTIONS
 
-#endif // INSTRUCTIONS_H
+#endif  // INSTRUCTIONS_H

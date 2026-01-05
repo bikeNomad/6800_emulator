@@ -15,10 +15,10 @@
         printf("Entering %s\r\n", fsm->current_state_name);  \
     } while (0)
 
-static queue_t      sm_event_queue;  // Events => Emulator State Machine
+static queue_t      sm_event_queue;      // Events => Emulator State Machine
 static queue_t      notification_queue;  // Notifications => USB CDC console
 static FSM          emulator_fsm;
-static state_method paused_state;  // history
+static state_method paused_state;        // history
 
 static void s_initializing(FSM *fsm, uint8_t event);
 static void s_resetting(FSM *fsm, uint8_t event);

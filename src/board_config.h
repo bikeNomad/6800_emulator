@@ -118,4 +118,4 @@
 #define BUS_PIO pio1
 #define CYCLE_SM 0 // read/write cycle
 
-#endif // BOARD_CONFIG_H
+#endif  // BOARD_CONFIG_H

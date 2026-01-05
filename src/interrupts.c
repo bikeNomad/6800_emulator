@@ -94,9 +94,9 @@ void interrupt_service_reset(void) {
     cpu.a = 0;
     cpu.b = 0;
     cpu.x = 0x0000;
-    cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
+    cpu.sp = 0x0000;              // Stack pointer will be initialized by reset routine
     cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
-    cpu.wai_state = false;  // Clear WAI state
+    cpu.wai_state = false;        // Clear WAI state
 
     cpu.halted = true;
     cpu.running = false;
@@ -115,7 +115,7 @@ void interrupt_service_nmi(void) {
     if (!cpu.wai_state) {
         cpu_stack_registers();
     }
-    cpu.wai_state = false;  // Clear WAI state if we were waiting
+    cpu.wai_state = false;      // Clear WAI state if we were waiting
     cpu_set_flag(CCR_I, true);  // Set interrupt mask
     cpu_load_pc_from_vector(VECTOR_NMI);
 
@@ -131,9 +131,9 @@ void interrupt_service_irq(void) {
         cpu_stack_registers();
     }
 
-    cpu.wai_state = false;  // Clear WAI state if we were waiting
+    cpu.wai_state = false;                // Clear WAI state if we were waiting
 
-    cpu_set_flag(CCR_I, true);  // Set interrupt mask
+    cpu_set_flag(CCR_I, true);            // Set interrupt mask
 
     cpu_load_pc_from_vector(VECTOR_IRQ);  // Load PC from IRQ vector
 

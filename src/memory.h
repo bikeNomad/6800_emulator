@@ -26,9 +26,9 @@
 // Memory region types
 typedef enum {
     MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
-    MEM_TYPE_ROM,  // ROM (EPROM) - read only from flash
-    MEM_TYPE_RAM,  // RAM - read/write from shadow
-    MEM_TYPE_CMOS  // CMOS RAM - read/write from bus for now
+    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
+    MEM_TYPE_RAM,       // RAM - read/write from shadow
+    MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
 } memory_type_t;
 
 #define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
@@ -36,14 +36,14 @@ typedef enum {
 // Memory configuration
 typedef struct {
     uint32_t flash_offset;  // Offset in RP2350 flash for ROM shadow copy
-    uint32_t flash_size;  // Size of ROM image
-    uint16_t rom_base;  // Base address in MC6800 space (e.g., $E000)
-    uint16_t rom_size;  // Size of ROM region
-    uint16_t ram_base;  // Base address of RAM (e.g., $0000)
-    uint16_t ram_size;  // Size of RAM (e.g., 512 bytes)
-    uint16_t cmos_base;  // Base address of CMOS RAM (0x0100)
-    uint16_t cmos_size;  // Size of CMOS RAM (256 bytes)
-    bool     configured;  // Configuration complete
+    uint32_t flash_size;    // Size of ROM image
+    uint16_t rom_base;      // Base address in MC6800 space (e.g., $E000)
+    uint16_t rom_size;      // Size of ROM region
+    uint16_t ram_base;      // Base address of RAM (e.g., $0000)
+    uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
+    uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
+    uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
+    bool     configured;    // Configuration complete
 } memory_config_t;
 
 extern memory_config_t mem_config;

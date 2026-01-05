@@ -258,7 +258,7 @@ static void cmd_reset(void) {
 static void cmd_bootloader(void) {
     // Enter bootloader mode
     usb_cdc_send("Entering bootloader mode...\r\n");
-    sleep_ms(100);  // Give time for message to send
+    sleep_ms(100);         // Give time for message to send
     reset_usb_boot(0, 0);  // Reset into USB bootloader
 }
 
@@ -949,12 +949,12 @@ static const command_entry_t command_table[] = {
     { "debug off", cmd_debug_off, false },
     { "break clear", cmd_break_clear, true },  // needs optional <addr>
     { "break list", cmd_break_list, false },
-    { "reg pc", cmd_reg_pc, true },  // needs <value>
-    { "reg a", cmd_reg_a, true },  // needs <value>
-    { "reg b", cmd_reg_b, true },  // needs <value>
-    { "reg x", cmd_reg_x, true },  // needs <value>
-    { "reg sp", cmd_reg_sp, true },  // needs <value>
-    { "reg ccr", cmd_reg_ccr, true },  // needs <value>
+    { "reg pc", cmd_reg_pc, true },            // needs <value>
+    { "reg a", cmd_reg_a, true },              // needs <value>
+    { "reg b", cmd_reg_b, true },              // needs <value>
+    { "reg x", cmd_reg_x, true },              // needs <value>
+    { "reg sp", cmd_reg_sp, true },            // needs <value>
+    { "reg ccr", cmd_reg_ccr, true },          // needs <value>
 #if COUNT_INSTRUCTIONS
     { "count print", cmd_print_instruction_counts, false },
     { "count reset", cmd_reset_instruction_counts, false },
@@ -966,25 +966,25 @@ static const command_entry_t command_table[] = {
     { "load", cmd_load, false },
     { "end", cmd_end, false },
     { "config", cmd_config_show, false },
-    { "read", cmd_read, true },  // needs <addr> <len>
+    { "read", cmd_read, true },    // needs <addr> <len>
     { "write", cmd_write, true },  // needs <addr> <data...>
     { "status", cmd_status, false },
     { "run", cmd_run, false },
     { "halt", cmd_halt, false },
     { "reset", cmd_reset, false },
     { "bootloader", cmd_bootloader, false },
-    { "boot", cmd_bootloader, false },  // Alias for bootloader
-    { "break", cmd_break_set, true },  // needs <addr>
-    { "bus_read_block", cmd_bus_read_block, true },  // needs <addr> <len>
+    { "boot", cmd_bootloader, false },                 // Alias for bootloader
+    { "break", cmd_break_set, true },                  // needs <addr>
+    { "bus_read_block", cmd_bus_read_block, true },    // needs <addr> <len>
     { "bus_write_block", cmd_bus_write_block, true },  // needs <addr> <data...>
-    { "bus_write", cmd_bus_write, true },  // needs <addr> <data>
-    { "bus_read", cmd_bus_read, true },  // needs <addr>
+    { "bus_write", cmd_bus_write, true },              // needs <addr> <data>
+    { "bus_read", cmd_bus_read, true },                // needs <addr>
     { "bus_info", cmd_bus_info, false },
     { "map show", cmd_map_show, false },
     { "map clear", cmd_map_clear, false },
     { "map program", cmd_map_program, true },  // needs <addr>
     { "help", cmd_help, false },
-    { NULL, NULL, false }  // Terminator
+    { NULL, NULL, false }                      // Terminator
 };
 
 static void dispatch_command(void) {

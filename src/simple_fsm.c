@@ -1,7 +1,9 @@
 #include "simple_fsm.h"
 #include "pico.h"
 
-static inline void fsm_dispatch(FSM *fsm, uint8_t event) { fsm->current_state(fsm, event); }
+static inline void fsm_dispatch(FSM *fsm, uint8_t event) {
+    fsm->current_state(fsm, event);
+}
 
 bool fsm_init(FSM *fsm, state_method initial_state) {
     fsm->last_event_received = EVT_INIT;

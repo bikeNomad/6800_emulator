@@ -13,7 +13,7 @@
 #define DEBUG_SPI_INST spi0
 #define SPI_BAUDRATE (40 * 1000 * 1000) // 40 MHz
 
-static bool debug_enabled = false; // Disabled by default (enable via USB "debug on")
+static bool debug_enabled = false;  // Disabled by default (enable via USB "debug on")
 
 // Initialize debug SPI
 void debug_spi_init(void) {
@@ -42,7 +42,7 @@ void debug_spi_log(void) {
 
     packet[1] = (cpu.pc >> 8) & 0xFF;
     packet[0] = cpu.pc & 0xFF;
-    packet[3] = 0; // Reserved
+    packet[3] = 0;  // Reserved
     packet[2] = cpu.ccr;
 
     // Send packet via SPI
@@ -62,17 +62,21 @@ void debug_spi_log_bus(uint16_t address, bool is_read, uint8_t data) {
     //   - Write: bit 8 = 0 (0x00xx)
     uint8_t packet[4];
 
-    packet[1] = (address >> 8) & 0xFF; // Address high byte
-    packet[0] = address & 0xFF;        // Address low byte
-    packet[3] = is_read ? 0x01 : 0x00; // R/W flag in high byte
-    packet[2] = data;                  // Data byte in low byte
+    packet[1] = (address >> 8) & 0xFF;  // Address high byte
+    packet[0] = address & 0xFF;         // Address low byte
+    packet[3] = is_read ? 0x01 : 0x00;  // R/W flag in high byte
+    packet[2] = data;                   // Data byte in low byte
 
     // Send packet via SPI
     spi_write16_blocking(DEBUG_SPI_INST, (uint16_t *)packet, 2);
 }
 
 // Enable/disable debug output
-void debug_spi_enable(bool enable) { debug_enabled = enable; }
+void debug_spi_enable(bool enable) {
+    debug_enabled = enable;
+}
 
 // Get debug output status
-bool debug_spi_is_enabled(void) { return debug_enabled; }
+bool debug_spi_is_enabled(void) {
+    return debug_enabled;
+}

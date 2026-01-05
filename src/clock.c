@@ -9,8 +9,8 @@
 #include <stdio.h>
 
 // PIO instance and state machine
-static int eclock_offset; // E_SM
-static int sync_offset;   // SYNC_SM
+static int eclock_offset;  // E_SM
+static int sync_offset;    // SYNC_SM
 
 // Cycle counter (non-volatile for performance - not accessed by ISRs)
 uint32_t cycle_count = 0;
@@ -67,10 +67,10 @@ void eclock_start(void) {
 // Stop E clock generation
 bool eclock_stop(void) {
     if (!eclock_is_running()) {
-        return false; // already stopped
+        return false;  // already stopped
     }
     // Cache current PIO cycles before stopping (non-blocking)
-    last_pio_cycles = eclock_get_pio_cycles(); // Update last_pio_cycles
+    last_pio_cycles = eclock_get_pio_cycles();  // Update last_pio_cycles
     // Disable PIO state machine
     pio_sm_set_enabled(ECLK_PIO, E_SM, false);
     eclock_force_low();

@@ -72,8 +72,8 @@ static inline void jlink_reset_strategy_12_marker(void) {
         "ldr r0, [r0]   \n\t"  // 2. Load word from memory address in r0 into r0
         "nop            \n\t"  // 3. No operation
         "nop            \n\t"  // 4. No operation
-        :  // No output operands
-        :  // No input operands
-        : "r0", "memory"  // Clobber list: tell GCC we used r0 and memory
+        :                      // No output operands
+        :                      // No input operands
+        : "r0", "memory"       // Clobber list: tell GCC we used r0 and memory
     );
 }

@@ -35,7 +35,7 @@ CMAKE_ARGS = \
 	-DQSPI_CLOCK_DIVISOR=$(QSPI_CLOCK_DIVISOR) \
 	-DDEBUG_INTERRUPTS=$(DEBUG_INTERRUPTS)
 
-V ?= 0
+C_SOURCES = $(wildcard src/*.c src/*.h)
 
 # Default target: build just ned_sys7
 all: $(IMAGES_DIR) build_ned_sys7
@@ -76,6 +76,9 @@ clean: clean-images
 clean-images:
 	rm -rf $(IMAGES_DIR)/BOARD_*.uf2
 
+format-code:
+	clang-format -i $(C_SOURCES)
+	
 
 # Help target
 help:
