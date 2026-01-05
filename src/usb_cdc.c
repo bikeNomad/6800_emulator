@@ -841,9 +841,8 @@ static void cmd_map_show(void) {
             }
         }
 
-        usb_cdc_printf("  $%04X-$%04X: %s (alias of $%04X-$%04X)\r\n",
-                       current_addr, range_end, info,
-                       current_addr & 0x7FFF, range_end & 0x7FFF);
+        usb_cdc_printf("  $%04X-$%04X: %s (alias of $%04X-$%04X)\r\n", current_addr, range_end,
+                       info, current_addr & 0x7FFF, range_end & 0x7FFF);
         current_addr = range_end + 1;
     }
 }
