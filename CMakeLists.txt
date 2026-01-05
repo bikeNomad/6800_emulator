@@ -75,11 +75,11 @@ pico_enable_stdio_uart(mc6800_emulator 1)
 if(BOARD_TYPE STREQUAL "BOARD_PICO2")
     set(UART_TX_PIN 24)
     set(UART_RX_PIN 25)
-    set(UART_INSTANCE 1)  # UART1 for Pico 2
+    set(UART_INSTANCE 1) # UART1 for Pico 2
 elseif(BOARD_TYPE STREQUAL "BOARD_NED_SYS7")
     set(UART_TX_PIN 40)
     set(UART_RX_PIN 41)
-    set(UART_INSTANCE 1)  # UART1 for NED_SYS7
+    set(UART_INSTANCE 1) # UART1 for NED_SYS7
 else()
     message(FATAL_ERROR "Unknown BOARD_TYPE: ${BOARD_TYPE}")
 endif()
@@ -92,20 +92,23 @@ pico_add_extra_outputs(mc6800_emulator)
 # System clock configuration (can be overridden from command line)
 # Options: 150-300 MHz (safe range for RP2350 with proper voltage)
 if(NOT DEFINED SYS_CLOCK_MHZ)
-    set(SYS_CLOCK_MHZ 266)  # Default: 266MHz (optimized for 133MHz QSPI flash)
+    set(SYS_CLOCK_MHZ 266) # Default: 266MHz (optimized for 133MHz QSPI flash)
 endif()
+
 message(STATUS "System SYS_CLOCK_MHZ: ${SYS_CLOCK_MHZ}")
 
 # QSPI clock divisor configuration (can be overridden from command line)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
 if(NOT DEFINED QSPI_CLOCK_DIVISOR)
-    set(QSPI_CLOCK_DIVISOR 2)  # Default: system clock / 2 (133MHz with 266MHz sys clock)
+    set(QSPI_CLOCK_DIVISOR 2) # Default: system clock / 2 (133MHz with 266MHz sys clock)
 endif()
+
 message(STATUS "QSPI clock divisor: ${QSPI_CLOCK_DIVISOR}")
 
 if(NOT DEFINED DEBUG_INTERRUPTS)
     set(DEBUG_INTERRUPTS 1)
 endif()
+
 message(STATUS "Debug interrupts: ${DEBUG_INTERRUPTS}")
 
 # Add compile definitions for board type and UART pins
@@ -116,12 +119,11 @@ target_compile_definitions(mc6800_emulator PRIVATE
     PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
     SYS_CLOCK_MHZ=${SYS_CLOCK_MHZ}
     QSPI_CLOCK_DIVISOR=${QSPI_CLOCK_DIVISOR}
-    DEBUG_INTERRUPTS=${DEBUG_INTERRUPTS}  # Set to 0 to disable interrupt debug output
+    DEBUG_INTERRUPTS=${DEBUG_INTERRUPTS} # Set to 0 to disable interrupt debug output
 )
 
 # Add compile options for optimization and warnings
 target_compile_options(mc6800_emulator PRIVATE
     -Wall
     -Wextra
-    -Og
 )

@@ -7,7 +7,11 @@
     "cmake.sourceDirectory": "${workspaceFolder}",
     "cmake.generator": "Ninja",
     "cmake.cmakePath": "/opt/homebrew/bin/cmake",
+    "cmake.configureOnEdit": true,
+    "cmake.automaticReconfigure": true,
     "idf.pythonInstallPath": "/opt/homebrew/Caskroom/miniconda/base/bin/python",
     "editor.formatOnSave": true,
-    "clang-format.style": "file"
+    "clang-format.style": "file",
+    "raspberry-pi-pico.cmakeAutoConfigure": false,
+    "raspberry-pi-pico.useCmakeTools": true,
 }
