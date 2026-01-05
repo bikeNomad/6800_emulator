@@ -78,7 +78,7 @@ clean-images:
 
 format-code:
 	clang-format -i $(C_SOURCES)
-	
+
 
 # Help target
 help:
