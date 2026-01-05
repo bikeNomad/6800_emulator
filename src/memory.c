@@ -399,16 +399,16 @@ const uint8_t *memory_get_cmos_shadow(void) { return &ram_shadow[CMOS_BASE]; }
 
 // Print a summary of the various memory ranges defined in the memory_map
 void memory_print_summary(printf_func_t printf_func) {
-    printf_func("Memory Map Summary:\n");
-    printf_func("  ROM: $%04X-$%04X (%d bytes)\n", mem_config.rom_base,
+    printf_func("Memory Map Summary:\r\n");
+    printf_func("  ROM: $%04X-$%04X (%d bytes)\r\n", mem_config.rom_base,
                 mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
-    printf_func("  RAM: $%04X-$%04X (%d bytes)\n", mem_config.ram_base,
+    printf_func("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
                 mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
-    printf_func("  CMOS: $%04X-$%04X (%d bytes)\n", mem_config.cmos_base,
+    printf_func("  CMOS: $%04X-$%04X (%d bytes)\r\n", mem_config.cmos_base,
                 mem_config.cmos_base + mem_config.cmos_size - 1, mem_config.cmos_size);
-    printf_func("  Flash offset: 0x%08lX, size: %u bytes\n", (unsigned long)mem_config.flash_offset,
+    printf_func("  Flash offset: 0x%08lX, size: %u bytes\r\n", (unsigned long)mem_config.flash_offset,
                 (unsigned int)mem_config.flash_size);
-    printf_func("  Configuration: %s\n", mem_config.configured ? "configured" : "default");
+    printf_func("  Configuration: %s\r\n", mem_config.configured ? "configured" : "default");
 
     // Count mapped vs unmapped pages
     uint16_t mapped_pages = 0;
@@ -435,9 +435,9 @@ void memory_print_summary(printf_func_t printf_func) {
         }
     }
 
-    printf_func("  Memory map: %u mapped pages (%u ROM, %u RAM, %u CMOS), %u unmapped pages\n",
+    printf_func("  Memory map: %u mapped pages (%u ROM, %u RAM, %u CMOS), %u unmapped pages\r\n",
                 mapped_pages, rom_pages, ram_pages, cmos_pages, unmapped_pages);
-    printf_func("  Total address space: %u pages (%u bytes)\n", MEMORY_TABLE_SIZE,
+    printf_func("  Total address space: %u pages (%u bytes)\r\n", MEMORY_TABLE_SIZE,
                 MEMORY_TABLE_SIZE * ENTRY_PAGE_SIZE);
 }
 
