@@ -137,19 +137,6 @@ int main() {
     printf("Initializing debug SPI...\r\n");
     debug_spi_init();
 
-    printf("Initializing CPU state...\r\n");
-    cpu_init();
-
-    printf("Initializing interrupt handling...\r\n");
-    interrupts_init();
-
-    printf("\r\nMC6800 Emulator Ready\n");
-    fflush(stdout);
-
-    printf("Launching Core 1 for USB CDC processing...\r\n");
-    fflush(stdout);
-    sleep_ms(100);
-
     // Launch Core 1 for dedicated USB CDC processing
     multicore_launch_core1(core1_entry);
     sleep_ms(100);
