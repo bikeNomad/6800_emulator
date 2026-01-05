@@ -48,8 +48,14 @@ static bool send_command_to_emulator(sm_event_t event) {
         usb_cdc_send("ERROR: Failed to send command to emulator\r\n");
         return false;  // queue full
     }
+    uint32_t tries = 0;
     while (!receive_sm_notification(&notification)) {
         sleep_ms(1);
+        tries++;
+        if (tries > 100) {
+            printf("Timeout waiting for notification after event %d\n", event);
+            return false;
+        }
     }
     return notification == NOTIF_OK;
 }
@@ -242,7 +248,6 @@ static void cmd_halt(void) {
 }
 
 static void cmd_reset(void) {
-    // Reset CPU (CMOS will be auto-saved by background task if needed)
     if (!send_command_to_emulator(EV_CMD_RESET)) {
         usb_cdc_send("ERROR: Failed to reset CPU\r\n");
         return;

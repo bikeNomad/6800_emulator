@@ -19,10 +19,11 @@ bool fsm_init(FSM *fsm, state_method initial_state) {
 
 static inline void fsm_handle_event(FSM *fsm, uint8_t event) {
     fsm_dispatch(fsm, event);
-    if (fsm->next_state != NULL) {
-        fsm_dispatch(fsm, EVT_EXIT);
-        fsm->current_state = fsm->next_state;
+    state_method next_state = fsm->next_state;
+    if (next_state != NULL) {
         fsm->next_state = NULL;
+        fsm_dispatch(fsm, EVT_EXIT);
+        fsm->current_state = next_state;
         fsm_dispatch(fsm, EVT_ENTER);
     }
 }
@@ -34,7 +35,7 @@ bool __time_critical_func(fsm_run)(FSM *fsm, state_method initial_state) {
 
     while (fsm->current_state != NULL) {
         uint8_t event;
-        while (fsm->receive_event(fsm, &event)) {
+        if (fsm->receive_event(fsm, &event)) {
             fsm->last_event_received = event;
             fsm_handle_event(fsm, event);
         }

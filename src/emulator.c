@@ -38,15 +38,22 @@ static bool receive_sm_event(FSM *unused, uint8_t *event) {
 }
 
 bool post_sm_event(sm_event_t event) {
-    return queue_try_add(&sm_event_queue, &event);
+    uint8_t ev = (uint8_t)event;
+    return queue_try_add(&sm_event_queue, &ev);
 }
 
 bool receive_sm_notification(sm_notification_t *notification) {
-    return queue_try_remove(&notification_queue, notification);
+    uint8_t notif;
+    if (queue_try_remove(&notification_queue, &notif)) {
+        *notification = (sm_notification_t)notif;
+        return true;
+    }
+    return false;
 }
 
 static inline void send_notification(sm_notification_t notification) {
-    queue_try_add(&notification_queue, &notification);
+    uint8_t notif = (uint8_t)notification;
+    queue_try_add(&notification_queue, &notif);
 }
 
 static inline void notify_ok(void) {
@@ -82,11 +89,20 @@ static void s_resetting(FSM *fsm, uint8_t event) {
         if (interrupt != INT_RESET) {
             fsm_change_state(fsm, &s_running);
         }
+        sleep_ms(1);
         break;
     case EVT_ENTER:
         GET_NAME(fsm);
         interrupt_service_reset();
         eclock_stop();
+        break;
+    case EV_CMD_HALT:
+        fsm_change_state(fsm, &s_halted);
+        notify_ok();
+        break;
+    case EV_CMD_RUN:
+        fsm_change_state(fsm, &s_running);
+        notify_ok();
         break;
     }
 }
@@ -248,8 +264,8 @@ static void s_waiting_for_interrupt(FSM *fsm, uint8_t event) {
 }
 
 bool run_emulator_sm(void) {
-    queue_init(&sm_event_queue, sizeof(sm_event_t), 16);
-    queue_init(&notification_queue, sizeof(sm_notification_t), 16);
+    queue_init(&sm_event_queue, 1, 16);
+    queue_init(&notification_queue, 1, 16);
     emulator_fsm.receive_event = &receive_sm_event;
     return fsm_run(&emulator_fsm, &s_initializing);
 }
