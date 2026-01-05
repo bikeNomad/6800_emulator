@@ -69,15 +69,15 @@ ihex_result_t ihex_parse_line(const char *line, ihex_record_t *record) {
     return IHEX_OK;
 }
 
+#define ENTRY_ADDRESS_MASK 0xFF00
+
 // Load complete Intel HEX data into memory
 bool ihex_load_data(const char *hex_data, uint32_t length) {
     const char *ptr = hex_data;
     const char *end = hex_data + length;
-    uint32_t base_address = 0; // Extended address for 32-bit addressing
-    uint32_t bytes_loaded = 0;
-    bool eof_reached = false;
-    bool is_cmos_data = false; // Auto-detect based on first data record
-    bool detection_done = false;
+    uint32_t    base_address = 0;  // Extended address for 32-bit addressing
+    uint32_t    bytes_loaded = 0;
+    bool        eof_reached = false;
 
     printf("Loading Intel HEX data...\n");
 
@@ -98,8 +98,8 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
 
         // Parse line
         ihex_record_t record;
-        char line_buffer[1024];
-        size_t line_len = line_end - ptr;
+        char          line_buffer[1024];
+        size_t        line_len = line_end - ptr;
         if (line_len >= sizeof(line_buffer)) {
             printf("Line too long\n");
             return false;
@@ -111,50 +111,35 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
         ihex_result_t result = ihex_parse_line(line_buffer, &record);
 
         if (result == IHEX_OK) {
+            uint32_t full_address;
             switch (record.record_type) {
             case IHEX_TYPE_DATA:
-                // Auto-detect ROM vs CMOS based on first data record
-                if (!detection_done) {
-                    uint32_t full_address = base_address + record.address;
-                    // CMOS region: 0x0100-0x01FF
-                    // ROM region: typically 0xD000-0xFFFF or 0x5000-0x7FFF
-                    if (full_address >= 0x0100 && full_address < 0x0200) {
-                        is_cmos_data = true;
-                        printf("Detected CMOS data (address $%04lX)\n",
-                               (unsigned long)full_address);
-                    } else {
-                        is_cmos_data = false;
-                        printf("Detected ROM data (address $%04lX)\n", (unsigned long)full_address);
-                    }
-                    detection_done = true;
+                full_address = base_address + record.address;
+                if (!memory_load_hex_data(full_address, record.data, record.byte_count)) {
+                    printf("Failed to load data at address $%04lX\n",
+                           (unsigned long)full_address);
+                    return false;
                 }
 
-                // Load data into memory
-                {
-                    uint32_t full_address = base_address + record.address;
-                    if (!memory_load_hex_data(full_address, record.data, record.byte_count)) {
-                        printf("Failed to load data at address $%04lX\n",
-                               (unsigned long)full_address);
-                        return false;
+                printf("Record address %08lx length %d\n", full_address, record.byte_count);
+
+                uint start_addr = full_address;
+                uint end_addr = (full_address + record.byte_count - 1);
+
+                // Mark all pages that contain this data as mapped
+                uint start_page = start_addr & ENTRY_ADDRESS_MASK;
+                uint end_page = end_addr & ENTRY_ADDRESS_MASK;
+
+                for (uint page_addr = start_page; page_addr <= end_page;
+                     page_addr += ENTRY_PAGE_SIZE) {
+                    memory_type_t type = memory_get_type((uint16_t)page_addr);
+                    if (type == MEM_TYPE_UNMAPPED) {
+                        printf("Mapping ROM page from hex $%04X\n", (uint16_t)page_addr);
+                        memory_set_rom_mapping((uint16_t)page_addr, true);
                     }
-
-                    // If this is ROM data, mark the affected pages as mapped
-                    if (!is_cmos_data) {
-                        uint16_t start_addr = (uint16_t)full_address;
-                        uint16_t end_addr = start_addr + record.byte_count - 1;
-
-                        // Mark all pages that contain this data as mapped
-                        uint16_t start_page = start_addr & 0xFF00;
-                        uint16_t end_page = end_addr & 0xFF00;
-
-                        for (uint16_t page_addr = start_page; page_addr <= end_page;
-                             page_addr += 0x100) {
-                            memory_set_rom_mapping(page_addr, true);
-                        }
-                    }
-
-                    bytes_loaded += record.byte_count;
                 }
+
+                bytes_loaded += record.byte_count;
                 break;
 
             case IHEX_TYPE_EOF:
@@ -195,22 +180,17 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
 
     // Finalize by writing to flash (ROM or CMOS)
     if (bytes_loaded > 0) {
-        if (is_cmos_data) {
-            printf("Finalizing CMOS load...\n");
-            return true;
-        } else {
-            printf("Finalizing ROM load...\n");
-            bool success = memory_finalize_load();
-            if (success) {
-                // Save the updated mapping to flash
-                memory_save_rom_mapping_to_flash();
+        printf("Finalizing hex load...\n");
+        bool success = memory_finalize_load();
+        if (success) {
+            // Save the updated mapping to flash
+            memory_save_rom_mapping_to_flash();
 
-                // Automatically reset CPU to load reset vector from new ROM
-                printf("Resetting CPU to load reset vector...\n");
-                interrupt_service_reset();
-            }
-            return success;
+            // Automatically reset CPU to load reset vector from new ROM
+            printf("Resetting CPU to load reset vector...\n");
+            interrupt_service_reset();
         }
+        return success;
     }
 
     return true;

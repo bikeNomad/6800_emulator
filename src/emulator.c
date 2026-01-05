@@ -8,10 +8,17 @@
 #include "memory.h"
 #include "usb_cdc.h"
 
-static queue_t sm_event_queue;     // Events => Emulator State Machine
-static queue_t notification_queue; // Notifications => USB CDC console
-static FSM emulator_fsm;
-static state_method paused_state; // history
+#undef GET_NAME
+#define GET_NAME(fsm)                             \
+    do {                                          \
+        fsm->current_state_name = __FUNCTION__;   \
+        printf("Entering %s\r\n", fsm->current_state_name);  \
+    } while (0)
+
+static queue_t      sm_event_queue;  // Events => Emulator State Machine
+static queue_t      notification_queue;  // Notifications => USB CDC console
+static FSM          emulator_fsm;
+static state_method paused_state;  // history
 
 static void s_initializing(FSM *fsm, uint8_t event);
 static void s_resetting(FSM *fsm, uint8_t event);
@@ -30,7 +37,9 @@ static bool receive_sm_event(FSM *unused, uint8_t *event) {
     return queue_try_remove(&sm_event_queue, event);
 }
 
-bool post_sm_event(sm_event_t event) { return queue_try_add(&sm_event_queue, &event); }
+bool post_sm_event(sm_event_t event) {
+    return queue_try_add(&sm_event_queue, &event);
+}
 
 bool receive_sm_notification(sm_notification_t *notification) {
     return queue_try_remove(&notification_queue, notification);
@@ -40,14 +49,22 @@ static inline void send_notification(sm_notification_t notification) {
     queue_try_add(&notification_queue, &notification);
 }
 
-static inline void notify_ok(void) { send_notification(NOTIF_OK); }
+static inline void notify_ok(void) {
+    send_notification(NOTIF_OK);
+}
 
-static inline void notify_error(void) { send_notification(NOTIF_ERROR); }
+static inline void notify_error(void) {
+    send_notification(NOTIF_ERROR);
+}
 
 // Entered after power-on
 static void s_initializing(FSM *fsm, uint8_t event) {
+    GET_NAME(fsm);
+    printf("initializing CPU\r\n");
     cpu_init();
+    printf("initializing interrupts\r\n");
     interrupts_init();
+    printf("reading CMOS to shadow\r\n");
     memory_read_cmos_from_bus();
 
     switch (event) {
@@ -68,6 +85,7 @@ static void s_resetting(FSM *fsm, uint8_t event) {
         break;
     case EVT_ENTER:
         GET_NAME(fsm);
+        interrupt_service_reset();
         eclock_stop();
         break;
     }
@@ -107,6 +125,7 @@ static void s_running(FSM *fsm, uint8_t event) {
         eclock_start();
         cpu.stopped_at_breakpoint = false;
         cpu.running = true;
+        cpu.halted = false;
         break;
 
     case EVT_EXIT:
@@ -145,7 +164,7 @@ static void s_halted(FSM *fsm, uint8_t event) {
     switch (event) {
     case EVT_ENTER:
         GET_NAME(fsm);
-        eclock_stop(); // E clock OFF
+        eclock_stop();  // E clock OFF
         cpu.halted = true;
         break;
     case EVT_EXIT:
@@ -198,9 +217,13 @@ static void s_loading(FSM *fsm, uint8_t event) {
     switch (event) {
     case EVT_ENTER:
         GET_NAME(fsm);
-        eclock_stop(); // E clock OFF
+        eclock_stop();  // E clock OFF
         break;
     case EVT_EXIT:
+        break;
+    case EV_CMD_RESET:
+        fsm_change_state(fsm, &s_resetting);
+        notify_ok();
         break;
     }
 }

@@ -39,15 +39,9 @@ void cpu_init(void) {
     // Turn off all LEDs at startup
     led_all_off();
 
-    // Check if ROM has been loaded (reset vector is not 0xFFFF)
-    uint8_t vec_h = memory_read_fast(VECTOR_RESET);
-    uint8_t vec_l = memory_read_fast(VECTOR_RESET + 1);
-    uint16_t reset_vector = (vec_h << 8) | vec_l;
-
-    if (reset_vector != 0xFFFF) {
+    if (memory_is_address_mapped(VECTOR_RESET)) {
         // ROM is loaded, perform reset to load vector into PC
-        printf("CPU initialized: ROM detected, loading reset vector\n");
-        interrupt_service_reset();
+        printf("CPU initialized\n");
     } else {
         printf("CPU initialized: PC=$%04X SP=$%04X CCR=$%02X (no ROM)\n", cpu.pc, cpu.sp, cpu.ccr);
     }

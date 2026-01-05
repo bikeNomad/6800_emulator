@@ -36,13 +36,21 @@
     ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                             \
      (1ULL << GPIO_LED_UNMAPPED)) // All LEDs off (all=1)
 
-static inline void led_set_rom(void) { gpio_put_masked64(LED_MASK, LED_ROM_ON); }
+static inline void led_set_rom(void) {
+    gpio_put_masked64(LED_MASK, LED_ROM_ON);
+}
 
-static inline void led_set_ram(void) { gpio_put_masked64(LED_MASK, LED_RAM_ON); }
+static inline void led_set_ram(void) {
+    gpio_put_masked64(LED_MASK, LED_RAM_ON);
+}
 
-static inline void led_set_unmapped(void) { gpio_put_masked64(LED_MASK, LED_UNMAPPED_ON); }
+static inline void led_set_unmapped(void) {
+    gpio_put_masked64(LED_MASK, LED_UNMAPPED_ON);
+}
 
-static inline void led_all_off_inline(void) { gpio_put_masked64(LED_MASK, LED_ALL_OFF); }
+static inline void led_all_off_inline(void) {
+    gpio_put_masked64(LED_MASK, LED_ALL_OFF);
+}
 #endif
 
 // Public function to turn off all LEDs (for use outside memory.c)
@@ -94,16 +102,35 @@ memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
 static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(ENTRY_PAGE_SIZE)));
-uint8_t rom_shadow[MAX_ROM_SIZE]
-    __attribute__((aligned(ENTRY_PAGE_SIZE))); // Fast RAM copy of ROM for execution
+uint8_t        rom_shadow[MAX_ROM_SIZE]
+    __attribute__((aligned(ENTRY_PAGE_SIZE)));  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];  // Buffer for loading before flash write
 
 // ROM mapping bitmap - tracks which 256-byte pages have valid ROM data
 // 256 pages maximum, 1 bit per page = 32 bytes
-static uint8_t rom_mapping_bitmap[32] = {0};
+static uint8_t rom_mapping_bitmap[32] = { 0 };
 
 // Flash storage for ROM mapping bitmap (32 bytes)
 #define FLASH_MAPPING_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
+
+memory_type_t memory_get_type(uint16_t address) {
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
+    uint32_t table_entry = memory_map[table_index];
+    uint8_t flags = table_entry & ENTRY_FLAG_MASK;
+    switch (flags) {
+        case ENTRY_MAPPED_ROM:
+            return MEM_TYPE_ROM;
+        case ENTRY_MAPPED_RAM:
+            return MEM_TYPE_RAM;
+        case ENTRY_MAPPED_CMOS:
+            return MEM_TYPE_CMOS;
+        default:
+            return MEM_TYPE_UNMAPPED;
+    }
+    
+}
+
+// Initialize memory map
 
 void memory_initialize_map(void) {
     // Set all entries to unmapped initially
@@ -113,14 +140,15 @@ void memory_initialize_map(void) {
 
     // Set RAM entries including aliases (RAM is always mapped)
     for (uint16_t address = mem_config.ram_base;
-         address < mem_config.ram_base + mem_config.ram_size; address += ENTRY_PAGE_SIZE) {
-        uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
-        uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+         address < mem_config.ram_base + mem_config.ram_size;
+         address += ENTRY_PAGE_SIZE) {
+        uint16_t phys_addr = address & ADDR_MASK_A15;  // low alias
+        uint8_t  table_index = ADDR_TO_TABLE_INDEX(phys_addr);
         uint32_t shadow_addr =
             (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
-        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_RAM; // mapped RAM
+        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_RAM;  // mapped RAM
         memory_map[table_index] = table_entry;
-        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry; // high alias
+        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;  // high alias
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
         if (phys_addr < 0x0100) {
             uint8_t mirror_table_index = ADDR_TO_TABLE_INDEX(phys_addr + 0x1000);
@@ -131,12 +159,13 @@ void memory_initialize_map(void) {
 
     // Set CMOS entries including aliases (CMOS is always mapped)
     for (uint16_t address = mem_config.cmos_base;
-         address < mem_config.cmos_base + mem_config.cmos_size; address += ENTRY_PAGE_SIZE) {
-        uint16_t phys_addr = address & ADDR_MASK_A15; // low alias
-        uint8_t table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+         address < mem_config.cmos_base + mem_config.cmos_size;
+         address += ENTRY_PAGE_SIZE) {
+        uint16_t phys_addr = address & ADDR_MASK_A15;  // low alias
+        uint8_t  table_index = ADDR_TO_TABLE_INDEX(phys_addr);
         uint32_t shadow_addr =
             (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
-        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_CMOS; // mapped CMOS
+        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_CMOS;  // mapped CMOS
         memory_map[table_index] = table_entry;
         memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;
     }
@@ -154,14 +183,14 @@ void memory_init(void) {
 
     // Default configuration (A15 not decoded)
     mem_config.rom_base = 0x4000;
-    mem_config.rom_size = 0x4000; // 16KB (4000-7FFF, aliased at C000-FFFF)
+    mem_config.rom_size = 0x4000;  // 16KB (4000-7FFF, aliased at C000-FFFF)
     mem_config.ram_base = 0x0000;
-    mem_config.ram_size = 0x1400; // 5KB (0000-13FF)
+    mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
     mem_config.flash_offset = FLASH_TARGET_OFFSET;
     mem_config.flash_size = mem_config.rom_size;
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
-    mem_config.configured = true; // Use defaults
+    mem_config.configured = true;  // Use defaults
 
     // Load persistent ROM mapping state from flash
     memory_load_rom_mapping_from_flash();
@@ -239,10 +268,10 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
 }
 
 uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
-    uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
-    uint8_t offset = ADDR_TO_TABLE_OFFSET(address);
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
+    uint8_t  offset = ADDR_TO_TABLE_OFFSET(address);
     uint32_t table_entry = memory_map[table_index];
-    if (table_entry & ENTRY_UNMAPPED) { // unmapped
+    if (table_entry & ENTRY_UNMAPPED) {  // unmapped
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_unmapped();
 #endif
@@ -255,35 +284,35 @@ uint8_t __time_critical_func(memory_read_fast)(uint16_t address) {
         led_set_rom();
     }
 #endif
-    eclock_accumulate(1); // Track cycle, don't wait
+    eclock_accumulate(1);  // Track cycle, don't wait
     uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
     uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
     return *shadow_address;
 }
 
 void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t data) {
-    uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
-    uint8_t offset = ADDR_TO_TABLE_OFFSET(address);
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
+    uint8_t  offset = ADDR_TO_TABLE_OFFSET(address);
     uint32_t table_entry = memory_map[table_index];
-    if (table_entry & ENTRY_UNMAPPED) { // unmapped
+    if (table_entry & ENTRY_UNMAPPED) {  // unmapped
 #if BOARD_TYPE == BOARD_NED_SYS7
         led_set_unmapped();
 #endif
         bus_write_cycle(address, data);
         return;
     }
-    if (!(table_entry & ENTRY_WRITABLE)) { // Ignore writes to ROM
-        eclock_accumulate(1);              // Track cycle, don't wait
+    if (!(table_entry & ENTRY_WRITABLE)) {  // Ignore writes to ROM
+        eclock_accumulate(1);  // Track cycle, don't wait
         return;
     }
 #if BOARD_TYPE == BOARD_NED_SYS7
     led_set_ram();
 #endif
-    eclock_accumulate(1); // Track cycle, don't wait
+    eclock_accumulate(1);  // Track cycle, don't wait
     uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
     uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
     *shadow_address = data;
-    if (table_entry & ENTRY_WRITE_THROUGH) { // CMOS write-through
+    if (table_entry & ENTRY_WRITE_THROUGH) {  // CMOS write-through
         bus_write_cycle(address, data);
     }
 }
@@ -359,26 +388,27 @@ bool memory_finalize_load(void) {
 
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void) {
-    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
+    const uint8_t *src_addr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
+    uint8_t *dest_addr = (uint8_t *)rom_shadow;
+    uint16_t bytes_loaded = 0;
 
-    // Check if flash is erased (all 0xFF = new/empty flash)
-    bool is_erased = true;
-    for (uint16_t i = 0; i < mem_config.flash_size; i++) {
-        if (flash_ptr[i] != 0xFF) {
-            is_erased = false;
-            break;
+    for (uint16_t address = mem_config.rom_base;
+        address < mem_config.rom_base + mem_config.rom_size;
+        address += ENTRY_PAGE_SIZE) {
+        memory_type_t type = memory_get_mapping_type(address);
+        if (type == MEM_TYPE_ROM) {
+            memcpy(dest_addr, src_addr, ENTRY_PAGE_SIZE);
+            bytes_loaded += ENTRY_PAGE_SIZE;
+            printf("Restored ROM page at $%04X\n", address);
+        } else {
+            memset(dest_addr, 0xFF, ENTRY_PAGE_SIZE);
         }
+        src_addr += ENTRY_PAGE_SIZE;
+        dest_addr += ENTRY_PAGE_SIZE;
     }
 
-    if (is_erased) {
-        // No ROM programmed yet
-        printf("ROM not programmed (flash empty)\n");
-    } else {
-        // Restore ROM from flash to RAM shadow
-        memcpy(rom_shadow, flash_ptr, mem_config.flash_size);
-        printf("ROM restored from flash (%u bytes)\n", (unsigned int)mem_config.flash_size);
-        // Note: Reset vector will be loaded by cpu_init() after this
-    }
+    printf("ROM restored from flash (%u/%u bytes)\n", 
+        bytes_loaded, (unsigned int)mem_config.flash_size);
 }
 
 // Load Intel HEX data into CMOS shadow copy
@@ -402,7 +432,9 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 }
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
-const uint8_t *memory_get_cmos_shadow(void) { return &ram_shadow[CMOS_BASE]; }
+const uint8_t *memory_get_cmos_shadow(void) {
+    return &ram_shadow[CMOS_BASE];
+}
 
 // Print a summary of the various memory ranges defined in the memory_map
 void memory_print_summary(printf_func_t printf_func) {
@@ -454,7 +486,7 @@ static inline uint8_t address_to_bitmap_index(uint16_t address) {
     uint16_t physical_addr = address & ADDR_MASK_A15;
     // Calculate which 256-byte page this address falls in
     uint16_t page_offset = physical_addr - mem_config.rom_base;
-    uint8_t page_index = page_offset / ENTRY_PAGE_SIZE;
+    uint8_t  page_index = page_offset / ENTRY_PAGE_SIZE;
     return page_index;
 }
 
@@ -481,7 +513,7 @@ void memory_set_rom_mapping(uint16_t address, bool mapped) {
     uint8_t page_index = address_to_bitmap_index(address);
 
     if (page_index >= (mem_config.rom_size / ENTRY_PAGE_SIZE)) {
-        printf("Address $%04X outside ROM range for mapping\n", address);
+        printf("Address $%04X outside ROM range for mapping (index %u)\n", address, page_index);
         return;
     }
 
@@ -490,7 +522,7 @@ void memory_set_rom_mapping(uint16_t address, bool mapped) {
 
     // Update memory map
     uint16_t physical_addr = address & ADDR_MASK_A15;
-    uint8_t table_index = ADDR_TO_TABLE_INDEX(physical_addr);
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(physical_addr);
 
     if (mapped) {
         // Map this page as ROM
@@ -505,20 +537,7 @@ void memory_set_rom_mapping(uint16_t address, bool mapped) {
         // Unmap this page (route to bus)
         memory_map[table_index] = ENTRY_UNMAPPED_BUS;
         memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;
-
-        printf("Unmapped ROM page at $%04X (page %u)\n", physical_addr & ~0xFF, page_index);
     }
-}
-
-// Check if ROM address is currently mapped
-bool memory_is_rom_mapped(uint16_t address) {
-    uint8_t page_index = address_to_bitmap_index(address);
-
-    if (page_index >= (mem_config.rom_size / ENTRY_PAGE_SIZE)) {
-        return false; // Outside ROM range
-    }
-
-    return get_bitmap_bit(rom_mapping_bitmap, page_index);
 }
 
 // Update ROM mapping from bitmap (called during initialization)
@@ -527,7 +546,7 @@ void memory_update_rom_mapping_from_bitmap(void) {
 
     for (uint16_t page_index = 0; page_index < total_pages; page_index++) {
         uint16_t address = mem_config.rom_base + (page_index * ENTRY_PAGE_SIZE);
-        bool should_be_mapped = get_bitmap_bit(rom_mapping_bitmap, page_index);
+        bool     should_be_mapped = get_bitmap_bit(rom_mapping_bitmap, page_index);
 
         if (should_be_mapped) {
             memory_set_rom_mapping(address, true);
@@ -540,7 +559,7 @@ void memory_update_rom_mapping_from_bitmap(void) {
 // Save ROM mapping bitmap to flash
 void memory_save_rom_mapping_to_flash(void) {
     // Erase and write mapping bitmap to flash
-    flash_range_erase(FLASH_MAPPING_OFFSET, 256); // Erase 256 bytes (one sector)
+    flash_range_erase(FLASH_MAPPING_OFFSET, 256);  // Erase 256 bytes (one sector)
     flash_range_program(FLASH_MAPPING_OFFSET, rom_mapping_bitmap, sizeof(rom_mapping_bitmap));
     printf("ROM mapping bitmap saved to flash\n");
 }
@@ -583,4 +602,39 @@ void memory_read_cmos_from_bus(void) {
         ram_shadow[address++] = value;
     }
     eclock_stop();
+}
+
+// Memory mapping query functions for external access
+
+/**
+ * Get the memory type and mapping status for a specific address
+ * Returns the memory type (MEM_TYPE_ROM, MEM_TYPE_RAM, MEM_TYPE_CMOS, or MEM_TYPE_UNMAPPED)
+ */
+memory_type_t memory_get_mapping_type(uint16_t address) {
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
+    uint32_t table_entry = memory_map[table_index];
+
+    if (table_entry & ENTRY_UNMAPPED) {
+        return MEM_TYPE_UNMAPPED;
+    }
+
+    if (table_entry & ENTRY_WRITABLE) {
+        if (table_entry & ENTRY_WRITE_THROUGH) {
+            return MEM_TYPE_CMOS;
+        } else {
+            return MEM_TYPE_RAM;
+        }
+    } else {
+        return MEM_TYPE_ROM;
+    }
+}
+
+/**
+ * Check if an address is currently mapped (not unmapped)
+ * Returns true if the address is mapped to ROM, RAM, or CMOS
+ */
+bool memory_is_address_mapped(uint16_t address) {
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
+    uint32_t table_entry = memory_map[table_index];
+    return !(table_entry & ENTRY_UNMAPPED);
 }

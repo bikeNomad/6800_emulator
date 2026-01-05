@@ -138,6 +138,7 @@ int main() {
     debug_spi_init();
 
     // Launch Core 1 for dedicated USB CDC processing
+    printf("Core 1: Launching USB CDC processing.\r\n");
     multicore_launch_core1(core1_entry);
     sleep_ms(100);
 
@@ -146,14 +147,12 @@ int main() {
     instruction_count_initialize();
 #endif
 
-    printf("Core 0: CPU emulation started\r\n");
-    fflush(stdout);
-    printf("Waiting for EPROM load via USB...\r\n");
-    fflush(stdout);
-
     for (;;) {
+        printf("Running emulator\r\n");
+        fflush(stdout);
         if (!run_emulator_sm()) {
             printf("Emulator SM stopped!\r\n");
+            fflush(stdout);
         }
     }
     return 0;

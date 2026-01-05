@@ -18,35 +18,35 @@
 
 // Command buffer
 #define CMD_BUFFER_SIZE 4096
-static char cmd_buffer[CMD_BUFFER_SIZE];
+static char     cmd_buffer[CMD_BUFFER_SIZE];
 static uint32_t cmd_pos = 0;
-static bool in_hex_mode = false;
+static bool     in_hex_mode = false;
 
 // HEX data buffer
 #define HEX_BUFFER_SIZE 32768
-static char hex_buffer[HEX_BUFFER_SIZE];
+static char     hex_buffer[HEX_BUFFER_SIZE];
 static uint32_t hex_pos = 0;
 
 // Command tokenization
 #define MAX_TOKENS 32
 static char *cmd_tokens[MAX_TOKENS];
-static int cmd_token_count = 0;
+static int   cmd_token_count = 0;
 
 // Command handler function type
 typedef void (*cmd_handler_fn)(void);
 
 // Command table entry
 typedef struct {
-    const char *name;
+    const char    *name;
     cmd_handler_fn handler;
-    bool needs_args; // True if command needs remaining tokens as arguments
+    bool           needs_args;  // True if command needs remaining tokens as arguments
 } command_entry_t;
 
 static bool send_command_to_emulator(sm_event_t event) {
     sm_notification_t notification;
     if (!post_sm_event(event)) {
         usb_cdc_send("ERROR: Failed to send command to emulator\r\n");
-        return false; // queue full
+        return false;  // queue full
     }
     while (!receive_sm_notification(&notification)) {
         sleep_ms(1);
@@ -54,9 +54,13 @@ static bool send_command_to_emulator(sm_event_t event) {
     return notification == NOTIF_OK;
 }
 
-static inline bool pause_emulator(void) { return send_command_to_emulator(EV_PAUSE_EMULATOR); }
+static inline bool pause_emulator(void) {
+    return send_command_to_emulator(EV_PAUSE_EMULATOR);
+}
 
-static inline bool resume_emulator(void) { return send_command_to_emulator(EV_RESUME_EMULATOR); }
+static inline bool resume_emulator(void) {
+    return send_command_to_emulator(EV_RESUME_EMULATOR);
+}
 
 // Helper functions for bus operations with E clock management
 static void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_t *buffer) {
@@ -126,6 +130,10 @@ static void bus_write_with_eclock(uint16_t address, uint8_t value) {
 //--------------------------------------------------------------------+
 
 static void cmd_load(void) {
+    if (!send_command_to_emulator(EV_CMD_LOAD)) {
+        usb_cdc_send("ERROR: Failed to load image\r\n");
+        return;
+    }
     // Enter HEX load mode
     in_hex_mode = true;
     hex_pos = 0;
@@ -146,6 +154,8 @@ static void cmd_end(void) {
     }
     in_hex_mode = false;
     hex_pos = 0;
+
+    send_command_to_emulator(EV_CMD_RESET);
 }
 
 static void cmd_config_show(void) {
@@ -243,8 +253,8 @@ static void cmd_reset(void) {
 static void cmd_bootloader(void) {
     // Enter bootloader mode
     usb_cdc_send("Entering bootloader mode...\r\n");
-    sleep_ms(100);        // Give time for message to send
-    reset_usb_boot(0, 0); // Reset into USB bootloader
+    sleep_ms(100);  // Give time for message to send
+    reset_usb_boot(0, 0);  // Reset into USB bootloader
 }
 
 static void cmd_debug_on(void) {
@@ -376,7 +386,7 @@ static void cmd_write(void) {
     }
 
     // Parse data bytes from remaining tokens
-    uint8_t buffer[1024]; // Max block size
+    uint8_t  buffer[1024];  // Max block size
     uint32_t count = 0;
     for (int i = 1; i < cmd_token_count && count < 1024; i++) {
         unsigned int value;
@@ -586,7 +596,7 @@ static void cmd_reg_ccr(void) {
         if (pause_emulator() == false) {
             return;
         }
-        cpu.ccr = ((uint8_t)value & 0x3F) | CCR_FIXED; // Preserve bits 7-6
+        cpu.ccr = ((uint8_t)value & 0x3F) | CCR_FIXED;  // Preserve bits 7-6
         resume_emulator();
         usb_cdc_printf("OK: CCR set to $%02X\r\n", cpu.ccr);
     } else {
@@ -661,7 +671,7 @@ static void cmd_bus_read_block(void) {
         usb_cdc_send("ERROR: Block exceeds address space\r\n");
     } else {
         // Read block and send data as space-separated hex bytes
-        uint8_t buffer[1024]; // Max block size
+        uint8_t buffer[1024];  // Max block size
         bus_read_block_with_eclock((uint16_t)address, (uint16_t)length, buffer);
         for (uint32_t i = 0; i < length; i++) {
             if (i > 0)
@@ -692,7 +702,7 @@ static void cmd_bus_write_block(void) {
     }
 
     // Parse data bytes from remaining tokens
-    uint8_t buffer[1024]; // Max block size
+    uint8_t  buffer[1024];  // Max block size
     uint32_t count = 0;
     for (int i = 1; i < cmd_token_count && count < 1024; i++) {
         unsigned int value;
@@ -719,13 +729,15 @@ static void cmd_bus_write_block(void) {
 }
 
 #if COUNT_INSTRUCTIONS
-static void cmd_print_instruction_counts(void) { instruction_count_report(usb_cdc_printf); }
+static void cmd_print_instruction_counts(void) {
+    instruction_count_report(usb_cdc_printf);
+}
 
 static void cmd_reset_instruction_counts(void) {
     bool old = instruction_count_enable(false);
     instruction_count_initialize();
     instruction_count_enable(old);
-    cpu.instruction_count = 0; // Reset instruction counter
+    cpu.instruction_count = 0;  // Reset instruction counter
     clock_reset_counters();
     usb_cdc_printf("OK: Instruction counts reset (counting: %d)\r\n", old);
 }
@@ -741,33 +753,102 @@ static void cmd_count_off(void) {
 }
 #endif
 
-static void cmd_map_show(void) {
-    // Display ROM mapping state
-    usb_cdc_send("ROM Mapping State:\r\n");
-    uint16_t total_pages = mem_config.rom_size / ENTRY_PAGE_SIZE;
+// Helper function to get memory type and mapping status for an address
+static memory_type_t get_memory_info_at_address(uint16_t address, bool *mapped) {
+    memory_type_t type = memory_get_mapping_type(address);
+    *mapped = memory_is_address_mapped(address);
+    return type;
+}
 
-    for (uint16_t page_index = 0; page_index < total_pages; page_index++) {
-        uint16_t address = mem_config.rom_base + (page_index * ENTRY_PAGE_SIZE);
-        bool is_mapped = memory_is_rom_mapped(address);
-        const char *status = is_mapped ? "MAPPED" : "UNMAPPED";
-        usb_cdc_printf("  Page %02u ($%04X): %s\r\n", page_index, address, status);
+// Helper function to format memory info string
+static const char *format_memory_info(memory_type_t type, bool mapped) {
+    if (!mapped) {
+        return "UNMAPPED";
     }
 
-    // Show alias mappings too
-    usb_cdc_send("\nAlias mappings (A15 high):\r\n");
-    for (uint16_t page_index = 0; page_index < total_pages; page_index++) {
-        uint16_t address = mem_config.rom_base + (page_index * ENTRY_PAGE_SIZE);
-        uint16_t alias_addr = address | 0x8000;
-        bool is_mapped = memory_is_rom_mapped(address); // Same as low alias
-        const char *status = is_mapped ? "MAPPED" : "UNMAPPED";
-        usb_cdc_printf("  Page %02u ($%04X): %s\r\n", page_index, alias_addr, status);
+    switch (type) {
+    case MEM_TYPE_ROM:
+        return "ROM";
+    case MEM_TYPE_RAM:
+        return "RAM";
+    case MEM_TYPE_CMOS:
+        return "CMOS";
+    case MEM_TYPE_UNMAPPED:
+        return "UNMAPPED";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+static void cmd_map_show(void) {
+    // Display memory mapping state with contiguous ranges
+    usb_cdc_send("Memory Map:\r\n");
+
+    // Process low address space (A15 = 0)
+    usb_cdc_send("Low address space (A15 = 0):\r\n");
+    uint16_t current_addr = 0x0000;
+    uint16_t end_addr = 0x8000;  // Up to but not including high alias
+
+    while (current_addr < end_addr) {
+        bool          mapped = false;
+        memory_type_t type = get_memory_info_at_address(current_addr, &mapped);
+        const char   *info = format_memory_info(type, mapped);
+
+        // Find the end of this contiguous range
+        uint16_t range_end = current_addr;
+        while (range_end + 1 < end_addr) {
+            bool          next_mapped = false;
+            memory_type_t next_type = get_memory_info_at_address(range_end + 1, &next_mapped);
+            const char   *next_info = format_memory_info(next_type, next_mapped);
+
+            if (strcmp(info, next_info) == 0) {
+                range_end++;
+            } else {
+                break;
+            }
+        }
+
+        usb_cdc_printf("  $%04X-$%04X: %s\r\n", current_addr, range_end, info);
+        current_addr = range_end + 1;
+    }
+
+    // Process high address space (A15 = 1) as aliases
+    usb_cdc_send("\nHigh address space (A15 = 1, aliases):\r\n");
+    current_addr = 0x8000;
+    end_addr = 0xFFFF;
+
+    while (current_addr < end_addr) {
+        bool          mapped = false;
+        memory_type_t type = get_memory_info_at_address(current_addr, &mapped);
+        const char   *info = format_memory_info(type, mapped);
+
+        // Find the end of this contiguous range
+        uint16_t range_end = current_addr;
+        while (range_end + 1 < end_addr) {
+            bool          next_mapped = false;
+            memory_type_t next_type = get_memory_info_at_address(range_end + 1, &next_mapped);
+            const char   *next_info = format_memory_info(next_type, next_mapped);
+
+            if (strcmp(info, next_info) == 0) {
+                range_end++;
+            } else {
+                break;
+            }
+        }
+
+        usb_cdc_printf("  $%04X-$%04X: %s (alias of $%04X-$%04X)\r\n",
+                       current_addr, range_end, info,
+                       current_addr & 0x7FFF, range_end & 0x7FFF);
+        current_addr = range_end + 1;
     }
 }
 
 static void cmd_map_clear(void) {
+    send_command_to_emulator(EV_CMD_HALT);
     // Clear all ROM mapping
     memory_clear_rom_mapping();
     usb_cdc_send("OK: All ROM pages unmapped\r\n");
+    send_command_to_emulator(EV_CMD_RESET);
 }
 
 static void cmd_map_program(void) {
@@ -781,7 +862,9 @@ static void cmd_map_program(void) {
     unsigned int address;
     if (sscanf(cmd_tokens[0], "%x", &address) == 1) {
         if (address >= mem_config.rom_base && address < mem_config.rom_base + mem_config.rom_size) {
+            send_command_to_emulator(EV_CMD_HALT);
             memory_set_rom_mapping(address, true);
+            send_command_to_emulator(EV_CMD_RESET);
             usb_cdc_printf("OK: Mapped ROM page at $%04X\r\n", address);
         } else {
             usb_cdc_send("ERROR: Address outside ROM range\r\n");
@@ -855,49 +938,49 @@ static int tokenize_command(char *cmd) {
 // Command table - two-word commands checked first, then single-word
 static const command_entry_t command_table[] = {
     // Two-word commands (require exact match of first two tokens)
-    {"config rom", cmd_config_rom, true}, // needs <base> <size>
-    {"config ram", cmd_config_ram, true}, // needs <base> <size>
-    {"cmos dump", cmd_cmos_dump, false},
-    {"debug on", cmd_debug_on, false},
-    {"debug off", cmd_debug_off, false},
-    {"break clear", cmd_break_clear, true}, // needs optional <addr>
-    {"break list", cmd_break_list, false},
-    {"reg pc", cmd_reg_pc, true},   // needs <value>
-    {"reg a", cmd_reg_a, true},     // needs <value>
-    {"reg b", cmd_reg_b, true},     // needs <value>
-    {"reg x", cmd_reg_x, true},     // needs <value>
-    {"reg sp", cmd_reg_sp, true},   // needs <value>
-    {"reg ccr", cmd_reg_ccr, true}, // needs <value>
+    { "config rom", cmd_config_rom, true },  // needs <base> <size>
+    { "config ram", cmd_config_ram, true },  // needs <base> <size>
+    { "cmos dump", cmd_cmos_dump, false },
+    { "debug on", cmd_debug_on, false },
+    { "debug off", cmd_debug_off, false },
+    { "break clear", cmd_break_clear, true },  // needs optional <addr>
+    { "break list", cmd_break_list, false },
+    { "reg pc", cmd_reg_pc, true },  // needs <value>
+    { "reg a", cmd_reg_a, true },  // needs <value>
+    { "reg b", cmd_reg_b, true },  // needs <value>
+    { "reg x", cmd_reg_x, true },  // needs <value>
+    { "reg sp", cmd_reg_sp, true },  // needs <value>
+    { "reg ccr", cmd_reg_ccr, true },  // needs <value>
 #if COUNT_INSTRUCTIONS
-    {"count print", cmd_print_instruction_counts, false},
-    {"count reset", cmd_reset_instruction_counts, false},
-    {"count on", cmd_count_on, false},
-    {"count off", cmd_count_off, false},
+    { "count print", cmd_print_instruction_counts, false },
+    { "count reset", cmd_reset_instruction_counts, false },
+    { "count on", cmd_count_on, false },
+    { "count off", cmd_count_off, false },
 #endif
 
     // Single-word commands
-    {"load", cmd_load, false},
-    {"end", cmd_end, false},
-    {"config", cmd_config_show, false},
-    {"read", cmd_read, true},   // needs <addr> <len>
-    {"write", cmd_write, true}, // needs <addr> <data...>
-    {"status", cmd_status, false},
-    {"run", cmd_run, false},
-    {"halt", cmd_halt, false},
-    {"reset", cmd_reset, false},
-    {"bootloader", cmd_bootloader, false},
-    {"boot", cmd_bootloader, false},                // Alias for bootloader
-    {"break", cmd_break_set, true},                 // needs <addr>
-    {"bus_read_block", cmd_bus_read_block, true},   // needs <addr> <len>
-    {"bus_write_block", cmd_bus_write_block, true}, // needs <addr> <data...>
-    {"bus_write", cmd_bus_write, true},             // needs <addr> <data>
-    {"bus_read", cmd_bus_read, true},               // needs <addr>
-    {"bus_info", cmd_bus_info, false},
-    {"map show", cmd_map_show, false},
-    {"map clear", cmd_map_clear, false},
-    {"map program", cmd_map_program, true}, // needs <addr>
-    {"help", cmd_help, false},
-    {NULL, NULL, false} // Terminator
+    { "load", cmd_load, false },
+    { "end", cmd_end, false },
+    { "config", cmd_config_show, false },
+    { "read", cmd_read, true },  // needs <addr> <len>
+    { "write", cmd_write, true },  // needs <addr> <data...>
+    { "status", cmd_status, false },
+    { "run", cmd_run, false },
+    { "halt", cmd_halt, false },
+    { "reset", cmd_reset, false },
+    { "bootloader", cmd_bootloader, false },
+    { "boot", cmd_bootloader, false },  // Alias for bootloader
+    { "break", cmd_break_set, true },  // needs <addr>
+    { "bus_read_block", cmd_bus_read_block, true },  // needs <addr> <len>
+    { "bus_write_block", cmd_bus_write_block, true },  // needs <addr> <data...>
+    { "bus_write", cmd_bus_write, true },  // needs <addr> <data>
+    { "bus_read", cmd_bus_read, true },  // needs <addr>
+    { "bus_info", cmd_bus_info, false },
+    { "map show", cmd_map_show, false },
+    { "map clear", cmd_map_clear, false },
+    { "map program", cmd_map_program, true },  // needs <addr>
+    { "help", cmd_help, false },
+    { NULL, NULL, false }  // Terminator
 };
 
 static void dispatch_command(void) {
@@ -915,8 +998,8 @@ static void dispatch_command(void) {
     // Search through command table
     for (int i = 0; command_table[i].name != NULL; i++) {
         const char *cmd_name = command_table[i].name;
-        bool matched = false;
-        int tokens_consumed = 0;
+        bool        matched = false;
+        int         tokens_consumed = 0;
 
         // Check if this is a two-word command (contains a space)
         if (strchr(cmd_name, ' ') != NULL) {
@@ -986,8 +1069,8 @@ void usb_cdc_task(void) {
 
     // Process available characters in batches to prevent buffer overflow
     // Call tud_task() periodically to keep USB stack responsive
-    uint32_t chars_processed = 0;
-    const uint32_t BATCH_SIZE = 64; // Process in small batches
+    uint32_t       chars_processed = 0;
+    const uint32_t BATCH_SIZE = 64;  // Process in small batches
 
     while (tud_cdc_available() && chars_processed < 512) {
         // Read data
@@ -1023,6 +1106,7 @@ void usb_cdc_task(void) {
                     }
                     in_hex_mode = false;
                     hex_pos = 0;
+                    send_command_to_emulator(EV_CMD_RESET);
                 }
             }
         } else {
@@ -1050,7 +1134,7 @@ void usb_cdc_task(void) {
                     cmd_buffer[cmd_pos++] = c;
                     // Echo character
                     tud_cdc_write_char(c);
-                    tud_cdc_write_flush(); // echo
+                    tud_cdc_write_flush();  // echo
                 }
             }
         }
@@ -1075,7 +1159,7 @@ void usb_cdc_send(const char *str) {
     while (sent < len) {
         size_t available = tud_cdc_write_available();
         if (available > 0) {
-            size_t to_send = (len - sent) < available ? (len - sent) : available;
+            size_t   to_send = (len - sent) < available ? (len - sent) : available;
             uint32_t written = tud_cdc_write(str + sent, to_send);
             sent += written;
             tud_cdc_write_flush();
@@ -1089,7 +1173,7 @@ void usb_cdc_send(const char *str) {
 
 // Send formatted string to USB
 int usb_cdc_printf(const char *restrict fmt, ...) {
-    char buffer[256];
+    char    buffer[256];
     va_list args;
     va_start(args, fmt);
     int retval = vsnprintf(buffer, sizeof(buffer), fmt, args);
@@ -1103,10 +1187,14 @@ int usb_cdc_printf(const char *restrict fmt, ...) {
 //--------------------------------------------------------------------+
 
 // Invoked when device is mounted
-void tud_mount_cb(void) { printf("USB mounted\n"); }
+void tud_mount_cb(void) {
+    printf("USB mounted\n");
+}
 
 // Invoked when device is unmounted
-void tud_umount_cb(void) { printf("USB unmounted\n"); }
+void tud_umount_cb(void) {
+    printf("USB unmounted\n");
+}
 
 // Invoked when CDC line state changes (DTR/RTS)
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {

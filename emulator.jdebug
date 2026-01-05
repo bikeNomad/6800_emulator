@@ -22,12 +22,12 @@ void OnProjectLoad (void) {
   //
   // Dialog-generated settings
   //
-  Project.AddPathSubstitute ("/Users/ned/src/6800_emulator", "$(ProjectDir)");
-  Project.AddPathSubstitute ("/users/ned/src/6800_emulator", "$(ProjectDir)");
   Project.SetDevice ("RP2350_M33_0");
-  Project.SetHostIF ("IP", "192.168.1.252");
+  Project.SetHostIF ("USB", "932000121");
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("4 MHz");
+  Project.AddPathSubstitute ("/Users/ned/src/6800_emulator", "$(ProjectDir)");
+  Project.AddPathSubstitute ("/users/ned/src/6800_emulator", "$(ProjectDir)");
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M33F.svd");
   Project.AddSvdFile ("/Applications/SEGGER/Ozone_V340d/Ozone.app/Contents/MacOS/Config/Peripherals/ARMv6M.svd");
 
