@@ -68,30 +68,40 @@ interrupt_t __time_critical_func(interrupt_check)(void) {
 void interrupt_service_reset(void) {
     DEBUG_INT_PRINTF("\n*** RESET ***\n");
 
-    bool clock_was_running = eclock_is_running();
-    if (clock_was_running) {
-        eclock_stop();
-    }
-
     led_all_off();
+
+    // If the reset vector was unmapped, we need to read directly from the
+    // ROMs. Which means that we need the E Clock to be running.
+
+    bool          clock_was_running = eclock_is_running();
+    memory_type_t type = memory_get_type(VECTOR_RESET);
+    if (type == MEM_TYPE_UNMAPPED) {
+        if (!clock_was_running) {
+            eclock_start();
+        }
+    }
 
     // Load PC from reset vector
     uint8_t pch = memory_read_fast(VECTOR_RESET);
     uint8_t pcl = memory_read_fast(VECTOR_RESET + 1);
     cpu.pc = (pch << 8) | pcl;
 
+    if (eclock_is_running() && !clock_was_running) {
+        eclock_stop();
+    }
+
     // Reset CPU state per datasheet
     cpu.a = 0;
     cpu.b = 0;
     cpu.x = 0x0000;
-    cpu.sp = 0x0000;             // Stack pointer will be initialized by reset routine
-    cpu.ccr = CCR_FIXED | CCR_I; // Interrupts masked
-    cpu.wai_state = false;       // Clear WAI state
+    cpu.sp = 0x0000;  // Stack pointer will be initialized by reset routine
+    cpu.ccr = CCR_FIXED | CCR_I;  // Interrupts masked
+    cpu.wai_state = false;  // Clear WAI state
 
     cpu.halted = true;
     cpu.running = false;
 
-    cpu.instruction_count = 0; // Reset instruction counter
+    cpu.instruction_count = 0;  // Reset instruction counter
     clock_reset_counters();
 
     DEBUG_INT_PRINTF("Reset vector: $%04X\n", cpu.pc);
@@ -105,8 +115,8 @@ void interrupt_service_nmi(void) {
     if (!cpu.wai_state) {
         cpu_stack_registers();
     }
-    cpu.wai_state = false;     // Clear WAI state if we were waiting
-    cpu_set_flag(CCR_I, true); // Set interrupt mask
+    cpu.wai_state = false;  // Clear WAI state if we were waiting
+    cpu_set_flag(CCR_I, true);  // Set interrupt mask
     cpu_load_pc_from_vector(VECTOR_NMI);
 
     DEBUG_INT_PRINTF("NMI vector: $%04X\n", cpu.pc);
@@ -121,11 +131,11 @@ void interrupt_service_irq(void) {
         cpu_stack_registers();
     }
 
-    cpu.wai_state = false; // Clear WAI state if we were waiting
+    cpu.wai_state = false;  // Clear WAI state if we were waiting
 
-    cpu_set_flag(CCR_I, true); // Set interrupt mask
+    cpu_set_flag(CCR_I, true);  // Set interrupt mask
 
-    cpu_load_pc_from_vector(VECTOR_IRQ); // Load PC from IRQ vector
+    cpu_load_pc_from_vector(VECTOR_IRQ);  // Load PC from IRQ vector
 
     DEBUG_INT_PRINTF("IRQ vector: $%04X\n", cpu.pc);
 }

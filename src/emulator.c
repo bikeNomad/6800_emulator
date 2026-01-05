@@ -32,17 +32,17 @@ const char *sm_current_state_name(void) {
     return emulator_fsm.current_state_name ? emulator_fsm.current_state_name : "Unknown";
 }
 
-static bool receive_sm_event(FSM *unused, uint8_t *event) {
+static bool __time_critical_func(receive_sm_event)(FSM *unused, uint8_t *event) {
     (void)unused;
     return queue_try_remove(&sm_event_queue, event);
 }
 
-bool post_sm_event(sm_event_t event) {
+bool __time_critical_func(post_sm_event)(sm_event_t event) {
     uint8_t ev = (uint8_t)event;
     return queue_try_add(&sm_event_queue, &ev);
 }
 
-bool receive_sm_notification(sm_notification_t *notification) {
+bool __time_critical_func(receive_sm_notification)(sm_notification_t *notification) {
     uint8_t notif;
     if (queue_try_remove(&notification_queue, &notif)) {
         *notification = (sm_notification_t)notif;

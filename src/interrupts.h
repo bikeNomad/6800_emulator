@@ -21,7 +21,7 @@
 #define VECTOR_IRQ 0xFFF8   // Interrupt request (maskable)
 
 typedef enum interrupt_t {
-    INT_NONE, // no interrupts detected
+    INT_NONE,  // no interrupts detected
     INT_RESET,
     INT_NMI,
     INT_IRQ,
@@ -38,4 +38,4 @@ void interrupt_service_reset(void);
 void interrupt_service_nmi(void);
 void interrupt_service_irq(void);
 
-#endif // INTERRUPTS_H
+#endif  // INTERRUPTS_H
