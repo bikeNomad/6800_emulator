@@ -106,7 +106,7 @@ endif()
 message(STATUS "QSPI clock divisor: ${QSPI_CLOCK_DIVISOR}")
 
 if(NOT DEFINED DEBUG_INTERRUPTS)
-    set(DEBUG_INTERRUPTS 1)
+    set(DEBUG_INTERRUPTS 0)
 endif()
 
 message(STATUS "Debug interrupts: ${DEBUG_INTERRUPTS}")

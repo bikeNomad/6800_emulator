@@ -23,7 +23,7 @@ SYS_CLOCK_MHZ ?= 266  # Default: 266MHz (optimized for 133MHz QSPI flash)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
 QSPI_CLOCK_DIVISOR ?= 2  # Default: 133MHz with 266MHz system clock (flash chip max rating)
 
-DEBUG_INTERRUPTS ?= 1
+DEBUG_INTERRUPTS ?= 0
 
 # UF2 executable name (from CMakeLists.txt)
 UF2_NAME = mc6800_emulator.uf2
