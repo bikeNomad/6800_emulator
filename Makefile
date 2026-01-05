@@ -23,31 +23,44 @@ SYS_CLOCK_MHZ ?= 266  # Default: 266MHz (optimized for 133MHz QSPI flash)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
 QSPI_CLOCK_DIVISOR ?= 2  # Default: 133MHz with 266MHz system clock (flash chip max rating)
 
+DEBUG_INTERRUPTS ?= 1
+
 # UF2 executable name (from CMakeLists.txt)
 UF2_NAME = mc6800_emulator.uf2
 
-# Default target: build both configurations
-all: $(IMAGES_DIR) build_pico2 build_ned_sys7
+CMAKE_ARGS = \
+	-DCMAKE_BUILD_TYPE=Debug  \
+	-DBOARD_TYPE=$(BOARD_TYPE) \
+	-DSYS_CLOCK_MHZ=$(SYS_CLOCK_MHZ) \
+	-DQSPI_CLOCK_DIVISOR=$(QSPI_CLOCK_DIVISOR) \
+	-DDEBUG_INTERRUPTS=$(DEBUG_INTERRUPTS)
+
+V ?= 0
+
+# Default target: build just ned_sys7
+all: $(IMAGES_DIR) build_ned_sys7
 
 # Create images directory
 $(IMAGES_DIR):
 	mkdir -p $(IMAGES_DIR)
 
 # Build for Raspberry Pi Pico 2
+build_pico2: BOARD_TYPE=BOARD_PICO2 
 build_pico2: $(IMAGES_DIR)
-	@echo "Building for BOARD_PICO2 (SYS: $(SYS_CLOCK_MHZ)MHz, QSPI divisor: $(QSPI_CLOCK_DIVISOR))..."
+	@echo "Building for $(BOARD_TYPE) (SYS: $(SYS_CLOCK_MHZ)MHz, QSPI divisor: $(QSPI_CLOCK_DIVISOR))..."
 	mkdir -p $(BUILD_PICO2_DIR)
-	cd $(BUILD_PICO2_DIR) && cmake .. -DBOARD_TYPE=BOARD_PICO2 -DSYS_CLOCK_MHZ=$(SYS_CLOCK_MHZ) -DQSPI_CLOCK_DIVISOR=$(QSPI_CLOCK_DIVISOR)
+	cd $(BUILD_PICO2_DIR) && cmake .. $(CMAKE_ARGS)
 	cd $(BUILD_PICO2_DIR) && make -j$(shell nproc 2>/dev/null || echo 4)
 	cp $(BUILD_PICO2_DIR)/$(UF2_NAME) $(IMAGES_DIR)/BOARD_PICO2.uf2
 	@echo "BOARD_PICO2 build complete"
 
 # Build for Ned's System 7 Board
+build_ned_sys7: BOARD_TYPE=BOARD_NED_SYS7 
 build_ned_sys7: $(IMAGES_DIR)
-	@echo "Building for BOARD_NED_SYS7 (SYS: $(SYS_CLOCK_MHZ)MHz, QSPI divisor: $(QSPI_CLOCK_DIVISOR))..."
+	@echo "Building for $(BOARD_TYPE) (SYS: $(SYS_CLOCK_MHZ)MHz, QSPI divisor: $(QSPI_CLOCK_DIVISOR))..."
 	mkdir -p $(BUILD_NED_SYS7_DIR)
-	cd $(BUILD_NED_SYS7_DIR) && cmake .. -DBOARD_TYPE=BOARD_NED_SYS7 -DSYS_CLOCK_MHZ=$(SYS_CLOCK_MHZ) -DQSPI_CLOCK_DIVISOR=$(QSPI_CLOCK_DIVISOR)
-	cd $(BUILD_NED_SYS7_DIR) && make -j$(shell nproc 2>/dev/null || echo 4)
+	cd $(BUILD_NED_SYS7_DIR) && cmake .. $(CMAKE_ARGS)
+	cd $(BUILD_NED_SYS7_DIR) && make V=$(V) -j$(shell nproc 2>/dev/null || echo 4)
 	cp $(BUILD_NED_SYS7_DIR)/$(UF2_NAME) $(IMAGES_DIR)/BOARD_NED_SYS7.uf2
 	@echo "BOARD_NED_SYS7 build complete"
 

@@ -26,7 +26,6 @@ void OnProjectLoad (void) {
   Project.SetHostIF ("USB", "932000121");
   Project.SetTargetIF ("SWD");
   Project.SetTIFSpeed ("4 MHz");
-  Project.AddPathSubstitute ("/Users/ned/src/6800_emulator", "$(ProjectDir)");
   Project.AddPathSubstitute ("/users/ned/src/6800_emulator", "$(ProjectDir)");
   Project.AddSvdFile ("$(InstallDir)/Config/CPU/Cortex-M33F.svd");
   Project.AddSvdFile ("/Applications/SEGGER/Ozone_V340d/Ozone.app/Contents/MacOS/Config/Peripherals/ARMv6M.svd");
@@ -116,7 +115,6 @@ void OnProjectLoad (void) {
 **********************************************************************
 */
 void AfterTargetReset (void) {
-  _SetupTarget();
 }
 
 /*********************************************************************
@@ -202,7 +200,6 @@ void AfterTargetReset (void) {
 **********************************************************************
 */
 void AfterTargetDownload (void) {
-  _SetupTarget();
 }
 
 /*********************************************************************
@@ -344,4 +341,32 @@ void _SetupTarget(void) {
   // this function is intentionally empty because both inital PC and
   // initial SP were chosen not to be set
   //
+}
+/*********************************************************************
+*                                                                     
+*       ConfigTargetSettings   
+*
+*  Function description
+*    Called before InitTarget(). Mainly used to set some global DLL variables to customize the
+*    normal  connect  procedure.  For  ARM  CoreSight  devices  this  may  be  specifying  the  base
+*    address of some CoreSight components (ETM, …) that cannot be auto-detected by J-Link
+*    due to erroneous ROM tables etc. May also be used to specify the device name in case
+*    debugger does not pass it to the DLL.                    
+*
+*  Notes
+*    (1) May not, under absolutely NO circumstances, call any API functions that perform target communication.
+*    (2) Should only set some global DLL variables
+*
+*  Return value
+*    >= 0  O.K.
+*     < 0  Error
+*      -1  Unspecified error
+*/
+int ConfigTargetSettings(void) {
+  //
+  // Set reset strategy used by the J-Link to Reset + Halt After Bootloader Using Watchpoint.
+  //
+  JLINK_SYS_Report("-- Configure Reset Strategy --");
+  JLINK_ExecCommand("SetResetType = 12");
+  return 0;
 }

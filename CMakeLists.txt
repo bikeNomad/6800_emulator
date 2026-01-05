@@ -26,7 +26,6 @@ if(NOT DEFINED BOARD_TYPE)
 endif()
 
 message(STATUS "Building for board: ${BOARD_TYPE}")
-message(STATUS "System clock: ${SYS_CLOCK_MHZ} MHz")
 
 # Add executable
 add_executable(mc6800_emulator
@@ -95,14 +94,19 @@ pico_add_extra_outputs(mc6800_emulator)
 if(NOT DEFINED SYS_CLOCK_MHZ)
     set(SYS_CLOCK_MHZ 266)  # Default: 266MHz (optimized for 133MHz QSPI flash)
 endif()
+message(STATUS "System SYS_CLOCK_MHZ: ${SYS_CLOCK_MHZ}")
 
 # QSPI clock divisor configuration (can be overridden from command line)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
 if(NOT DEFINED QSPI_CLOCK_DIVISOR)
     set(QSPI_CLOCK_DIVISOR 2)  # Default: system clock / 2 (133MHz with 266MHz sys clock)
 endif()
-
 message(STATUS "QSPI clock divisor: ${QSPI_CLOCK_DIVISOR}")
+
+if(NOT DEFINED DEBUG_INTERRUPTS)
+    set(DEBUG_INTERRUPTS 1)
+endif()
+message(STATUS "Debug interrupts: ${DEBUG_INTERRUPTS}")
 
 # Add compile definitions for board type and UART pins
 target_compile_definitions(mc6800_emulator PRIVATE
@@ -112,7 +116,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
     PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
     SYS_CLOCK_MHZ=${SYS_CLOCK_MHZ}
     QSPI_CLOCK_DIVISOR=${QSPI_CLOCK_DIVISOR}
-    DEBUG_INTERRUPTS=0  # Set to 0 to disable interrupt debug output
+    DEBUG_INTERRUPTS=${DEBUG_INTERRUPTS}  # Set to 0 to disable interrupt debug output
 )
 
 # Add compile options for optimization and warnings
