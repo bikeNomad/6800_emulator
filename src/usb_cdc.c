@@ -675,15 +675,21 @@ static void cmd_bus_read_block(void) {
     } else if (address + length > MAX_ADDRESS + 1) {
         usb_cdc_send("ERROR: Block exceeds address space\r\n");
     } else {
-        // Read block and send data as space-separated hex bytes
+        // Read block and format output like the 'read' command
         uint8_t buffer[1024];  // Max block size
         bus_read_block_with_eclock((uint16_t)address, (uint16_t)length, buffer);
+
+        usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", length, address);
+
         for (uint32_t i = 0; i < length; i++) {
-            if (i > 0)
-                usb_cdc_send(" ");
-            usb_cdc_printf("%02X", buffer[i]);
+            if (i % 16 == 0) {
+                usb_cdc_printf("%04X: ", address + i);
+            }
+            usb_cdc_printf("%02X ", buffer[i]);
+            if (i % 16 == 15 || i == length - 1) {
+                usb_cdc_send("\r\n");
+            }
         }
-        usb_cdc_send("\r\n");
     }
 }
 
