@@ -7,13 +7,17 @@ The MC6800 Emulator is a cycle-accurate hardware emulator that runs on the Raspb
 ## Design Philosophy
 
 ### Cycle-Accurate Emulation
+
 The emulator is designed to be **cycle-accurate**, meaning every instruction takes exactly the same number of E clock cycles as it would on real MC6800 hardware. This is critical for:
+
 - Real-time system emulation
 - Timing-sensitive code (e.g., pinball machines, arcade games)
 - Hardware interfacing with strict timing requirements
 
 ### Physical Bus Interface
+
 Unlike pure software emulators, this design includes a **physical bus interface** that allows it to:
+
 - Interface with real MC6800 peripheral chips (PIAs, ACIAs, etc.)
 - Act as a replacement CPU in existing systems
 - Provide hardware-level debugging capabilities
@@ -21,23 +25,22 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 ## Hardware Platform
 
 ### RP2350 Microcontroller
-- **CPU**: Dual Cortex-M33 cores @ 150MHz
+
+- **CPU**: Dual Cortex-M33 cores @ 150-300MHz (configurable)
 - **Memory**: 520KB SRAM, 2MB Flash
-- **GPIO**: 26 pins (Pico 2 W) or 48 pins (Waveshare board)
+- **GPIO**: 48 pins (NED_SYS7 board)
 - **Connectivity**: USB CDC for development, UART for debug
 
-### Supported Boards
-1. **Raspberry Pi Pico 2 W (BOARD_PICO2)**
-   - Limited GPIO (26 pins)
-   - Partial address bus (A0-A1, A10-A14) = 7 address lines
-   - Address space: 128 addresses (0x7C03 mask)
-   - Best for: PIA-based systems, development, testing
+### Supported Board
 
-2. **Waveshare RP2350B-Plus-W (BOARD_WAVESHARE)**
-   - Full GPIO (48 pins)
-   - Complete address bus (A0-A15) = 16 address lines
-   - Address space: 64KB full range
-   - Best for: Complete system replacement, full memory access
+**Ned's System 7 Board (BOARD_NED_SYS7)**
+
+- Full GPIO (48 pins)
+- Complete address bus (A0-A15) = 16 address lines
+- Address space: 64KB full range
+- LED indicators for memory access visualization
+- PSRAM interface support
+- Best for: Complete system replacement, full memory access
 
 ## System Architecture
 
@@ -65,6 +68,7 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 ```
 
 **Core 0 (CPU Emulation)**:
+
 - Executes MC6800 instructions
 - Manages E clock generation (PIO)
 - Handles memory access and bus cycles
@@ -72,6 +76,7 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 - Implements cycle-accurate timing
 
 **Core 1 (USB Interface)**:
+
 - Dedicated USB CDC processing
 - Command line interface
 - Intel HEX file loading
@@ -99,16 +104,17 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 │  └──────────────┘                                          │
 │                                                             │
 │  ┌──────────────┐                                          │
-│  │ Unmapped     │  0x1400-0x4FFF                          │
+│  │ Unmapped     │  0x1400-0x3FFF                          │
 │  │ (Physical    │  • Routes to physical bus               │
 │  │  Bus)        │  • For PIAs, ACIAs, etc.                │
 │  └──────────────┘                                          │
 │                                                             │
 │  ┌──────────────┐                                          │
-│  │ ROM (Flash)  │  0x5000-0x7FFF (12KB)                   │
+│  │ ROM (Flash)  │  0x4000-0x7FFF (16KB)                   │
 │  │  - Read-only │  • A15 not decoded                      │
-│  │  - Persistent│  • Aliases at $D000-$FFFF               │
+│  │  - Persistent│  • Aliases at $C000-$FFFF               │
 │  │              │  • Vectors at $7FF8-$7FFF               │
+│  │  - Page-based│  • Mapped on-demand from flash         │
 │  └──────────────┘                                          │
 │                                                             │
 │  Note: Addresses $8000-$FFFF map to $0000-$7FFF           │
@@ -146,10 +152,11 @@ Target Frequency: 894.886 kHz (Williams System 7)
 Period:          1.117 µs
 Duty Cycle:      50%
 Implementation:  PIO state machine
-Output Pin:      GPIO 21 (Pico 2) / GPIO 24 (Waveshare)
+Output Pin:      GPIO 24 (NED_SYS7)
 ```
 
 **Why PIO?**
+
 - Hardware-timed, no software jitter
 - Runs independently of CPU cores
 - Precise frequency control
@@ -179,26 +186,25 @@ Write Cycle:
 ### GPIO Mapping
 
 **Data Bus (GPIO 0-7)**: Bi-directional
+
 - D0-D7 mapped to GPIO 0-7
 - Switched between input (read) and output (write)
 - Pull-ups for floating bus detection
 
-**Address Bus**: Board-dependent
-- **BOARD_PICO2**: Non-contiguous mapping
-  - A0-A1 → GPIO 8-9
-  - A10-A14 → GPIO 10-14
-  - 7 address lines total
+**Address Bus** (NED_SYS7): Contiguous mapping
 
-- **BOARD_WAVESHARE**: Contiguous mapping
-  - A0-A15 → GPIO 8-23
-  - 16 address lines total
+- A0-A15 → GPIO 8-23
+- 16 address lines total
+- Complete 64KB address space
 
 **Control Signals**:
-- VMA (Valid Memory Address): GPIO 22 (Pico 2) / GPIO 25 (Waveshare)
-- E (E Clock): GPIO 21 (Pico 2) / GPIO 24 (Waveshare) - PIO-generated
-- R/W (Read/Write): GPIO 23 (Pico 2) / GPIO 26 (Waveshare)
+
+- VMA (Valid Memory Address): GPIO 25
+- E (E Clock): GPIO 24 - PIO-generated
+- R/W (Read/Write): GPIO 26
 
 **Interrupt Inputs** (Active Low):
+
 - /IRQ: GPIO 27
 - /NMI: GPIO 28
 - /RESET: GPIO 29
@@ -326,6 +332,7 @@ The emulator automatically detects ROM vs CMOS data based on address ranges:
 - **CMOS**: Addresses 0x0100-0x01FF → Flash at 0x108000
 
 Loading process:
+
 1. User sends HEX file via USB
 2. Parser validates checksums
 3. Data loaded to appropriate buffer
@@ -347,12 +354,14 @@ Auto-save to flash
 ```
 
 **Manual save triggers**:
+
 - `cmos save` command
 - `halt` command
 - `reset` command
 - 30 seconds after last write
 
 **Flash wear analysis**:
+
 - Typical game: 100 CMOS writes → 1 flash erase
 - 10,000 cycles = 10,000 games minimum
 - At 100 games/day = 100+ days of continuous use
@@ -363,6 +372,7 @@ Auto-save to flash
 ### SPI Debug Output
 
 GPIO 18-19 provide SPI debug output for logic analyzer monitoring:
+
 - Instruction execution trace
 - Register states
 - Memory accesses
@@ -380,6 +390,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
 ```
 
 When enabled:
+
 ```
 *** RESET ***
 Reset vector: $5000
@@ -390,6 +401,7 @@ IRQ vector: $5180
 ### Cycle Testing
 
 The `cycletest` command verifies cycle-accurate execution:
+
 ```
 $00 NOP      : 2 cycles
 $01 NOP      : 2 cycles
@@ -404,6 +416,7 @@ $B6 LDAA     : 4 cycles
 ### Hardware Limitation
 
 The current hardware design does not decode address line A15. This means:
+
 - A15 is effectively ignored
 - Addresses $8000-$FFFF map to $0000-$7FFF
 - ROM must be located in the lower 32KB
@@ -418,8 +431,8 @@ The emulator masks A15 in software:
 memory_type_t memory_get_type(uint16_t address) {
     uint16_t physical_addr = address & ADDR_MASK_A15;
 
-    // Check ROM at 0x5000-0x7FFF
-    if (physical_addr >= 0x5000 && physical_addr < 0x8000) {
+    // Check ROM at 0x4000-0x7FFF
+    if (physical_addr >= 0x4000 && physical_addr < 0x8000) {
         return MEM_TYPE_ROM;
     }
     // ...
@@ -427,6 +440,7 @@ memory_type_t memory_get_type(uint16_t address) {
 ```
 
 **Vector handling**:
+
 - MC6800 expects vectors at $FFF8-$FFFF
 - Physical ROM contains vectors at $7FF8-$7FFF
 - Address translation makes this transparent
@@ -435,58 +449,49 @@ memory_type_t memory_get_type(uint16_t address) {
 
 ### Compile-Time Configuration
 
-Different boards are supported via CMake:
+The NED_SYS7 board is configured via CMake:
 
 ```bash
-# Build for Pico 2 W (default)
+# Build for NED_SYS7 board (default)
 cmake ..
-make
-
-# Build for Waveshare board
-cmake .. -DBOARD_TYPE=BOARD_WAVESHARE
 make
 ```
 
 ### Static Inline Functions
 
-Board-specific GPIO mapping is abstracted using static inline functions in `bus.h`:
+GPIO mapping is implemented using static inline functions in `bus.h`:
 
 ```c
-#if defined(BOARD_PICO2)
 static inline void drive_address_bus(uint16_t address) {
-    // Non-contiguous mapping for Pico 2
-    uint32_t gpio_value = ((address & 0x0003) << 8) | (address & 0x7C00);
-    gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
-}
-
-#elif defined(BOARD_WAVESHARE)
-static inline void drive_address_bus(uint16_t address) {
-    // Contiguous mapping for Waveshare
+    // Contiguous mapping for NED_SYS7
     uint32_t gpio_value = (uint32_t)address << 8;
     gpio_put_masked(ADDR_GPIO_MASK, gpio_value);
 }
-#endif
 ```
 
 Benefits:
+
 - Zero overhead (inline)
 - Type-safe
-- Easy to add new boards
+- Efficient GPIO operations
 - No runtime conditionals
 
 ## Performance Characteristics
 
 ### Emulation Speed
+
 - **Target**: 894.886 kHz (Williams System 7)
 - **Actual**: Cycle-accurate, hardware-timed
 - **Overhead**: Minimal (< 5% for instruction decode)
 
 ### USB Latency
+
 - **Command response**: < 1ms
 - **HEX loading**: ~100KB/sec
 - **No impact on emulation** (separate core)
 
 ### Memory Access
+
 - **RAM**: Single RP2350 cycle (~6.7ns)
 - **ROM (flash)**: XIP cache (~100ns worst case)
 - **Physical bus**: Hardware-timed to E clock
@@ -494,6 +499,7 @@ Benefits:
 ## Future Enhancements
 
 ### Planned Features
+
 - DMA-based bus operations
 - Trace buffer (circular log)
 - Breakpoint support
@@ -502,6 +508,7 @@ Benefits:
 - Full A15 decode hardware
 
 ### Expansion Possibilities
+
 - Multi-processor support
 - Networked debugging
 - Logic analyzer integration

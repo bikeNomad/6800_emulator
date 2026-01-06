@@ -57,8 +57,8 @@ MC6800 Emulator Commands:
 
 ```
 > config
-Memory initialized: ROM=$5000-$7FFF RAM=$0000-$13FF
-  ROM aliasing: A15 not decoded, $5000-$7FFF aliases at $D000-$FFFF
+Memory initialized: ROM=$4000-$7FFF RAM=$0000-$13FF
+  ROM aliasing: A15 not decoded, $4000-$7FFF aliases at $C000-$FFFF
   Vectors at $FFF8-$FFFF access physical $7FF8-$7FFF
   RAM mirroring: $0000-$00FF mirrored at $1000-$10FF
   CMOS RAM: $0100-$01FF (persistent in flash)
@@ -72,10 +72,10 @@ Memory initialized: ROM=$5000-$7FFF RAM=$0000-$13FF
 ```
 > load
 Ready to receive Intel HEX data. Paste file now...
-:1050000086424E7E500020
-:02FFE00050008A
+:1040000086424E7E400020
+:02FFE00040008A
 :00000001FF
-Detected ROM data (address $5000)
+Detected ROM data (address $4000)
 Loaded 18 bytes from HEX data
 Finalizing ROM load...
 Flash programming complete
@@ -86,8 +86,8 @@ OK: EPROM loaded successfully
 **What this does**:
 
 ```assembly
-5000: LDAA #$42    ; Load $42 into A
-5002: JMP  $5000   ; Loop forever
+4000: LDAA #$42    ; Load $42 into A
+4002: JMP  $4000   ; Loop forever
 ```
 
 ### Step 6: Run the Program
@@ -149,7 +149,7 @@ brew install as6800          # macOS
 as6800 -l mycode.asm -o mycode.hex
 
 # mycode.asm example:
-#         ORG   $5000
+#         ORG   $4000
 # START:  LDAA  #$42
 #         STAA  $10
 # LOOP:   BRA   LOOP
@@ -175,7 +175,7 @@ vasm6800_std -Fihex mycode.asm -o mycode.hex
 sudo apt-get install srecord
 
 # Convert binary to hex
-srec_cat mycode.bin -binary -offset 0x5000 -o mycode.hex -intel
+srec_cat mycode.bin -binary -offset 0x4000 -o mycode.hex -intel
 ```
 
 **Using Python**:
@@ -187,11 +187,11 @@ ih = IntelHex()
 with open('mycode.bin', 'rb') as f:
     data = f.read()
 
-# Load at $5000
-ih.frombytes(data, offset=0x5000)
+# Load at $4000
+ih.frombytes(data, offset=0x4000)
 
-# Add reset vector at $7FFE pointing to $5000
-ih[0x7FFE] = 0x50
+# Add reset vector at $7FFE pointing to $4000
+ih[0x7FFE] = 0x40
 ih[0x7FFF] = 0x00
 
 ih.write_hex_file('mycode.hex')
