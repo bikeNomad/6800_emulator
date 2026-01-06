@@ -897,24 +897,23 @@ static void cmd_copy_roms(void) {
     memory_clear_rom_load_buffer();
     memory_clear_rom_mapping();
 
-    uint16_t       pages_scanned = 0;
-    uint16_t       pages_copied = 0;
-    const uint16_t PAGE_SIZE = 256;  // 256 bytes per page
+    uint16_t pages_scanned = 0;
+    uint16_t pages_copied = 0;
 
     // Scan through each 256-byte page in ROM range
     for (uint16_t page_addr = mem_config.rom_base;
          page_addr < mem_config.rom_base + mem_config.rom_size;
-         page_addr += PAGE_SIZE) {
+         page_addr += ENTRY_PAGE_SIZE) {
 
         pages_scanned++;
 
         // Read the entire 256-byte page from bus
-        uint8_t page_buffer[PAGE_SIZE];
-        bus_read_block_with_eclock(page_addr, PAGE_SIZE, page_buffer);
+        uint8_t page_buffer[ENTRY_PAGE_SIZE];
+        bus_read_block_with_eclock(page_addr, ENTRY_PAGE_SIZE, page_buffer);
 
         // Check if page contains any non-0xFF data
         bool has_data = false;
-        for (uint16_t i = 0; i < PAGE_SIZE; i++) {
+        for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
             if (page_buffer[i] != 0xFF) {
                 has_data = true;
                 break;
@@ -923,7 +922,7 @@ static void cmd_copy_roms(void) {
 
         if (has_data) {
             // Load page data using memory_load_hex_data (handles address translation)
-            if (memory_load_hex_data(page_addr, page_buffer, PAGE_SIZE)) {
+            if (memory_load_hex_data(page_addr, page_buffer, ENTRY_PAGE_SIZE)) {
                 // Mark page as mapped
                 memory_set_rom_mapping(page_addr, true);
                 pages_copied++;
