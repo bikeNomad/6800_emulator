@@ -2,7 +2,7 @@
 
 ## Overview
 
-Welcome to the MC6800 Emulator documentation. This collection covers everything you need to know about using, connecting, and understanding the cycle-accurate MC6800 hardware emulator running on the Raspberry Pi Pico 2 W (RP2350).
+Welcome to the MC6800 Emulator documentation. This collection covers everything you need to know about using, connecting, and understanding the cycle-accurate MC6800 hardware emulator running on the NED_SYS7 board.
 
 ## Documentation Guide
 
@@ -58,7 +58,7 @@ PIO-based bus cycle implementation:
 
 Everything about connecting to real hardware:
 
-- Pin assignments (Pico 2 W and Waveshare boards)
+- Pin assignments (NED_SYS7 board)
 - Level shifting (3.3V ↔ 5V)
 - Connection scenarios:
   - Standalone operation
@@ -186,9 +186,9 @@ Full USB CDC interface documentation:
 
 ### Hardware
 
-- **Platform**: Raspberry Pi Pico 2 W (RP2350) or Waveshare RP2350B-Plus-W
+- **Platform**: NED_SYS7 board (RP2350)
 - **CPU**: Dual Cortex-M33 @ 150MHz
-- **Boards**: BOARD_PICO2 (26 GPIO) or BOARD_WAVESHARE (48 GPIO)
+- **Board**: BOARD_NED_SYS7
 
 ### Emulation
 
@@ -232,12 +232,11 @@ $7FF8-$7FFF:   └─ Vectors
 - **Duty Cycle**: 50%
 - **Source**: PIO state machine (jitter-free)
 
-### Pin Count by Board
+### Pin Count
 
 | Board | GPIO | Data | Address | Total Pins |
 |-------|------|------|---------|------------|
-| Pico 2 W | 26 | 8 | 7 | 15 |
-| Waveshare | 48 | 8 | 16 | 24 |
+| NED_SYS7 | 48 | 8 | 16 | 24 |
 
 ## Common Tasks
 

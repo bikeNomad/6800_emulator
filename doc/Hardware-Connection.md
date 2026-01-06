@@ -8,31 +8,19 @@ This guide covers the physical connections required to interface the MC6800 Emul
 2. **Peripheral Mode**: Connect to PIAs, ACIAs, and other peripherals
 3. **System Replacement Mode**: Drop-in replacement for MC6800 CPU
 
-## Board Configurations
+## Board Configuration
 
-### Raspberry Pi Pico 2 W (BOARD_PICO2)
-
-**Specifications**:
-- 26 GPIO pins available
-- 7 address lines (partial bus: A0, A1, A10-A14)
-- 128-address space (suitable for PIA-based systems)
-- Built-in WiFi/Bluetooth (future use)
-
-**Limitations**:
-- Cannot address full 64KB memory space
-- Suitable for peripheral-based systems only
-- GPIO 16-17 reserved for UART debug
-- Best used with emulated RAM/ROM
-
-### Ned's System 7 Board (BOARD_NED_SYS7)
+### NED_SYS7 Board (BOARD_NED_SYS7)
 
 **Specifications**:
+
 - Based on RP2350 with 48 GPIO pins
 - 16 address lines (full bus)
 - Complete 64KB address space
 - Designed for Williams System 7 pinball machines
 
 **Features**:
+
 - A0-A15 connect to GPIO 8-23 (standard contiguous mapping)
 - Full system replacement capability
 - Complete memory addressing
@@ -54,64 +42,23 @@ This guide covers the physical connections required to interface the MC6800 Emul
 | D7 | Bidirectional | 7 | Data bit 7 (MSB) |
 
 **Connection Notes**:
+
 - Use 330Ω series resistors for protection
 - Tie to ground via 10KΩ pull-down if unused
 - 5V-tolerant with appropriate level shifters
 
-### Address Bus (BOARD_PICO2)
-
-| Signal | Direction | GPIO | Notes |
-|--------|-----------|------|-------|
-| A0 | Output | 8 | Address bit 0 |
-| A1 | Output | 9 | Address bit 1 |
-| A10 | Output | 10 | Address bit 10 |
-| A11 | Output | 11 | Address bit 11 |
-| A12 | Output | 12 | Address bit 12 |
-| A13 | Output | 13 | Address bit 13 |
-| A14 | Output | 14 | Address bit 14 |
-
-**Non-contiguous mapping**: A2-A9 not connected, A15 not decoded
-
-**Address Space**:
-```
-Accessible addresses (128 total):
-0x0000-0x0003  (A1,A0 only)
-0x0400-0x0403  (A10=1)
-0x0800-0x0803  (A11=1)
-0x0C00-0x0C03  (A11=1, A10=1)
-...
-0x7C00-0x7C03  (A14=1, A13=1, A12=1, A11=1, A10=1)
-```
-
-**Best for**:
-- PIA-based peripheral systems
-- Development and testing with emulated RAM/ROM
-- Limited GPIO pin availability
-
-### Address Bus (BOARD_NED_SYS7)
+### Address Bus
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
 | A0-A15 | Output | 8-23 | Full address bus |
 
 **Contiguous mapping**: Complete 64KB address space
+
 - A0 → GPIO 8, A1 → GPIO 9, ..., A15 → GPIO 23
 - Standard sequential mapping
 
 ### Control Signals
-
-#### BOARD_PICO2
-
-| Signal | Direction | GPIO | Notes |
-|--------|-----------|------|-------|
-| VMA | Output | 22 | Valid Memory Address |
-| E | Output | 21 | E Clock (894.886 kHz) |
-| R/W | Output | 23 | Read/Write (1=Read, 0=Write) |
-| /IRQ | Input | 27 | Interrupt Request (active low) |
-| /NMI | Input | 28 | Non-Maskable Interrupt (active low) |
-| /RESET | Input | 29 | Reset (active low) |
-
-#### BOARD_NED_SYS7
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
@@ -123,19 +70,6 @@ Accessible addresses (128 total):
 | /RESET | Input | 29 | Reset (active low) |
 
 ### Debug Interfaces
-
-#### BOARD_PICO2
-
-| Signal | Direction | GPIO | Notes |
-|--------|-----------|------|-------|
-| SPI_CS | Output | 17 | Debug SPI chip select |
-| SPI_SCK | Output | 18 | Debug SPI clock |
-| SPI_MOSI | Output | 19 | Debug SPI data out |
-| SPI_MISO | Input | 20 | Debug SPI data in |
-| UART_TX | Output | 24 | Debug UART output |
-| UART_RX | Input | 25 | Debug UART input (unused) |
-
-#### BOARD_NED_SYS7
 
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
@@ -150,17 +84,17 @@ Accessible addresses (128 total):
 | LED_UNMAPPED | Output | 39 | Unmapped access indicator (active low, yellow) |
 | PSRAM_CS | Output | 47 | PSRAM chip select |
 
-**Note**: UART pins differ by board:
-- PICO2 uses GPIO 24-25 on UART0 (available pins)
-- NED_SYS7 uses GPIO 40-41 on UART1 (address bus uses 8-23, UART0 pins occupied)
+**Note**: UART uses GPIO 40-41 on UART1 (address bus uses 8-23, UART0 pins occupied)
 
 **LED Indicators**:
+
 - Active low outputs (LED lights when GPIO is low)
 - GREEN: Illuminates during ROM access cycles
 - RED: Illuminates during RAM/CMOS access cycles
 - YELLOW: Illuminates during unmapped/external bus access cycles
 
 **PSRAM Interface**:
+
 - Shared with QSPI bus on RP2350
 - Used for extended memory in future implementations
 
@@ -179,13 +113,8 @@ The RP2350 is a 3.3V device, while most MC6800 systems use 5V logic.
 The NED_SYS7 board uses 74LVC245 octal level shifters to shift 5V to 3.3V for the data and address bus,
 and TXU0104 quad level shifters for the control signals.
 
-For the PICO2 board, the level shifters are not used.
-However, the E signal is pulled up to +5V on the target system,
-so it requires buffering. The prototype used a 74HCT14 hex Schmitt inverter
-for this purpose.
-
-
 **Power Supply**:
+
 - VccA (A side): 5V (MC6800 system)
 - VccB (B side): 3.3V (RP2350)
 - GND: Common ground
@@ -197,10 +126,12 @@ for this purpose.
 **Use Case**: Development, testing, ROM debugging
 
 **Connections Required**:
+
 - USB cable only
 - Optional: UART for debug output
 
 **Configuration**:
+
 ```c
 // All memory in emulator
 ROM:  0x5000-0x7FFF (flash)
@@ -209,6 +140,7 @@ CMOS: 0x0100-0x01FF (flash)
 ```
 
 **Steps**:
+
 1. Connect USB cable
 2. Load ROM via `load` command
 3. Issue `reset` command
@@ -219,31 +151,33 @@ CMOS: 0x0100-0x01FF (flash)
 **Use Case**: Control PIAs, read switches, drive displays
 
 **Required Connections**:
+
 - Data bus (D0-D7)
-- Partial address bus (A0-A1, A10-A14 for Pico 2)
+- Address bus (A0-A15)
 - VMA, R/W
 - E clock
 
 **Example: 6821 PIA at $2100**
 
 ```
-PIA 6821                    Pico 2 W
+PIA 6821                    NED_SYS7
 Pin 26-33 (D0-D7)  ←→  Level Shifter  ←→  GPIO 0-7
 Pin 9-17 (PA0-PA7)  →  Your peripherals
 Pin 18-25 (PB0-PB7) →  Your peripherals
 
 Pin 36 (RS0)       ←   GPIO 8 (A0)
 Pin 35 (RS1)       ←   GPIO 9 (A1)
-Pin 24 (CS2)       ←   GPIO 13 (A13, via decode)
+Pin 24 (CS2)       ←   GPIO 21 (A13, via decode)
 Pin 23 (/CS1)      ←   Address decode logic
 Pin 22 (CS0)       ←   VCC
 
-Pin 21 (R/W)       ←   GPIO 23 (R/W)
-Pin 25 (E)         ←   GPIO 22 (E)
+Pin 21 (R/W)       ←   GPIO 26 (R/W)
+Pin 25 (E)         ←   GPIO 24 (E)
 Pin 34 (/RESET)    ←   GPIO 29 (/RESET)
 ```
 
 **Address Decode Logic**:
+
 ```
 CS2  = A13
 /CS1 = !(A12 & A11 & A10 & A9)  [Inverted for $2100]
@@ -251,6 +185,7 @@ CS0  = VCC (always enabled)
 ```
 
 **Software Configuration**:
+
 ```
 # Via USB command
 config rom 5000 3000
@@ -266,10 +201,12 @@ config ram 0000 1400
 **Supported Boards**: BOARD_NED_SYS7 only (requires full 16-bit address bus)
 
 **Required Connections**:
+
 - All signals (data, address, control)
 - Direct connection to CPU socket or edge connector
 
 **Steps**:
+
 1. **Remove original MC6800**
 2. **Identify socket pinout** (40-pin DIP)
 3. **Connect all signals**:
@@ -290,6 +227,7 @@ config ram 0000 1400
 5. **Level shifters required** for all signals
 
 **Pinout Reference - MC6808 40-Pin DIP**:
+
 ```
          ┌──────────────┐
     VSS ─│1          40│─ /RESET
@@ -316,6 +254,7 @@ config ram 0000 1400
 ```
 
 **Key MC6808 Features**:
+
 - **RE (Ready Enable)**: Enables automatic wait state generation for slow memories (pin 36)
 - **MR (Memory Ready)**: Input for synchronizing with external memory (pin 3)
 - **BA (Bus Available)**: Indicates DMA bus available (pin 7, outputs low during DMA)
@@ -323,6 +262,7 @@ config ram 0000 1400
 - **XTAL/EXTAL**: Crystal oscillator connections (pins 38-39, leave unconnected)
 
 **Emulator Notes**:
+
 - /HALT (pin 2): Controlled via USB command (normally active low input)
 - MR (pin 3): Tied low (no external wait state control needed)
 - RE (pin 36): Tied high (enable all wait states)
@@ -336,11 +276,13 @@ config ram 0000 1400
 **Recommended Board**: BOARD_NED_SYS7
 
 **System Details**:
+
 - CPU: MC6808 @ 894.886 kHz
 - PIAs: Three 6821s at $2100-$21FF
 - Memory: 5KB RAM, 12KB EPROM
 
 **Connections (BOARD_NED_SYS7)**:
+
 ```
 IC1 Connector (CPU Board)
 Pin  Signal      RP2350 GPIO    Notes
@@ -387,6 +329,7 @@ Pin  Signal      RP2350 GPIO    Notes
 ```
 
 **Configuration**:
+
 ```bash
 # Build for NED_SYS7 board (if building from source)
 # cmake -DBOARD_TYPE=BOARD_NED_SYS7 ..
@@ -405,6 +348,7 @@ run
 ```
 
 **Expected Output**:
+
 ```
 Memory initialized: ROM=$5000-$7FFF RAM=$0000-$13FF
   ROM aliasing: A15 not decoded, $5000-$7FFF aliases at $D000-$FFFF
@@ -424,6 +368,7 @@ CPU started
 **Symptom**: USB device not recognized
 
 **Solutions**:
+
 1. Check USB cable (data, not charge-only)
 2. Press BOOTSEL + RESET to enter bootloader
 3. Drag .uf2 file to RPI-RP2 drive
@@ -434,6 +379,7 @@ CPU started
 **Symptom**: Incorrect data reads, random behavior
 
 **Solutions**:
+
 1. Check level shifter connections
 2. Verify 3.3V and 5V power rails
 3. Test with multimeter (logic high/low levels)
@@ -445,6 +391,7 @@ CPU started
 **Symptom**: Peripherals not responding, intermittent faults
 
 **Solutions**:
+
 1. Verify E clock frequency (should be 894.886 kHz)
 2. Check E clock with oscilloscope
 3. Ensure level shifters are fast enough (< 10ns propagation)
@@ -456,6 +403,7 @@ CPU started
 **Symptom**: PIA responds at wrong addresses
 
 **Solutions**:
+
 1. Verify address line connections
 2. Check CS logic with logic analyzer
 3. Test address decode with `read` command
@@ -466,6 +414,7 @@ CPU started
 **Symptom**: /IRQ or /NMI not triggering
 
 **Solutions**:
+
 1. Check pull-up resistors (10KΩ to 3.3V)
 2. Verify active-low logic
 3. Test with USB command: `write 2104 80` (PIA interrupt)
@@ -478,6 +427,7 @@ CPU started
 ⚠️ **NEVER connect 5V directly to RP2350 GPIO pins**
 
 **Safe practices**:
+
 - Use level shifters for all 5V signals
 - Power RP2350 from USB (3.3V regulated)
 - Use separate power supply for MC6800 system
@@ -493,6 +443,7 @@ CPU started
 ### Smoke Test
 
 Before full connection:
+
 1. Power RP2350 via USB only
 2. Verify 3.3V on GPIO pins (multimeter)
 3. Load test ROM and verify operation
@@ -505,7 +456,7 @@ Before full connection:
 
 ### Recommended Test Signals
 
-1. **E Clock (GPIO 21 PICO2 / GPIO 24 NED_SYS7)**
+1. **E Clock (GPIO 24)**
    - Frequency: 894.886 kHz
    - Duty cycle: 50%
    - Amplitude: 3.3V
@@ -515,11 +466,11 @@ Before full connection:
    - Active read: Input mode
    - Active write: Output mode, 0V or 3.3V
 
-3. **VMA (GPIO 22 PICO2 / GPIO 25 NED_SYS7)**
+3. **VMA (GPIO 25)**
    - Asserted during bus cycles
    - De-asserted between cycles
 
-4. **R/W (GPIO 23 PICO2 / GPIO 26 NED_SYS7)**
+4. **R/W (GPIO 26)**
    - High during reads
    - Low during writes
 

@@ -4,7 +4,7 @@
 
 ### What You Need
 
-- Raspberry Pi Pico 2 W (or Waveshare RP2350B-Plus-W)
+- NED_SYS7 board
 - USB cable (data-capable)
 - Computer with terminal software
 - MC6800 program in Intel HEX format (optional)
@@ -12,27 +12,30 @@
 ### Step 1: Flash the Firmware
 
 1. **Download** the latest `mc6800_emulator.uf2` file
-2. **Press and hold BOOTSEL** button on Pico 2 W
-3. **Connect USB** cable while holding BOOTSEL
-4. **Release BOOTSEL** when `RPI-RP2` drive appears
-5. **Drag** `.uf2` file to `RPI-RP2` drive
-6. **Wait** for Pico to reboot (drive disappears)
+2. **Connect USB** cable
+3. **Press and hold BOOT** button on NED_SYS7 board
+4. **Press RESET** button on board, relase both buttons
+5. **Drag** `.uf2` file to `RP2350` drive
+6. **Wait** for board to reboot (drive disappears)
 
 The emulator is now running!
 
 ### Step 2: Connect via Serial Terminal
 
 **macOS/Linux**:
+
 ```bash
 screen /dev/tty.usbmodem14201
 ```
 
 **Windows**:
+
 - Open PuTTY or TeraTerm
 - Select COM port (check Device Manager)
 - Connect (any baud rate)
 
 **Arduino IDE**:
+
 - Tools → Port → Select USB device
 - Tools → Serial Monitor
 
@@ -81,6 +84,7 @@ OK: EPROM loaded successfully
 ```
 
 **What this does**:
+
 ```assembly
 5000: LDAA #$42    ; Load $42 into A
 5002: JMP  $5000   ; Loop forever
@@ -135,6 +139,7 @@ CPU Status:
 #### From Assembly Source
 
 **Using AS6800** (free assembler):
+
 ```bash
 # Install as6800
 sudo apt-get install as6800  # Linux
@@ -153,6 +158,7 @@ as6800 -l mycode.asm -o mycode.hex
 ```
 
 **Using VASM** (versatile assembler):
+
 ```bash
 # Get vasm from http://sun.hasenbraten.de/vasm/
 
@@ -163,6 +169,7 @@ vasm6800_std -Fihex mycode.asm -o mycode.hex
 #### From Binary
 
 **Using srec_cat** (SRecord tools):
+
 ```bash
 # Install
 sudo apt-get install srecord
@@ -172,6 +179,7 @@ srec_cat mycode.bin -binary -offset 0x5000 -o mycode.hex -intel
 ```
 
 **Using Python**:
+
 ```python
 from intelhex import IntelHex
 
@@ -252,6 +260,7 @@ CPU Status:
 ⚠️ **Never connect 5V directly to RP2350 GPIO pins!**
 
 Use level shifters:
+
 - 74LVC245 (recommended)
 - TXS0108E (slower but auto-direction)
 - Resistor dividers (inputs only)
@@ -259,12 +268,14 @@ Use level shifters:
 ### Minimal Setup (PIA Only)
 
 **What You Need**:
+
 - 6821 PIA chip
 - 74LVC245 level shifters (2×)
 - Breadboard and wires
 - 5V power supply (separate from Pico)
 
 **Connections**:
+
 ```
 Data Bus:
   Pico GPIO 0-7  ←→  74LVC245  ←→  PIA D0-D7
@@ -284,6 +295,7 @@ Power:
 ```
 
 **Test Code**:
+
 ```assembly
         ORG   $5000
 START:  LDAA  #$FF      ; All outputs
@@ -309,6 +321,7 @@ DLY1:   DEX
 ```
 
 **Load and Run**:
+
 ```bash
 > load
 [paste HEX]
@@ -322,9 +335,10 @@ DLY1:   DEX
 ### Full System Connection
 
 See [Hardware Connection Guide](Hardware-Connection.md) for complete details on:
+
 - MC6800 CPU replacement
 - Williams System 7 pinball
-- Full 64KB address space (Waveshare board)
+- Full 64KB address space (NED_SYS7 board)
 
 ---
 
@@ -345,13 +359,16 @@ See [Hardware Connection Guide](Hardware-Connection.md) for complete details on:
 #### Program Doesn't Start
 
 **Check reset vector**:
+
 ```
 > read 7FFE 2
 7FFE: 50 00
 ```
+
 This should point to your start address ($5000).
 
 **Check PC after reset**:
+
 ```
 > reset
 > status
@@ -364,6 +381,7 @@ CPU Status:
 #### Program Crashes Immediately
 
 **Check first instruction**:
+
 ```
 > read 5000 10
 5000: 86 42 97 10 7E 50 00 FF FF FF FF FF FF FF FF FF
@@ -373,6 +391,7 @@ CPU Status:
 ```
 
 **Check stack**:
+
 ```
 > status
   SP: $01FE  ← Should be initialized
@@ -381,6 +400,7 @@ CPU Status:
 **If SP=$0000**: Program may be doing JSR/RTS without setting SP.
 
 **Fix**: Add stack initialization:
+
 ```assembly
 START:  LDS   #$01FE    ; Set stack pointer
         ; rest of program
@@ -389,10 +409,12 @@ START:  LDS   #$01FE    ; Set stack pointer
 #### Infinite Loop
 
 **Symptoms**:
+
 - `halt` → `status` shows same PC repeatedly
 - Instruction count increases but nothing happens
 
 **Check code**:
+
 ```
 > halt
 > status
@@ -408,6 +430,7 @@ START:  LDS   #$01FE    ; Set stack pointer
 #### Wrong Memory Values
 
 **Test reads and writes**:
+
 ```
 > write 0010 42
 > read 0010 1
@@ -417,6 +440,7 @@ START:  LDS   #$01FE    ; Set stack pointer
 **If different**: Memory configuration problem.
 
 **Check config**:
+
 ```
 > config
   RAM: $0000-$13FF  ← Verify range includes $0010
@@ -427,6 +451,7 @@ START:  LDS   #$01FE    ; Set stack pointer
 #### Enable Interrupt Debug
 
 Edit `CMakeLists.txt`:
+
 ```cmake
 target_compile_definitions(mc6800_emulator PRIVATE
     DEBUG_INTERRUPTS=1  # Enable
@@ -434,6 +459,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
 ```
 
 Rebuild and reflash. Now interrupts print debug info:
+
 ```
 *** RESET ***
 Reset vector: $5000
@@ -444,6 +470,7 @@ IRQ vector: $5180
 #### Logic Analyzer
 
 Connect to debug SPI (GPIO 18-19):
+
 - Captures every instruction
 - Shows registers, memory access
 - Timing analysis
@@ -451,6 +478,7 @@ Connect to debug SPI (GPIO 18-19):
 #### UART Debug Output
 
 Connect to UART (GPIO 16-17, 115200 baud):
+
 - System messages
 - Error messages
 - Boot information
@@ -490,6 +518,7 @@ DATA:   FCB   'H','E','L','L','O'
 ```
 
 **Test**:
+
 ```
 > load
 [paste hex]
@@ -521,6 +550,7 @@ LOOP:   STAA  $0100     ; Store count
 ```
 
 **Test**:
+
 ```
 > load
 [paste hex]
@@ -567,6 +597,7 @@ IRQ_HANDLER:
 ```
 
 **Test** (requires hardware IRQ):
+
 ```
 > load
 [paste hex]
@@ -613,6 +644,7 @@ LOOP:   BRA   LOOP
 ```
 
 **Test**:
+
 ```
 > load
 [paste hex]
@@ -653,44 +685,11 @@ export PICO_SDK_PATH=/path/to/pico-sdk
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/6800_emulator.git
+git clone https://github.com/bikeNomad/6800_emulator.git
 cd 6800_emulator
+make 
 
-# Create build directory
-mkdir build
-cd build
-
-# Configure
-cmake ..
-
-# Build
-make -j4
-
-# Output: mc6800_emulator.uf2
-```
-
-### Board Selection
-
-```bash
-# Build for Pico 2 W (default)
-cmake ..
-make
-
-# Build for Waveshare board
-cmake .. -DBOARD_TYPE=BOARD_WAVESHARE
-make
-```
-
-### Debug Build
-
-```bash
-# Enable interrupt debugging
-cmake .. -DCMAKE_C_FLAGS="-DDEBUG_INTERRUPTS=1"
-make
-
-# Disable for production
-cmake .. -DCMAKE_C_FLAGS="-DDEBUG_INTERRUPTS=0"
-make
+# Output: images/BOARD_NED_SYS7.uf2
 ```
 
 ---
@@ -700,15 +699,17 @@ make
 ### MC6800 Resources
 
 **Datasheets**:
+
 - [MC6800 CPU Datasheet](https://www.nxp.com/docs/en/data-sheet/MC6800.pdf)
 - [6821 PIA Datasheet](https://www.jameco.com/Jameco/Products/ProdDS/43596.pdf)
 
 **Books**:
+
 - "MC6800 Microprocessor Programming Manual" (Motorola)
 - "6800 Assembly Language Programming" (Lance Leventhal)
 
 **Online**:
-- [Easy6800 Simulator](http://easy6800.informatik.uni-ulm.de/)
+
 - [6800.org](http://www.6800.org)
 
 ### Emulator Documentation
@@ -721,16 +722,22 @@ make
 ### Example Projects
 
 **Williams System 7**:
+
 ```bash
-# Get ROM from IPDB.org or similar
+# Get ROMs from IPDB.org or similar (Black Knight 1980 as an example)
+# Concatenate them into a single file
+cat IC26.716 IC14.716 IC20.716 IC17.532 > black_knight.bin
+# Convert to Intel Hex format, setting the start address
+arm-none-eabi-objcopy -I binary -O ihex --change-address 0xd800 black_knight.bin black_knight.hex
 # Load and run
 > load
-[paste system7.hex]
+[paste black_knight.hex]
 > reset
 > run
 ```
 
 **Custom Hardware**:
+
 - See [Hardware Connection Guide](Hardware-Connection.md)
 - Examples for PIAs, displays, switches
 
@@ -754,10 +761,9 @@ make
 
 ### Program Not Running
 
-1. Check reset vector: `read 7FFE 2`
-2. Verify ROM loaded: `read 5000 10`
+1. Check reset vector: `read FFFE 2`
+2. Verify ROM loaded: `read 5800 10`
 3. Check PC after reset: `reset` then `status`
-4. Enable debug: `DEBUG_INTERRUPTS=1`
 
 ### Flash Write Failed
 
@@ -818,7 +824,8 @@ make
 ### Reporting Issues
 
 Include:
-- Board type (Pico 2 W, etc.)
+
+- Board type (NED_SYS7, etc.)
 - Firmware version
 - HEX file (if relevant)
 - Terminal output
@@ -827,6 +834,7 @@ Include:
 ### Contributing
 
 See `CONTRIBUTING.md` (if available) or:
+
 1. Fork repository
 2. Create feature branch
 3. Make changes
@@ -879,15 +887,14 @@ reset
 run
 ```
 
-### Pin Quick Reference (Pico 2 W)
+### Pin Quick Reference (NED_SYS7)
 
 ```
 GPIO 0-7:   Data bus (D0-D7)
-GPIO 8-9:   Address bus (A0-A1)
-GPIO 10-14: Address bus (A10-A14)
-GPIO 21:    VMA
-GPIO 22:    E clock (output, 894.886 kHz)
-GPIO 23:    R/W
+GPIO 8-23:  Address bus (A0-A15)
+GPIO 24:    E clock (output, 894.886 kHz)
+GPIO 25:    VMA
+GPIO 26:    R/W
 GPIO 27:    /IRQ (input)
 GPIO 28:    /NMI (input)
 GPIO 29:    /RESET (input)
@@ -895,11 +902,12 @@ GPIO 29:    /RESET (input)
 
 ---
 
-## Congratulations!
+## Congratulations
 
 You now have a working MC6800 emulator. Start writing code and have fun!
 
 For more details, see:
+
 - [Architecture](Architecture.md)
 - [Memory Map](Memory-Map.md)
 - [Hardware Connection](Hardware-Connection.md)
