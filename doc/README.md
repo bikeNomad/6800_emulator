@@ -6,10 +6,12 @@ Welcome to the MC6800 Emulator documentation. This collection covers everything 
 
 ## Documentation Guide
 
-### 🚀 [Getting Started](Getting-Started.md)
+### 🚀 Getting Started
+
 **Start here if you're new to the emulator!**
 
 Quick setup guide that gets you running in 5 minutes:
+
 - Flash firmware
 - Connect via USB
 - Load and run your first program
@@ -19,10 +21,12 @@ Quick setup guide that gets you running in 5 minutes:
 
 **Best for**: First-time users, quick reference
 
-### 🏗️ [Architecture](Architecture.md)
+### 🏗️ Architecture
+
 **Deep dive into system design and implementation**
 
 Complete architectural overview:
+
 - Dual-core design (Core 0: CPU emulation, Core 1: USB)
 - Memory subsystem (RAM, ROM, CMOS, Flash)
 - Clock generation (PIO-based E clock)
@@ -33,10 +37,12 @@ Complete architectural overview:
 
 **Best for**: Understanding how it works, developers, contributors
 
-### ⚡ [PIO Bus Cycles](PIO-Bus-Cycles.md)
+### ⚡ PIO Bus Cycles
+
 **Hardware-timed bus operations using PIO**
 
 PIO-based bus cycle implementation:
+
 - Problem: Software polling timing issues
 - Solution: Hardware-timed data sampling
 - PIO state machine configuration
@@ -46,10 +52,12 @@ PIO-based bus cycle implementation:
 
 **Best for**: Understanding bus timing, debugging data stability issues
 
-### 🔌 [Hardware Connection](Hardware-Connection.md)
+### 🔌 Hardware Connection
+
 **Physical interfacing with target systems**
 
 Everything about connecting to real hardware:
+
 - Pin assignments (Pico 2 W and Waveshare boards)
 - Level shifting (3.3V ↔ 5V)
 - Connection scenarios:
@@ -63,10 +71,12 @@ Everything about connecting to real hardware:
 
 **Best for**: Hardware integration, PIA interfacing, system replacement
 
-### 🗺️ [Memory Map](Memory-Map.md)
+### 🗺️ Memory Map
+
 **Complete memory layout and configuration**
 
 Detailed memory architecture:
+
 - Memory regions (RAM, ROM, CMOS, Unmapped)
 - Address translation (A15 handling)
 - Flash storage layout
@@ -77,10 +87,12 @@ Detailed memory architecture:
 
 **Best for**: Understanding memory layout, debugging memory issues
 
-### 🌐 [Web Interface](Web-Interface.md)
+### 🌐 Web Interface
+
 **Browser-based control panel**
 
 Graphical interface for controlling the emulator:
+
 - One-click connection via WebSerial API
 - Real-time CPU status with auto-refresh
 - Visual CPU control buttons (Run/Halt/Reset)
@@ -91,10 +103,12 @@ Graphical interface for controlling the emulator:
 
 **Best for**: Beginners, visual learners, quick ROM loading
 
-### 💻 [USB Commands](USB-Commands.md)
+### 💻 USB Commands
+
 **Complete command reference**
 
 Full USB CDC interface documentation:
+
 - All commands with syntax and examples
 - Configuration commands
 - Memory access (read/write)
@@ -111,74 +125,87 @@ Full USB CDC interface documentation:
 ### By User Type
 
 **First-Time User**:
-1. [Getting Started](Getting-Started.md) → Flash and run
-2. [Web Interface](Web-Interface.md) → Easy graphical control (recommended)
-3. [Getting Started - Examples](Getting-Started.md#example-programs) → Try example programs
-4. [USB Commands](USB-Commands.md) → Advanced command-line control
+
+1. Getting Started → Flash and run
+2. Web Interface → Easy graphical control (recommended)
+3. Getting Started - Examples → Try example programs
+4. USB Commands → Advanced command-line control
 
 **Hardware Developer**:
-1. [Hardware Connection](Hardware-Connection.md) → Pin assignments
-2. [Memory Map](Memory-Map.md) → Memory layout
-3. [Architecture - Bus Interface](Architecture.md#bus-interface) → Timing diagrams
+
+1. Hardware Connection → Pin assignments
+2. Memory Map → Memory layout
+3. Architecture - Bus Interface → Timing diagrams
 
 **System Integrator**:
-1. [Hardware Connection - Scenarios](Hardware-Connection.md#connection-scenarios) → Choose your setup
-2. [Memory Map](Memory-Map.md) → Configure memory
-3. [USB Commands](USB-Commands.md) → Control interface
+
+1. Hardware Connection - Scenarios → Choose your setup
+2. Memory Map → Configure memory
+3. USB Commands → Control interface
 
 **Software Developer**:
-1. [Architecture](Architecture.md) → System design
-2. [Memory Map](Memory-Map.md) → Memory model
-3. [Getting Started - Building](Getting-Started.md#building-from-source) → Compile from source
+
+1. Architecture → System design
+2. Memory Map → Memory model
+3. Getting Started - Building → Compile from source
 
 ### By Task
 
 **Loading Programs**:
-- [Web Interface - ROM Upload](Web-Interface.md#4-rom-upload-panel) → Easiest method (recommended)
-- [Getting Started - Loading](Getting-Started.md#loading-your-own-program)
-- [USB Commands - load](USB-Commands.md#load)
-- [Memory Map - ROM](Memory-Map.md#rom-flash)
+
+- Web Interface - ROM Upload → Easiest method (recommended)
+- Getting Started - Loading → Load your own programs
+- USB Commands - load → Command-line ROM loading
+- Memory Map - ROM → ROM storage details
 
 **Connecting Hardware**:
-- [Hardware Connection - Scenarios](Hardware-Connection.md#connection-scenarios)
-- [Hardware Connection - Pin Assignments](Hardware-Connection.md#pin-assignments)
-- [Hardware Connection - Level Shifting](Hardware-Connection.md#level-shifting)
+
+- Hardware Connection - Scenarios → Choose your setup
+- Hardware Connection - Pin Assignments → GPIO pin mapping
+- Hardware Connection - Level Shifting → 3.3V ↔ 5V conversion
 
 **Debugging Issues**:
-- [Getting Started - Debugging](Getting-Started.md#debugging)
-- [USB Commands - Error Messages](USB-Commands.md#error-messages)
-- [Hardware Connection - Troubleshooting](Hardware-Connection.md#troubleshooting)
+
+- Getting Started - Debugging → Basic debugging workflow
+- USB Commands - Error Messages → Command error handling
+- Hardware Connection - Troubleshooting → Hardware issues
 
 **Understanding Memory**:
-- [Memory Map](Memory-Map.md)
-- [Architecture - Memory Subsystem](Architecture.md#memory-subsystem)
-- [USB Commands - Memory Commands](USB-Commands.md#read)
+
+- Memory Map → Memory layout overview
+- Architecture - Memory Subsystem → Internal memory handling
+- USB Commands - Memory Commands → Memory access commands
 
 **Configuring System**:
-- [USB Commands - config](USB-Commands.md#config)
-- [Memory Map - Configuration](Memory-Map.md#memory-configuration)
-- [Architecture - Board Abstraction](Architecture.md#board-abstraction)
+
+- USB Commands - config → Configuration commands
+- Memory Map - Configuration → Memory setup options
+- Architecture - Board Abstraction → Board-specific features
 
 ## Features Overview
 
 ### Hardware
+
 - **Platform**: Raspberry Pi Pico 2 W (RP2350) or Waveshare RP2350B-Plus-W
 - **CPU**: Dual Cortex-M33 @ 150MHz
 - **Boards**: BOARD_PICO2 (26 GPIO) or BOARD_WAVESHARE (48 GPIO)
 
 ### Emulation
+
 - **Cycle-Accurate**: Every instruction takes exact MC6800 cycle count
 - **E Clock**: 894.886 kHz (Williams System 7), PIO-generated
 - **Physical Bus**: Real hardware interfacing via GPIO
 - **Interrupts**: IRQ, NMI, RESET fully supported
 
 ### Memory
+
 - **RAM**: Up to 8KB (shadow, volatile)
 - **ROM**: Up to 32KB (flash, persistent)
 - **CMOS**: 256 bytes (flash, persistent, auto-save)
 - **Address Space**: 64KB with A15 aliasing
 
 ### Interface
+
 - **Web Interface**: Browser-based GUI (Chrome/Edge/Opera)
 - **USB CDC**: Command-line interface via serial terminal
 - **UART**: Debug output (GPIO 16-17)
@@ -188,6 +215,7 @@ Full USB CDC interface documentation:
 ## Key Specifications
 
 ### Memory Map (Default)
+
 ```
 $0000-$13FF: RAM (5KB)
 $0100-$01FF:   └─ CMOS (persistent)
@@ -198,12 +226,14 @@ $7FF8-$7FFF:   └─ Vectors
 ```
 
 ### Clock Timing
+
 - **Frequency**: 894.886 kHz
 - **Period**: 1.117 µs
 - **Duty Cycle**: 50%
 - **Source**: PIO state machine (jitter-free)
 
 ### Pin Count by Board
+
 | Board | GPIO | Data | Address | Total Pins |
 |-------|------|------|---------|------------|
 | Pico 2 W | 26 | 8 | 7 | 15 |
@@ -214,6 +244,7 @@ $7FF8-$7FFF:   └─ Vectors
 ### Load and Run Program
 
 **Via Web Interface (Easiest)**:
+
 1. Open `web-interface/emulator-control.html` in Chrome
 2. Click "Connect to Emulator"
 3. Choose ROM file (HEX or binary)
@@ -221,6 +252,7 @@ $7FF8-$7FFF:   └─ Vectors
 5. Click "Reset" → "Run"
 
 **Via USB Terminal**:
+
 ```bash
 load
 [paste HEX file]
@@ -229,6 +261,7 @@ run
 ```
 
 ### Check Execution
+
 ```bash
 halt
 status
@@ -236,12 +269,14 @@ read 0100 10
 ```
 
 ### Save Configuration
+
 ```bash
 write 0100 DE AD BE EF
 cmos save
 ```
 
 ### Inspect Vectors
+
 ```bash
 read 7FF8 8
 ```
@@ -249,20 +284,24 @@ read 7FF8 8
 ## External Resources
 
 ### MC6800 Documentation
+
 - [MC6800 Datasheet (Motorola)](https://www.nxp.com/docs/en/data-sheet/MC6800.pdf)
 - [MC6800 Programming Manual](http://bitsavers.org/components/motorola/6800/MC6800_Programming_Manual_1975.pdf)
 - [6821 PIA Datasheet](https://www.jameco.com/Jameco/Products/ProdDS/43596.pdf)
 
 ### RP2350 Documentation
+
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
 - [Pico 2 W Pinout](https://datasheets.raspberrypi.com/pico/Pico-2-W-pinout.pdf)
 
 ### Tools
+
 - [AS6800 Assembler](http://shop-pdp.net/ashtml/as6800.htm)
 - [VASM Assembler](http://sun.hasenbraten.de/vasm/)
 - [IntelHex Python Library](https://pypi.org/project/intelhex/)
 
 ### Example Systems
+
 - [Williams System 7 Info](https://www.ipdb.org/)
 - [MC6800 Projects](http://www.6800.org/)
 
@@ -290,9 +329,9 @@ See project LICENSE file.
 
 ## Need Help?
 
-1. **Start with**: [Getting Started](Getting-Started.md)
+1. **Start with**: Getting Started
 2. **Can't find it?**: Search all docs (Ctrl+F / Cmd+F)
-3. **Still stuck?**: Check [Troubleshooting sections](#by-task)
+3. **Still stuck?**: Check Troubleshooting sections
 4. **Report issue**: File a bug on GitHub
 
 Happy emulating! 🎮

@@ -5,6 +5,7 @@
 This document provides a comprehensive plan for implementing QSPI PSRAM support (APS6404L-3SQR-SN) on the RP2350 using GPIO47 as the secondary chip select (CS1) on the QMI (QSPI Memory Interface) bus.
 
 **Target Hardware:**
+
 - **MCU:** RP2350 (Raspberry Pi Pico 2 / Ned's System 7 Board)
 - **PSRAM:** APS6404L-3SQR-SN (8MB QSPI PSRAM by APMemory)
 - **Interface:** QMI (shared with flash on CS0)
@@ -16,15 +17,15 @@ This document provides a comprehensive plan for implementing QSPI PSRAM support 
 
 ## Table of Contents
 
-1. [Current Issues](#1-current-issues)
-2. [RP2350 QMI Overview](#2-rp2350-qmi-overview)
-3. [GPIO47 Configuration](#3-gpio47-configuration)
-4. [Implementation Options](#4-implementation-options)
-5. [APS6404L PSRAM Details](#5-aps6404l-psram-details)
-6. [Recommended Implementation Plan](#6-recommended-implementation-plan)
-7. [Code Examples](#7-code-examples)
-8. [Testing Strategy](#8-testing-strategy)
-9. [References](#9-references)
+1. Current Issues
+2. RP2350 QMI Overview
+3. GPIO47 Configuration
+4. Implementation Options
+5. APS6404L PSRAM Details
+6. Recommended Implementation Plan
+7. Code Examples
+8. Testing Strategy
+9. References
 
 ---
 
@@ -33,6 +34,7 @@ This document provides a comprehensive plan for implementing QSPI PSRAM support 
 ### Problems in `src/psram.c`
 
 #### Issue #1: Incorrect GPIO Configuration
+
 ```c
 // WRONG: Treating GPIO47 as a regular GPIO pin
 gpio_init(GPIO_PSRAM_CS);
@@ -56,6 +58,7 @@ gpio_set_function(GPIO_PSRAM_CS, GPIO_FUNC_XIP_CS1);
 ```
 
 **Important Notes:**
+
 - `GPIO_FUNC_XIP_CS1` is the correct function for QMI chip select 1
 - Do NOT use `gpio_init()`, `gpio_set_dir()`, or `gpio_put()` on GPIO47
 - The QMI peripheral will control the CS1 signal automatically
@@ -77,6 +80,7 @@ Verify GPIO47 is available and not conflicting with other peripherals:
 ### Shared QSPI Bus Considerations
 
 Since PSRAM shares the QSPI bus with flash (CS0):
+
 - **SCLK, SD0-SD3** are shared between flash and PSRAM
 - Only the chip select (CS0 vs CS1) distinguishes them
 - QMI handles bus arbitration automatically
@@ -93,6 +97,7 @@ There are two approaches to implement PSRAM support on the RP2350 QMI:
 **Description:** Use the QMI's direct/manual mode with TX/RX FIFOs to send individual commands.
 
 #### Advantages
+
 ✅ **Flexible:** Works with any QSPI device without pre-configuration  
 ✅ **No hard-coded timing:** Adjust parameters dynamically  
 ✅ **Full control:** Can send arbitrary commands (reset, ID, mode changes)  
@@ -100,17 +105,20 @@ There are two approaches to implement PSRAM support on the RP2350 QMI:
 ✅ **Universal:** Same code works across different PSRAM chips  
 
 #### Disadvantages
+
 ❌ **Slower:** Each transaction requires FIFO management  
 ❌ **CPU overhead:** Not memory-mapped, requires function calls  
 ❌ **More code:** Need to handle FIFOs and status flags  
 
 #### When to Use
+
 - Initial development and testing
 - When you need to support multiple PSRAM types
 - When memory access speed isn't critical (<10 MB/s is acceptable)
 - For command-based operations (ID read, reset, configuration)
 
 #### Basic Structure
+
 ```c
 // 1. Enable QMI direct mode with CS1
 qmi_hw->direct_csr = QMI_DIRECT_CSR_EN_BITS | 
@@ -136,24 +144,28 @@ qmi_hw->direct_csr = 0;
 **Description:** Configure memory window M1 to memory-map PSRAM into the address space.
 
 #### Advantages
+
 ✅ **Fast:** Direct memory access, no function calls  
 ✅ **Simple usage:** Read/write like normal memory  
 ✅ **DMA compatible:** Can use DMA for transfers  
 ✅ **Efficient:** Hardware handles all timing automatically  
 
 #### Disadvantages
+
 ❌ **Rigid:** Requires pre-configuration of timing and commands  
 ❌ **Less flexible:** Hard to switch between PSRAM types  
 ❌ **Initial complexity:** Must configure all timing parameters correctly  
 ❌ **Limited commands:** Only supports read/write, not special commands  
 
 #### When to Use
+
 - Production code after development is complete
 - When you need maximum performance (>20 MB/s)
 - When PSRAM access patterns are simple (mostly sequential reads)
 - When the PSRAM type is fixed and well-characterized
 
 #### Basic Structure
+
 ```c
 // Configure M1 memory window for PSRAM on CS1
 qmi_hw->m[1].timing = (CLKDIV << QMI_M1_TIMING_CLKDIV_LSB) |
@@ -176,17 +188,20 @@ uint8_t data = psram[0x12345];  // Direct read
 ### Recommended Approach
 
 **Start with Option A (Direct Mode):**
+
 1. Implement basic functionality using Direct Mode
 2. Test read ID, reset, and basic read/write operations  
 3. Verify timing and command sequences work correctly
 
 **Optionally migrate to Option B (XIP Mode) later:**
+
 1. Once Direct Mode works, capture the working timing parameters
 2. Configure M1 memory window with those parameters
 3. Test memory-mapped access
 4. Keep Direct Mode functions for initialization and special commands
 
 This hybrid approach gives you the best of both worlds:
+
 - Direct Mode for initialization, ID reading, and special operations
 - XIP Mode for fast bulk data transfers (if needed)
 
@@ -195,6 +210,7 @@ This hybrid approach gives you the best of both worlds:
 **Impact:** The PSRAM chip select won't be synchronized with QSPI transactions, and the QMI hardware won't control it.
 
 #### Issue #2: No QMI Peripheral Configuration
+
 ```c
 #include "hardware/structs/qmi.h"  // Included but never used
 ```
@@ -204,6 +220,7 @@ This hybrid approach gives you the best of both worlds:
 **Impact:** All read/write operations are placeholders that don't actually communicate with the PSRAM.
 
 #### Issue #3: Placeholder Implementations
+
 ```c
 uint16_t psram_get_manufacturer_id(void) {
     // TODO: Implement actual QSPI communication with APS6404L
@@ -219,6 +236,7 @@ uint16_t psram_get_manufacturer_id(void) {
 **Impact:** The code appears to work but doesn't verify the PSRAM is present or functioning.
 
 #### Issue #4: No Actual QSPI Transactions
+
 ```c
 bool psram_read(uint32_t address, uint8_t *data, uint32_t length) {
     // ...validation...
@@ -294,6 +312,7 @@ The **QMI (QSPI Memory Interface)** is the RP2350's hardware peripheral for inte
 ### Device Specifications
 
 **APMemory APS6404L-3SQR-SN:**
+
 - **Capacity:** 8 Megabytes (64 Megabits)
 - **Organization:** 8M x 8 bits
 - **Interface:** QSPI (Quad SPI)
@@ -319,6 +338,7 @@ The APS6404L uses standard SPI/QSPI commands:
 | **Read ID** | `0x9F` | Read manufacturer/device ID | 3 bytes | 0 | 3 bytes |
 
 **Note:** The APS6404L doesn't have a separate "Read ID" command like flash. Instead, reading from address `0x000000` with command `0x9F` returns:
+
 - Byte 0: Manufacturer ID (`0x0D` for APMemory)
 - Byte 1: KGD (Known Good Die) - typically `0x5D`
 - Byte 2: EID (Electronic ID) - device specific
@@ -358,11 +378,13 @@ For reliable operation with the APS6404L:
 The APS6404L supports both SPI and Quad SPI:
 
 **SPI Mode (Default after reset):**
+
 - Uses SD0 (MOSI) and SD1 (MISO) only
 - Commands: `0x03` (Read), `0x0B` (Fast Read), `0x02` (Write)
 - Slower but more compatible
 
 **Quad SPI Mode (After `0x35` command):**
+
 - Uses all 4 data lines (SD0-SD3) simultaneously
 - Commands: `0xEB` (Fast Read Quad), `0x38` (Quad Write)
 - 4x faster data transfer
@@ -531,6 +553,7 @@ static bool psram_reset(void) {
 ```
 
 **Note:** Add these command defines to `src/psram.h`:
+
 ```c
 #define PSRAM_CMD_RESET_ENABLE 0x66  // Reset enable
 #define PSRAM_CMD_RESET        0x99  // Reset
@@ -767,23 +790,27 @@ bool psram_test_basic(void) {
 ### Step 10: Compile and Test
 
 1. **Clean and rebuild:**
+
    ```bash
    make clean
    make
    ```
 
 2. **Flash to device:**
+
    ```bash
    # Copy .uf2 file to device or use picotool
    ```
 
 3. **Monitor serial output:**
+
    ```bash
    # Check for PSRAM initialization messages
    # Should see: "PSRAM: APS6404L detected and ready"
    ```
 
 4. **Run memory test:**
+
    ```c
    // In your main.c or via USB command
    if (psram_test_memory(1024)) {  // Test 1MB
@@ -940,12 +967,14 @@ static bool psram_enter_quad_mode(void) {
 **Goal:** Verify GPIO47 configuration and QMI communication
 
 **Tests:**
+
 1. ✅ GPIO47 function set correctly
 2. ✅ QMI direct mode activates
 3. ✅ PSRAM responds to reset commands
 4. ✅ Read ID returns expected values (0x0D, 0x5D)
 
 **Expected Output:**
+
 ```
 PSRAM: Initializing APS6404L on QMI CS1 (GPIO47)...
 PSRAM: Reset complete
@@ -954,6 +983,7 @@ PSRAM: APS6404L detected and ready
 ```
 
 **Troubleshooting:**
+
 - If ID read fails: Check GPIO47 function, verify PSRAM power connections
 - If ID wrong: Verify PSRAM part number, check for solder bridges
 - If timeout: Check QSPI clock divisor, try increasing it
@@ -963,6 +993,7 @@ PSRAM: APS6404L detected and ready
 **Goal:** Verify basic read/write functionality
 
 **Tests:**
+
 ```c
 // Test 1: Write and read single byte
 uint8_t test_val = 0x42;
@@ -987,6 +1018,7 @@ for (uint8_t i = 0; i < 16; i++) {
 **Goal:** Test larger transfers and memory boundaries
 
 **Tests:**
+
 ```c
 // Test 1: 1KB block write/read
 uint8_t large_buffer[1024];
@@ -1008,6 +1040,7 @@ psram_write(PSRAM_PAGE_SIZE - 512, boundary_test, 2048);
 **Goal:** Verify reliability under continuous operation
 
 **Tests:**
+
 ```c
 // Use psram_test_memory() function
 bool result = psram_test_memory(8192);  // Test 8MB (full chip)
@@ -1023,6 +1056,7 @@ if (result) {
 **Goal:** Measure actual throughput
 
 **Tests:**
+
 ```c
 uint8_t speed_test_buffer[32768];  // 32KB
 uint32_t start_time = time_us_32();
@@ -1047,10 +1081,12 @@ printf("Read speed: %.2f MB/s\n", read_speed);
 ```
 
 **Expected Performance (Direct Mode):**
+
 - Read: 5-10 MB/s
 - Write: 5-10 MB/s
 
 **Expected Performance (XIP Mode, if implemented):**
+
 - Read: 20-40 MB/s
 - Write: 20-40 MB/s
 
@@ -1059,6 +1095,7 @@ printf("Read speed: %.2f MB/s\n", read_speed);
 **Problem:** PSRAM reads return all 0xFF or all 0x00
 
 **Solution:**
+
 - Check power supply to PSRAM (3.3V)
 - Verify GPIO47 is configured as QMI function
 - Check QSPI data lines for shorts or opens
@@ -1067,6 +1104,7 @@ printf("Read speed: %.2f MB/s\n", read_speed);
 **Problem:** Intermittent read/write failures
 
 **Solution:**
+
 - Increase FIFO_TIMEOUT value
 - Add delay after qmi_direct_mode_enter()
 - Check for electrical noise on QSPI lines
@@ -1075,6 +1113,7 @@ printf("Read speed: %.2f MB/s\n", read_speed);
 **Problem:** ID read works but data operations fail
 
 **Solution:**
+
 - Verify address byte order (big-endian)
 - Check dummy byte requirements for Fast Read
 - Try using standard Read (0x03) instead of Fast Read (0x0B)
@@ -1087,7 +1126,7 @@ printf("Read speed: %.2f MB/s\n", read_speed);
 ### Datasheets and Technical Documents
 
 1. **RP2350 Datasheet**
-   - https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+   - <https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf>
    - Chapter: QMI (QSPI Memory Interface)
    - Section: Direct Mode and Memory Windows
 
@@ -1127,7 +1166,7 @@ Located in `$PICO_SDK_PATH/src/`:
    - Search for "QMI" or "PSRAM" discussions
 
 2. **Pico SDK GitHub**
-   - https://github.com/raspberrypi/pico-sdk
+   - <https://github.com/raspberrypi/pico-sdk>
    - Issues and discussions about QMI usage
 
 ### Related Documentation
@@ -1166,12 +1205,14 @@ This plan provides a complete roadmap for implementing PSRAM support on the RP23
 5. **Test incrementally** from basic connectivity to full memory tests
 
 By following this plan, you'll have a working PSRAM implementation that:
+
 - ✅ Properly interfaces with the QMI peripheral
 - ✅ Supports 8MB of external PSRAM
 - ✅ Provides reliable read/write operations
 - ✅ Can be optimized later with XIP mode if needed
 
 **Next Steps:**
+
 1. Review this plan and understand the QMI architecture
 2. Implement the changes step-by-step in `src/psram.c`
 3. Test each phase before moving to the next

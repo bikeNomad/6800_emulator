@@ -4,9 +4,10 @@
 
 The MC6800 Emulator includes a browser-based control interface that provides a graphical alternative to the command-line USB interface. This single-file HTML application runs entirely in your browser and communicates with the emulator over USB using the WebSerial API.
 
-![Web Interface Screenshot](web-interface.png)
+![Web Interface Screenshot](web-interface/web-interface.png)
 
 **Key Features**:
+
 - No installation required - single HTML file
 - Real-time CPU status monitoring with auto-refresh
 - One-click CPU control (Run, Halt, Reset)
@@ -77,6 +78,7 @@ python3 -m http.server 8000
 4. Connection indicator turns green: **"Connected"**
 
 **Troubleshooting Connection**:
+
 - If no device appears, check USB cable connection
 - Verify emulator firmware is running (LED should be lit)
 - Try reconnecting USB cable
@@ -89,14 +91,17 @@ python3 -m http.server 8000
 Controls the WebSerial connection to the emulator.
 
 **Buttons**:
+
 - **Connect to Emulator** - Opens browser's serial port picker
 - **Disconnect** - Closes the connection (appears after connecting)
 
 **Status Indicator**:
+
 - **Connected** (green) - Active USB connection
 - **Disconnected** (red) - No connection
 
 **Usage**:
+
 ```
 1. Click "Connect to Emulator"
 2. Select emulator from browser dialog
@@ -109,11 +114,13 @@ Controls the WebSerial connection to the emulator.
 Direct control over CPU execution.
 
 **Buttons**:
+
 - **Run** - Start CPU execution from current PC
 - **Halt** - Stop CPU execution (auto-saves CMOS)
 - **Reset** - Reset CPU to initial state (auto-saves CMOS)
 
 **Equivalent USB Commands**:
+
 ```
 Run   → run
 Halt  → halt
@@ -121,6 +128,7 @@ Reset → reset
 ```
 
 **Typical Workflow**:
+
 ```
 1. Load ROM file
 2. Click "Reset" to initialize CPU
@@ -133,6 +141,7 @@ Reset → reset
 Real-time display of CPU state with configurable auto-refresh.
 
 **Status Display**:
+
 - **PC** - Program Counter (16-bit address)
 - **A, B** - Accumulators (8-bit registers)
 - **X** - Index Register (16-bit)
@@ -143,21 +152,25 @@ Real-time display of CPU state with configurable auto-refresh.
 - **Speed** - Execution speed vs real-time (e.g., "4.46x")
 
 **Auto-Refresh Controls**:
+
 - **Refresh Now** - Manual status update (instant)
 - **Auto-Refresh: ON/OFF** - Toggle automatic updates
 
 **Auto-Refresh Behavior**:
+
 - When **ON** and CPU is **running**: Updates every 1 second
 - When **ON** and CPU is **halted**: Pauses automatically (no updates)
 - When **OFF**: Only manual "Refresh Now" updates
 
 **Status Indicator Messages**:
+
 - "Updates every 1s when running" - Auto-refresh active, waiting for execution
 - "Paused (CPU halted)" - Auto-refresh on but CPU stopped
 - "Auto-refresh disabled" - Manual refresh only
 - "Not connected" - No USB connection
 
 **Example Display**:
+
 ```
 PC: $8EF06        A: $19         X: $F319       SP: $13E9
                   B: $00
@@ -166,6 +179,7 @@ CCR: $C0 [------]  Running: NO   Instructions: 13002922   Speed: 4.46x
 ```
 
 **CCR Flags**:
+
 - **H** - Half-carry
 - **I** - Interrupt mask
 - **N** - Negative
@@ -178,12 +192,14 @@ CCR: $C0 [------]  Running: NO   Instructions: 13002922   Speed: 4.46x
 Load programs into the emulator's ROM or CMOS memory.
 
 **File Format Support**:
+
 - **Intel HEX** (`.hex`) - Standard format, address included in file
 - **Binary** (`.bin`) - Raw bytes, requires start address
 
 **Upload Process**:
 
 **For Intel HEX Files**:
+
 ```
 1. Click "Choose File"
 2. Select .hex file
@@ -192,6 +208,7 @@ Load programs into the emulator's ROM or CMOS memory.
 ```
 
 **For Binary Files**:
+
 ```
 1. Click "Choose File"
 2. Select .bin file
@@ -216,6 +233,7 @@ Binary files with IC numbers in the filename are automatically mapped:
 | `IC17.bin` | IC17 | $7000 | 2KB |
 
 **Examples**:
+
 ```
 game_IC26.bin         → Auto-detects $5800
 sys7_IC20_v2.bin      → Auto-detects $6800
@@ -225,12 +243,14 @@ custom_rom.bin        → Manual address entry required
 **Manual Address Entry**:
 
 For binary files without IC numbers:
+
 - Enter address in hexadecimal (4 digits)
 - No `$` prefix needed
 - Example: `5000` for address $5000
 - Address is editable even when auto-detected
 
 **Upload Status Messages**:
+
 - "Uploading..." - Transfer in progress
 - "Upload successful!" - ROM loaded and verified
 - "Upload error: ..." - See error message for details
@@ -238,6 +258,7 @@ For binary files without IC numbers:
 **Behind the Scenes**:
 
 Binary files are automatically converted to Intel HEX format before upload:
+
 1. File read as binary data
 2. Split into 16-byte records
 3. Intel HEX records generated with checksums
@@ -250,6 +271,7 @@ Binary files are automatically converted to Intel HEX format before upload:
 Full command-line access for advanced operations.
 
 **Features**:
+
 - **Command Input** - Type any USB command
 - **Command History** - Use ↑/↓ arrow keys to navigate
 - **Auto-scroll** - Terminal scrolls to latest output
@@ -260,6 +282,7 @@ Full command-line access for advanced operations.
 All USB CDC commands are supported. See [USB Commands](USB-Commands.md) for complete reference.
 
 **Common Commands**:
+
 ```bash
 help              # Show command list
 status            # Display CPU status (same as panel)
@@ -273,6 +296,7 @@ cycletest         # Run cycle count test
 ```
 
 **Terminal Usage**:
+
 ```
 1. Type command in input box
 2. Press Enter to send
@@ -282,6 +306,7 @@ cycletest         # Run cycle count test
 ```
 
 **Tips**:
+
 - Terminal shows ALL emulator output, including:
   - Command responses
   - ROM upload progress
@@ -295,6 +320,7 @@ cycletest         # Run cycle count test
 ### Example 1: Load and Run Program
 
 **Intel HEX File**:
+
 ```
 1. Connect to emulator
 2. ROM Upload → Choose File → Select program.hex
@@ -306,6 +332,7 @@ cycletest         # Run cycle count test
 ```
 
 **Binary File (with IC number)**:
+
 ```
 1. Connect to emulator
 2. ROM Upload → Choose File → Select game_IC26.bin
@@ -317,6 +344,7 @@ cycletest         # Run cycle count test
 ```
 
 **Binary File (manual address)**:
+
 ```
 1. Connect to emulator
 2. ROM Upload → Choose File → Select custom.bin
@@ -387,6 +415,7 @@ cycletest         # Run cycle count test
 The interface uses the browser's WebSerial API to communicate directly with the emulator's USB CDC interface:
 
 **Connection Flow**:
+
 ```
 1. User clicks "Connect to Emulator"
 2. Browser shows navigator.serial.requestPort()
@@ -397,12 +426,14 @@ The interface uses the browser's WebSerial API to communicate directly with the 
 ```
 
 **Command Protocol**:
+
 - Commands sent as text with `\r\n` termination
 - Responses parsed line-by-line
 - Multi-line responses (status, read, dump) accumulated
 - Timeouts prevent hanging on errors
 
 **Data Flow**:
+
 ```
 JavaScript                    Emulator
     |                            |
@@ -422,6 +453,7 @@ JavaScript                    Emulator
 Binary files are converted in the browser before upload:
 
 **Conversion Algorithm**:
+
 ```javascript
 1. Read binary file as ArrayBuffer
 2. Convert to Uint8Array
@@ -437,6 +469,7 @@ Binary files are converted in the browser before upload:
 ```
 
 **Intel HEX Record Format**:
+
 ```
 :LLAAAATTDD...CC
  ||||||  |     |
@@ -448,6 +481,7 @@ Binary files are converted in the browser before upload:
 ```
 
 **Example Record**:
+
 ```
 :10580000AABBCCDD...checksum
  10      - 16 bytes of data
@@ -462,6 +496,7 @@ Binary files are converted in the browser before upload:
 Status updates are parsed from the emulator's `status` command output:
 
 **Parse Strategy**:
+
 ```javascript
 1. Send "status" command
 2. Accumulate response lines in buffer
@@ -521,22 +556,26 @@ emulator-control.html (1093 lines)
 ### Connection Issues
 
 **"WebSerial API not supported"**
+
 - Use Chrome, Edge, or Opera (latest version)
 - Firefox and Safari don't support WebSerial
 - Update browser to latest version
 
 **"User cancelled the requestDevice() chooser"**
+
 - You clicked "Cancel" in the device picker
 - Click "Connect to Emulator" again
 - Select the correct serial port
 
 **No device appears in picker**
+
 - Check USB cable connection
 - Verify emulator is powered and running
 - Try different USB port
 - Check Device Manager (Windows) or `ls /dev/tty.*` (macOS/Linux)
 
 **Connection drops randomly**
+
 - USB cable may be loose
 - Check for power issues
 - Try different USB cable
@@ -547,33 +586,39 @@ emulator-control.html (1093 lines)
 **"Upload timeout - flash write may have failed"**
 
 For Intel HEX files:
+
 - Verify HEX file format is valid
 - Check that addresses are in valid ROM range
 - File may be corrupted - try regenerating
 
 For Binary files:
+
 - Verify start address is correct
 - Check file isn't corrupted
 - Try uploading as Intel HEX instead
 
 **"Upload error: Timeout waiting for emulator to enter HEX mode"**
+
 - Emulator may be busy or unresponsive
 - Click "Halt" first, then retry upload
 - Try disconnecting and reconnecting
 - Power cycle the emulator
 
 **"ERROR: Failed to load EPROM"**
+
 - Check terminal for detailed error message
 - Verify memory configuration (terminal: `config`)
 - Addresses may be outside ROM range
 - Flash may be full or corrupted
 
 **IC number not detected**
+
 - Filename must contain "IC" followed by number
 - Examples: `game_IC26.bin`, `IC14.bin`, `sys7_IC20.bin`
 - If not detected, enter address manually
 
 **Address input not appearing**
+
 - Only appears for binary (`.bin`) files
 - Intel HEX files don't need start address
 - Check file extension is `.bin`
@@ -581,17 +626,20 @@ For Binary files:
 ### Status Issues
 
 **Status not updating**
+
 - Check "Auto-Refresh" is ON
 - Check "Connected" indicator is green
 - CPU must be running for updates
 - Click "Refresh Now" for manual update
 
 **Status shows old values**
+
 - Click "Refresh Now" for immediate update
 - Check terminal for error messages
 - Verify connection is active
 
 **"Paused (CPU halted)" but want updates**
+
 - Status won't auto-update when CPU is halted (by design)
 - Click "Refresh Now" for manual updates
 - Click "Run" to resume execution and auto-refresh
@@ -599,17 +647,20 @@ For Binary files:
 ### Terminal Issues
 
 **Commands not working**
+
 - Check terminal for error messages
 - Verify connection is active
 - See [USB Commands](USB-Commands.md) for correct syntax
 - Try simpler command first: `help`
 
 **Terminal output not visible**
+
 - Disable auto-refresh if status updates hide output
 - Terminal auto-scrolls to latest output
 - Scroll up to see earlier output
 
 **Can't see ROM upload messages**
+
 - Terminal shows all output including upload progress
 - Look for "EOF record detected, processing HEX data..."
 - Look for "OK: EPROM loaded successfully"
@@ -618,12 +669,14 @@ For Binary files:
 ### Performance Issues
 
 **Slow interface response**
+
 - Large ROM files take longer to upload
 - Status updates pause during uploads
 - Disable auto-refresh when not needed
 - Close other browser tabs to free memory
 
 **Upload takes long time**
+
 - Normal for large files (several seconds)
 - 4KB file: ~1-2 seconds
 - 32KB file: ~10-15 seconds
@@ -634,6 +687,7 @@ For Binary files:
 ### WebSerial Permissions
 
 The browser will ask for permission to access the serial port:
+
 - Permission is required only once per session
 - Permission is site-specific (file:// or localhost)
 - Clear site data to reset permissions
@@ -681,6 +735,7 @@ The web interface is open source and included in the project:
 **Location**: `web-interface/emulator-control.html`
 
 **Technology Stack**:
+
 - Pure HTML/CSS/JavaScript (no frameworks)
 - WebSerial API for USB communication
 - Single file for easy distribution
@@ -689,6 +744,7 @@ The web interface is open source and included in the project:
 **Customization**:
 
 You can modify the interface:
+
 ```javascript
 // Change auto-refresh interval (default: 1000ms)
 this.autoRefreshInterval = setInterval(..., 1000);

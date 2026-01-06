@@ -82,6 +82,41 @@ clean-images:
 format-code:
 	clang-format -i $(C_SOURCES)
 
+# Generate PDF documentation from all Markdown files in doc/
+doc-pdf: $(wildcard doc/*.md)
+	@echo "Generating documentation PDF..."
+	pandoc \
+		--pdf-engine=weasyprint \
+		--variable geometry:margin=1in \
+		--variable fontsize=10pt \
+		--variable colorlinks=true \
+		--variable linkcolor=blue \
+		--variable urlcolor=blue \
+		--variable toc=true \
+		--variable toc-depth=2 \
+		--variable title="MC6800 Emulator Documentation" \
+		--variable author="6800 Emulator Project" \
+		--css=doc/pdf-styles.css \
+		--resource-path=doc:. \
+		--reference-links \
+		doc/README.md \
+		doc/Getting-Started.md \
+		doc/Architecture.md \
+		doc/Memory-Map.md \
+		doc/Hardware-Connection.md \
+		doc/USB-Commands.md \
+		doc/Web-Interface.md \
+		doc/PIO-Bus-Cycles.md \
+		doc/SPI-Bus-Debug.md \
+		doc/States_and_Events.md \
+		doc/banking_plan.md \
+		doc/MC6809-Implementation-Plan.md \
+		doc/PSRAM-Implementation-Plan.md \
+		doc/README_bus_testing.md \
+		doc/schematic_review.md \
+		-o mc6800_emulator_docs.pdf
+	@echo "Documentation PDF generated: mc6800_emulator_docs.pdf"
+
 
 # Help target
 help:
@@ -91,6 +126,7 @@ help:
 	@echo "  build_ned_sys7 - Build only for BOARD_NED_SYS7"
 	@echo "  pico2        - Alias for build_pico2"
 	@echo "  ned_sys7     - Alias for build_ned_sys7"
+	@echo "  doc-pdf      - Generate PDF documentation from Markdown files"
 	@echo "  clean        - Remove all build directories and images"
 	@echo "  clean-images - Remove only images directory"
 	@echo "  help         - Show this help"
