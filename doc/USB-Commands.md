@@ -7,6 +7,7 @@ The MC6800 Emulator provides a comprehensive command-line interface via USB CDC 
 **💡 Prefer a graphical interface?** Check out the [Web Interface](Web-Interface.md) for a browser-based control panel with visual status display, one-click ROM uploads, and auto-refresh capabilities. The web interface uses these same USB commands under the hood.
 
 **This document** covers the raw USB CDC command protocol for:
+
 - Terminal/command-line users
 - Scripting and automation
 - Understanding the communication protocol
@@ -28,6 +29,7 @@ The MC6800 Emulator provides a comprehensive command-line interface via USB CDC 
 ### Connecting
 
 **macOS/Linux**:
+
 ```bash
 # Find device
 ls /dev/tty.usb*
@@ -37,15 +39,20 @@ screen /dev/tty.usbmodem14201
 
 # Or use minicom
 minicom -D /dev/tty.usbmodem14201
+
+# Or tio
+tio /dev/tty.usbmodem14201
 ```
 
 **Windows**:
+
 ```
 # Use PuTTY, TeraTerm, or Arduino Serial Monitor
 # Port: COM3, COM4, etc. (check Device Manager)
 ```
 
 **Arduino IDE**:
+
 1. Tools → Port → Select USB Serial Device
 2. Tools → Serial Monitor
 3. Set line ending to "Newline"
@@ -56,10 +63,10 @@ minicom -D /dev/tty.usbmodem14201
 |---------|------------|-------------|
 | `help` | none | Show command list |
 | `load` | (interactive) | Load Intel HEX file |
+| `end` | none | Exit HEX load mode |
 | `config` | none | Show memory configuration |
 | `config rom` | base size | Configure ROM region |
 | `config ram` | base size | Configure RAM region |
-| `cmos save` | none | Save CMOS to flash |
 | `cmos dump` | none | Display CMOS contents |
 | `read` | addr len | Read memory |
 | `write` | addr data... | Write memory |
@@ -67,8 +74,31 @@ minicom -D /dev/tty.usbmodem14201
 | `run` | none | Start CPU execution |
 | `halt` | none | Stop CPU execution |
 | `reset` | none | Reset CPU |
-| `cycletest` | none | Test instruction cycles |
-| `bootloader` | none | Enter bootloader mode |
+| `debug on` | none | Enable SPI debug output |
+| `debug off` | none | Disable SPI debug output |
+| `break` | addr | Set breakpoint |
+| `break clear` | [addr] | Clear breakpoint(s) |
+| `break list` | none | List breakpoints |
+| `reg pc` | value | Set program counter |
+| `reg a` | value | Set accumulator A |
+| `reg b` | value | Set accumulator B |
+| `reg x` | value | Set index register X |
+| `reg sp` | value | Set stack pointer |
+| `reg ccr` | value | Set condition code register |
+| `bus_read` | addr | Read byte from hardware bus |
+| `bus_write` | addr data | Write byte to hardware bus |
+| `bus_read_block` | addr len | Read block from hardware bus |
+| `bus_write_block` | addr data... | Write block to hardware bus |
+| `bus_info` | none | Show bus configuration |
+| `map show` | none | Show ROM mapping state |
+| `map clear` | none | Clear all ROM mapping |
+| `map program` | addr | Manually map ROM page |
+| `copy_roms` | none | Copy ROM data from bus to persistent storage |
+| `count print` | none | Print instruction execution counts and cycles |
+| `count reset` | none | Reset instruction execution counts |
+| `count on` | none | Enable instruction counting |
+| `count off` | none | Disable instruction counting |
+| `bootloader` | none | Enter UF2 bootloader |
 
 ## Command Details
 
@@ -77,19 +107,21 @@ minicom -D /dev/tty.usbmodem14201
 Show list of available commands.
 
 **Syntax**:
+
 ```
 help
 ```
 
 **Example**:
+
 ```
 > help
 MC6800 Emulator Commands:
   load                      - Load Intel HEX (auto-detects ROM/CMOS)
+  end                       - Exit HEX load mode
   config                    - Show memory configuration
   config rom <b> <s>        - Configure ROM region
   config ram <b> <s>        - Configure RAM region
-  cmos save                 - Manually save CMOS to flash
   cmos dump                 - Display CMOS RAM contents
   read <addr> <len>         - Read memory
   write <addr> <data>       - Write memory
@@ -97,7 +129,30 @@ MC6800 Emulator Commands:
   run                       - Start CPU execution
   halt                      - Stop CPU execution (auto-saves CMOS)
   reset                     - Reset CPU (auto-saves CMOS)
-  cycletest                 - Test instruction cycle counts
+  debug on/off              - Enable/disable SPI debug output
+  break <addr>              - Set breakpoint at address
+  break clear               - Clear all breakpoints
+  break clear <addr>        - Clear specific breakpoint
+  break list                - List all breakpoints
+  reg pc <val>              - Set program counter
+  reg a <val>               - Set accumulator A
+  reg b <val>               - Set accumulator B
+  reg x <val>               - Set index register X
+  reg sp <val>              - Set stack pointer
+  reg ccr <val>             - Set condition code register
+  bus_read <addr>           - Read byte from hardware bus
+  bus_write <addr> <data>   - Write byte to hardware bus
+  bus_read_block <addr> <len> - Read block from hardware bus
+  bus_write_block <addr> <data...> - Write block to hardware bus
+  bus_info                  - Show bus configuration
+  map show                  - Show ROM mapping state
+  map clear                 - Clear all ROM mapping
+  map program <addr>        - Manually map ROM page
+  copy_roms                 - Copy ROM data from bus to persistent storage
+  count print               - Print instruction execution counts
+  count reset               - Reset instruction execution counts
+  count on                  - Enable instruction counting
+  count off                 - Disable instruction counting
   bootloader                - Enter bootloader mode
   help                      - Show this help
 ```
@@ -106,7 +161,10 @@ MC6800 Emulator Commands:
 
 Load Intel HEX file (ROM or CMOS). The emulator automatically detects the data type based on addresses in the HEX file.
 
+(Note that echo is turned off during the load)
+
 **Syntax**:
+
 ```
 load
 [paste Intel HEX data]
@@ -114,10 +172,15 @@ load
 ```
 
 **Address Detection**:
-- Addresses `$5000-$7FFF` → ROM (flash at 0x100000)
-- Addresses `$0100-$01FF` → CMOS (flash at 0x108000)
+
+- Addresses `$5000-$7FFF` (or `$D000-$FFFF`) → ROM
+- Addresses `$0100-$01FF` (or `$8100-$81FF`) → CMOS
 
 **Example**:
+
+Note that echo is turned off during the load;
+the hex data is shown here for clarity.
+
 ```
 > load
 Ready to receive Intel HEX data. Paste file now...
@@ -136,29 +199,62 @@ OK: EPROM loaded successfully
 ```
 
 **Notes**:
+
 - Paste entire HEX file at once (most terminals support this)
 - EOF record (`:00000001FF`) ends loading automatically
 - Checksums are verified
 - Flash is automatically programmed and verified
 
 **Common Errors**:
+
 ```
 ERROR: Failed to load EPROM
 ```
+
 - Check HEX file format
 - Verify addresses are in valid range
 - Ensure sufficient flash space
+
+### end
+
+Exit HEX load mode and process any accumulated data.
+
+**Syntax**:
+
+```
+end
+```
+
+**Example**:
+
+```
+> load
+Ready to receive Intel HEX data. Paste file now...
+:1050000086424EFFFFFFFF7E500097107E502E20D2
+:00000001FF
+end
+Processing HEX data...
+OK: EPROM loaded successfully
+```
+
+**Notes**:
+
+- Used to manually exit HEX load mode when EOF record is not present
+- Automatically called when Intel HEX EOF record (`:00000001FF`) is detected
+- Processes any data accumulated during HEX load mode
 
 ### config
 
 Display current memory configuration.
 
 **Syntax**:
+
 ```
 config
 ```
 
 **Example**:
+
 ```
 > config
 Memory Configuration:
@@ -167,6 +263,7 @@ Memory Configuration:
   RAM mirroring: $0000-$00FF <-> $1000-$10FF
   CMOS RAM: $0100-$01FF (persistent in flash)
   Unmapped addresses route to physical bus
+  Debug SPI: OFF
 ```
 
 ### config rom
@@ -174,15 +271,18 @@ Memory Configuration:
 Configure ROM base address and size.
 
 **Syntax**:
+
 ```
 config rom <base_hex> <size_hex>
 ```
 
 **Parameters**:
+
 - `base_hex`: Base address in hexadecimal (without $ or 0x)
 - `size_hex`: Size in hexadecimal bytes
 
 **Example**:
+
 ```
 > config rom E000 2000
 ROM configured: $E000-$FFFF (8192 bytes)
@@ -190,11 +290,13 @@ OK: ROM configured at $E000, size $2000
 ```
 
 **Limits**:
+
 - Maximum ROM size: 32KB (0x8000)
 - Base + size must not exceed 0xFFFF
 - Changes take effect immediately
 
 **Common Configurations**:
+
 ```
 config rom 5000 3000    # 12KB at $5000 (default)
 config rom E000 2000    # 8KB at $E000
@@ -207,15 +309,18 @@ config rom 8000 8000    # 32KB at $8000 (max)
 Configure RAM base address and size.
 
 **Syntax**:
+
 ```
 config ram <base_hex> <size_hex>
 ```
 
 **Parameters**:
+
 - `base_hex`: Base address in hexadecimal
 - `size_hex`: Size in hexadecimal bytes
 
 **Example**:
+
 ```
 > config ram 0000 0800
 RAM configured: $0000-$07FF (2048 bytes)
@@ -223,11 +328,13 @@ OK: RAM configured at $0000, size $0800
 ```
 
 **Limits**:
+
 - Maximum RAM size: 8KB (0x2000)
 - RAM is cleared when reconfigured
-- CMOS region ($0100-$01FF) is always persistent
+- CMOS region ($0100-$01FF) is always persistent (copy on write uses target's CMOS RAM for persistence)
 
 **Common Configurations**:
+
 ```
 config ram 0000 1400    # 5KB at $0000 (default)
 config ram 0000 2000    # 8KB at $0000 (maximum)
@@ -235,41 +342,18 @@ config ram 0000 0400    # 1KB at $0000 (minimal)
 config ram 8000 1000    # 4KB at $8000 (non-standard)
 ```
 
-### cmos save
-
-Manually save CMOS RAM to flash. Normally not needed as CMOS auto-saves on halt/reset or after 30 seconds idle.
-
-**Syntax**:
-```
-cmos save
-```
-
-**Example**:
-```
-> cmos save
-Saving CMOS RAM to flash...
-Flash programming complete
-Flash verification OK
-CMOS saved successfully
-OK: CMOS saved to flash
-```
-
-**When to Use**:
-- Before power-off (extra safety)
-- After critical configuration changes
-- Testing CMOS persistence
-- Manual backup
-
 ### cmos dump
 
 Display complete CMOS RAM contents in hexadecimal.
 
 **Syntax**:
+
 ```
 cmos dump
 ```
 
 **Example**:
+
 ```
 > cmos dump
 CMOS RAM ($0100-$01FF):
@@ -292,24 +376,30 @@ CMOS RAM ($0100-$01FF):
 ```
 
 **Format**:
+
 - 16 bytes per line
 - Address shown at start of each line
 - Values in hexadecimal
 
 ### read
 
-Read memory contents in hexadecimal.
+Read memory contents in hexadecimal. This will display
+mapped ROM/RAM from the MCU's RAM, and unmapped areas
+will be read directly from the bus.
 
 **Syntax**:
+
 ```
 read <addr_hex> <len_hex>
 ```
 
 **Parameters**:
+
 - `addr_hex`: Starting address in hexadecimal
 - `len_hex`: Number of bytes to read in hexadecimal
 
 **Example**:
+
 ```
 > read 5000 40
 Reading $0040 bytes from $5000:
@@ -320,6 +410,7 @@ Reading $0040 bytes from $5000:
 ```
 
 **Format**:
+
 - 16 bytes per line
 - Address shown at start of each line
 - Values in hexadecimal
@@ -327,6 +418,7 @@ Reading $0040 bytes from $5000:
 **Maximum Length**: 256 bytes per command
 
 **Common Uses**:
+
 ```
 read 0000 100    # Read first 256 bytes of RAM
 read 5000 100    # Read first 256 bytes of ROM
@@ -339,15 +431,18 @@ read 7FF8 8      # Read interrupt vectors
 Write data to memory.
 
 **Syntax**:
+
 ```
 write <addr_hex> <byte1_hex> [byte2_hex] ...
 ```
 
 **Parameters**:
+
 - `addr_hex`: Starting address in hexadecimal
 - `byteN_hex`: Data bytes in hexadecimal (space-separated)
 
 **Example**:
+
 ```
 > write 0100 DE AD BE EF
 OK
@@ -360,12 +455,14 @@ OK
 ```
 
 **Notes**:
+
 - Writes to ROM are ignored (no error)
-- Writes to CMOS ($0100-$01FF) trigger auto-save
+- Writes to CMOS ($0100-$01FF) are written through to the target CMOS RAM.
 - Can write multiple bytes in one command
-- Values wrap at byte boundary (e.g., 100 → 00)
+- Values are truncated to 8 bits
 
 **Common Uses**:
+
 ```
 write 0100 42 55 AA FF    # Write config to CMOS
 write 0010 00             # Clear a RAM location
@@ -377,15 +474,18 @@ write 2100 FF             # Write to PIA (if connected)
 Display current CPU state.
 
 **Syntax**:
+
 ```
 status
 ```
 
 **Example**:
+
 ```
 > status
+Emulator State: RUNNING
 CPU Status:
-  PC: $5000
+  PC: $F000 (SEI (INH))
   A:  $42
   B:  $55
   X:  $0100
@@ -394,9 +494,18 @@ CPU Status:
   Running: YES
   Halted: NO
   Instructions: 12345
+  Cycle Count: 98765
+  PIO Cycles: 100000
+  Overage: 0
+  Underage: 1235
+  Speed ratio: 1.75x
+  Speed: 0.9999x real-time
+  QSPI Bus: 133 MHz (divisor: 2)
+  E Clock is stopped
 ```
 
 **CCR Flags**:
+
 - `H`: Half-carry
 - `I`: Interrupt mask
 - `N`: Negative
@@ -405,6 +514,7 @@ CPU Status:
 - `C`: Carry
 
 **Running States**:
+
 - **Running: YES, Halted: NO**: Normal execution
 - **Running: NO, Halted: YES**: Stopped (use `run` to resume)
 - **Running: NO, Halted: NO**: Reset but not started
@@ -414,23 +524,27 @@ CPU Status:
 Start CPU execution.
 
 **Syntax**:
+
 ```
 run
 ```
 
 **Example**:
+
 ```
 > run
 OK: CPU started
 ```
 
 **Notes**:
+
 - CPU must be halted before running
 - If CPU was reset, starts from reset vector
 - If CPU was halted, resumes from current PC
 - No output while running (use `status` after `halt`)
 
 **Typical Sequence**:
+
 ```
 > reset
 OK: CMOS saved, CPU reset
@@ -454,17 +568,20 @@ CPU Status:
 Stop CPU execution.
 
 **Syntax**:
+
 ```
 halt
 ```
 
 **Example**:
+
 ```
 > halt
 OK: CPU halted, CMOS saved
 ```
 
 **Notes**:
+
 - Automatically saves CMOS to flash
 - CPU state preserved (PC, registers)
 - Use `run` to resume execution
@@ -475,26 +592,29 @@ OK: CPU halted, CMOS saved
 Reset CPU to initial state.
 
 **Syntax**:
+
 ```
 reset
 ```
 
 **Example**:
+
 ```
 > reset
 OK: CMOS saved, CPU reset
 ```
 
 **Reset Actions**:
-1. Save CMOS to flash
-2. Clear all registers (A=0, B=0, X=0)
-3. Set SP to 0x0000
-4. Set CCR to 0xC4 (I flag set)
-5. Read reset vector from $FFFE-$FFFF
-6. Load PC with vector value
-7. Set CPU to halted state
+
+1. Clear all registers (A=0, B=0, X=0)
+2. Set SP to 0x0000
+3. Set CCR to 0xC4 (I flag set)
+4. Read reset vector from $FFFE-$FFFF
+5. Load PC with vector value
+6. Set CPU to halted state
 
 **After Reset**:
+
 ```
 > status
 CPU Status:
@@ -510,71 +630,291 @@ CPU Status:
 
 **Note**: CPU is halted after reset. Use `run` to start execution.
 
-### cycletest
+### debug on
 
-Test cycle-accurate execution of all implemented instructions.
+Enable SPI debug output for debugging bus transactions.
 
 **Syntax**:
+
 ```
-cycletest
-```
-
-**Example** (partial output):
-```
-> cycletest
-Running cycle count test...
-
-========================================
-MC6800 Instruction Cycle Count Test
-========================================
-
-Format: $XX MNEMONIC : N cycles
-
-$01 NOP      : 2 cycles
-$02 NOP      : 2 cycles
-$04 NOP      : 2 cycles
-$05 NOP      : 2 cycles
-$06 TAP      : 2 cycles
-$07 TPA      : 2 cycles
-$08 INX      : 4 cycles
-$09 DEX      : 4 cycles
-$0A CLV      : 2 cycles
-$0B SEV      : 2 cycles
-$0C CLC      : 2 cycles
-$0D SEC      : 2 cycles
-$0E CLI      : 2 cycles
-$0F SEI      : 2 cycles
-$10 SBA      : 2 cycles
-...
-$86 LDAA#    : 2 cycles
-$96 LDAA     : 3 cycles
-$A6 LDAA,X   : 5 cycles
-$B6 LDAA     : 4 cycles
-...
-
-========================================
-Test Complete
-========================================
-
-Cycle test complete.
+debug on
 ```
 
-**Purpose**:
-- Verify cycle-accurate emulation
-- Test all implemented instructions
-- Compare against MC6800 datasheet
-- Useful for debugging timing issues
+**Example**:
+
+```
+> debug on
+OK: Debug SPI enabled
+```
+
+**Notes**:
+
+- Enables detailed SPI output showing bus transactions
+- Useful for debugging hardware interface issues
+- May impact performance when enabled
+
+### debug off
+
+Disable SPI debug output.
+
+**Syntax**:
+
+```
+debug off
+```
+
+**Example**:
+
+```
+> debug off
+OK: Debug SPI disabled
+```
+
+**Notes**:
+
+- Disables SPI debug output to improve performance
+- Debug output is disabled by default
+
+### break
+
+Set a breakpoint at the specified address.
+
+**Syntax**:
+
+```
+break <addr_hex>
+```
+
+**Parameters**:
+
+- `addr_hex`: Address in hexadecimal where breakpoint should be set
+
+**Example**:
+
+```
+> break 5000
+OK: Breakpoint set at $5000
+
+> break F000
+ERROR: Failed to set breakpoint at $F000 (max 8 breakpoints)
+```
+
+**Notes**:
+
+- Maximum of 8 breakpoints supported
+- CPU will halt when PC reaches the breakpoint address
+- Use `break list` to see all active breakpoints
+
+### break clear
+
+Clear breakpoint(s).
+
+**Syntax**:
+
+```
+break clear [<addr_hex>]
+```
+
+**Parameters**:
+
+- `addr_hex` (optional): Specific address to clear. If omitted, clears all breakpoints.
+
+**Examples**:
+
+```
+> break clear 5000
+OK: Breakpoint at $5000 cleared
+
+> break clear
+OK: All breakpoints cleared
+```
+
+### break list
+
+List all currently set breakpoints.
+
+**Syntax**:
+
+```
+break list
+```
+
+**Example**:
+
+```
+> break list
+Breakpoints:
+  $5000
+  $6000
+  $7000
+```
+
+**Notes**:
+
+- Shows all active breakpoints
+- Displays "No breakpoints set" if none are active
+
+### reg pc
+
+Set the program counter register.
+
+**Syntax**:
+
+```
+reg pc <value_hex>
+```
+
+**Parameters**:
+
+- `value_hex`: New value for PC in hexadecimal
+
+**Example**:
+
+```
+> reg pc 5000
+OK: PC set to $5000
+```
+
+**Notes**:
+
+- Changes take effect immediately
+- Use with caution when CPU is running
+
+### reg a
+
+Set accumulator A register.
+
+**Syntax**:
+
+```
+reg a <value_hex>
+```
+
+**Parameters**:
+
+- `value_hex`: New value for accumulator A (8-bit, 0x00-0xFF)
+
+**Example**:
+
+```
+> reg a 42
+OK: A set to $42
+```
+
+### reg b
+
+Set accumulator B register.
+
+**Syntax**:
+
+```
+reg b <value_hex>
+```
+
+**Parameters**:
+
+- `value_hex`: New value for accumulator B (8-bit, 0x00-0xFF)
+
+**Example**:
+
+```
+> reg b 55
+OK: B set to $55
+```
+
+### reg x
+
+Set index register X.
+
+**Syntax**:
+
+```
+reg x <value_hex>
+```
+
+**Parameters**:
+
+- `value_hex`: New value for index register X (16-bit)
+
+**Example**:
+
+```
+> reg x 0100
+OK: X set to $0100
+```
+
+### reg sp
+
+Set stack pointer register.
+
+**Syntax**:
+
+```
+reg sp <value_hex>
+```
+
+**Parameters**:
+
+- `value_hex`: New value for stack pointer (16-bit)
+
+**Example**:
+
+```
+> reg sp 01FE
+OK: SP set to $01FE
+```
+
+**Notes**:
+
+- Be careful when changing SP as it affects stack operations
+- Typical stack range is $0100-$01FF for CMOS systems
+
+### reg ccr
+
+Set condition code register.
+
+**Syntax**:
+
+```
+reg ccr <value_hex>
+```
+
+**Parameters**:
+
+- `value_hex`: New value for condition code register (8-bit)
+
+**Example**:
+
+```
+> reg ccr C0
+OK: CCR set to $C0
+```
+
+**CCR Flags**:
+
+- Bit 7: Always 1 (fixed)
+- Bit 6: Always 0 (fixed)
+- Bit 5: Half-carry (H)
+- Bit 4: Interrupt mask (I)
+- Bit 3: Negative (N)
+- Bit 2: Zero (Z)
+- Bit 1: Overflow (V)
+- Bit 0: Carry (C)
 
 ### bootloader
 
 Enter RP2350 bootloader mode for firmware updates.
+This will make a USB MSC drive available named `RP2350`.
+Just drop a `.uf2` file in that drive to update the firmware.
 
 **Syntax**:
+
 ```
 bootloader
 ```
 
 **Example**:
+
 ```
 > bootloader
 Entering bootloader mode...
@@ -582,16 +922,19 @@ Entering bootloader mode...
 ```
 
 **What Happens**:
+
 1. Emulator enters BOOTSEL mode
 2. USB disconnects
-3. Pico appears as "RPI-RP2" mass storage device
+3. Board appears as "RP2350" mass storage device
 4. Drag `.uf2` file to update firmware
 
 **To Exit Bootloader**:
-- Power cycle the Pico
+
+- Power cycle the board
+- Or press the board's `RESET` button
 - Or flash new firmware (auto-resets)
 
-**Warning**: This command is irreversible without power cycle!
+**Warning**: This command is irreversible without a power cycle or RESET!
 
 ## Command Line Editing
 
@@ -613,7 +956,7 @@ Not currently implemented. Each command must be typed fresh.
 ### Initial Setup Script
 
 ```bash
-# Configure memory
+# Configure memory (not necessary if these defaults are OK)
 config rom 5000 3000
 config ram 0000 1400
 
@@ -656,9 +999,6 @@ write 0100 DE AD BE EF
 # Verify write
 read 0100 4
 
-# Save to flash
-cmos save
-
 # Simulate power cycle (reset)
 reset
 
@@ -698,6 +1038,7 @@ run
 ### Debug Strategies
 
 1. **Command Not Working**:
+
    ```
    > help           # Verify command syntax
    > config         # Check current configuration
@@ -705,6 +1046,7 @@ run
    ```
 
 2. **Memory Access Issues**:
+
    ```
    > config         # Verify memory map
    > read [addr] 1  # Test single byte read
@@ -713,6 +1055,7 @@ run
    ```
 
 3. **Program Not Running**:
+
    ```
    > halt           # Stop execution
    > read 7FF8 8    # Check vectors
@@ -723,16 +1066,10 @@ run
 
 ## Tips and Tricks
 
-### Quick Reset
-
-```
-reset;run
-```
-(Not currently supported - use separate commands)
-
 ### Memory Dump to File
 
 **macOS/Linux**:
+
 ```bash
 screen -L /dev/tty.usbmodem14201
 [Type commands]
