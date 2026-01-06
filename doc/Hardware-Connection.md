@@ -21,7 +21,9 @@ This guide covers the physical connections required to interface the MC6800 Emul
 
 **Features**:
 
-- A0-A15 connect to GPIO 8-23 (standard contiguous mapping)
+- A0-A15 connect to GPIO 8-23 (contiguous mapping)
+- LED indicators for memory access visualization
+- PSRAM interface support
 - Full system replacement capability
 - Complete memory addressing
 - Suitable for CPU drop-in replacement
@@ -134,7 +136,7 @@ and TXU0104 quad level shifters for the control signals.
 
 ```c
 // All memory in emulator
-ROM:  0x5000-0x7FFF (flash)
+ROM:  0x4000-0x7FFF (flash)
 RAM:  0x0000-0x13FF (shadow)
 CMOS: 0x0100-0x01FF (flash)
 ```
@@ -188,7 +190,7 @@ CS0  = VCC (always enabled)
 
 ```
 # Via USB command
-config rom 5000 3000
+config rom 4000 4000
 config ram 0000 1400
 
 # PIA will respond at $2100-$2103 on physical bus
@@ -350,14 +352,14 @@ run
 **Expected Output**:
 
 ```
-Memory initialized: ROM=$5000-$7FFF RAM=$0000-$13FF
-  ROM aliasing: A15 not decoded, $5000-$7FFF aliases at $D000-$FFFF
+Memory initialized: ROM=$4000-$7FFF RAM=$0000-$13FF
+  ROM aliasing: A15 not decoded, $4000-$7FFF aliases at $C000-$FFFF
   Vectors at $FFF8-$FFFF access physical $7FF8-$7FFF
   RAM mirroring: $0000-$00FF mirrored at $1000-$10FF
   CMOS RAM: $0100-$01FF (persistent in flash)
   Unmapped addresses route to physical bus
 
-Reset vector: $5000
+Reset vector: $4000
 CPU started
 ```
 
