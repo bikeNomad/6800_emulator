@@ -884,6 +884,45 @@ static void cmd_map_program(void) {
     }
 }
 
+static void cmd_checksum(void) {
+    // Checksum: checksum <addr> <len>
+    // Expects tokens: [checksum] <addr> <len>
+    if (cmd_token_count < 2) {
+        usb_cdc_send("ERROR: Usage: checksum <addr_hex> <len_hex>\r\n");
+        return;
+    }
+
+    unsigned int addr, len;
+    if (sscanf(cmd_tokens[0], "%x", &addr) != 1 || sscanf(cmd_tokens[1], "%x", &len) != 1) {
+        usb_cdc_send("ERROR: Usage: checksum <addr_hex> <len_hex>\r\n");
+        return;
+    }
+
+    if (addr > MAX_ADDRESS) {
+        usb_cdc_send("ERROR: Address out of range\r\n");
+    } else if (len == 0 || len > 65535) {
+        usb_cdc_send("ERROR: Length must be 1-65535\r\n");
+    } else if (addr + len > MAX_ADDRESS + 1) {
+        usb_cdc_send("ERROR: Block exceeds address space\r\n");
+    } else {
+        if (pause_emulator() == false) {
+            return;
+        }
+
+        // Compute checksum (modulo 64k sum of bytes)
+        uint32_t sum = 0;
+        for (uint32_t i = 0; i < len; i++) {
+            uint8_t value = memory_read_fast(addr + i);
+            sum += value;
+        }
+        uint16_t checksum = sum & 0xFFFF;  // Modulo 64k
+
+        usb_cdc_printf("Checksum of $%04X bytes from $%04X: $%04X\r\n", len, addr, checksum);
+
+        resume_emulator();
+    }
+}
+
 static void cmd_copy_roms(void) {
     // Copy ROMs: scan ROM address range and copy non-0xFF pages to persistent storage
     usb_cdc_send("Scanning ROM address range for valid data...\r\n");
@@ -960,6 +999,7 @@ static void cmd_help(void) {
                  "  config rom <b> <s>        - Configure ROM region\r\n"
                  "  config ram <b> <s>        - Configure RAM region\r\n"
                  "  cmos dump                 - Display CMOS RAM contents\r\n"
+                 "  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
                  "  read <addr> <len>         - Read memory\r\n"
                  "  write <addr> <data>       - Write memory\r\n"
                  "  status                    - Display CPU status\r\n"
@@ -1040,8 +1080,9 @@ static const command_entry_t command_table[] = {
     { "load", cmd_load, false },
     { "end", cmd_end, false },
     { "config", cmd_config_show, false },
-    { "read", cmd_read, true },    // needs <addr> <len>
-    { "write", cmd_write, true },  // needs <addr> <data...>
+    { "checksum", cmd_checksum, true },  // needs <addr> <len>
+    { "read", cmd_read, true },          // needs <addr> <len>
+    { "write", cmd_write, true },        // needs <addr> <data...>
     { "status", cmd_status, false },
     { "run", cmd_run, false },
     { "halt", cmd_halt, false },

@@ -68,6 +68,7 @@ tio /dev/tty.usbmodem14201
 | `config rom` | base size | Configure ROM region |
 | `config ram` | base size | Configure RAM region |
 | `cmos dump` | none | Display CMOS contents |
+| `checksum` | addr len | Calculate checksum of memory range |
 | `read` | addr len | Read memory |
 | `write` | addr data... | Write memory |
 | `status` | none | Display CPU status |
@@ -380,6 +381,49 @@ CMOS RAM ($0100-$01FF):
 - 16 bytes per line
 - Address shown at start of each line
 - Values in hexadecimal
+
+### checksum
+
+Calculate checksum of a memory range. Computes the sum of all bytes in the specified range and returns the result modulo 64k (0-65535).
+
+**Syntax**:
+
+```
+checksum <addr_hex> <len_hex>
+```
+
+**Parameters**:
+
+- `addr_hex`: Starting address in hexadecimal
+- `len_hex`: Number of bytes to include in checksum (1-65535)
+
+**Example**:
+
+```
+> checksum 5000 100
+Checksum of $0100 bytes from $5000: $1234
+
+> checksum 0100 4
+Checksum of $0004 bytes from $0100: $01DE
+```
+
+**Notes**:
+
+- Checksum is calculated as: `sum = 0; for each byte: sum += byte; checksum = sum & 0xFFFF`
+- Useful for verifying data integrity or detecting memory corruption
+- Maximum range: 65535 bytes per command
+- Reads from mapped memory (ROM/RAM) or physical bus for unmapped addresses
+
+**Algorithm**:
+
+```c
+uint32_t sum = 0;
+for (uint32_t i = 0; i < length; i++) {
+    uint8_t value = memory_read_fast(address + i);
+    sum += value;
+}
+uint16_t checksum = sum & 0xFFFF;  // Modulo 64k
+```
 
 ### read
 
