@@ -593,6 +593,11 @@ void memory_clear_rom_mapping(void) {
     printf("All ROM pages unmapped\n");
 }
 
+// Clear ROM load buffer (for copy_roms command)
+void memory_clear_rom_load_buffer(void) {
+    memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
+}
+
 void memory_read_cmos_from_bus(void) {
     eclock_start();
     uint16_t address = mem_config.cmos_base;

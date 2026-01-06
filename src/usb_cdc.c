@@ -884,6 +884,74 @@ static void cmd_map_program(void) {
     }
 }
 
+static void cmd_copy_roms(void) {
+    // Copy ROMs: scan ROM address range and copy non-0xFF pages to persistent storage
+    usb_cdc_send("Scanning ROM address range for valid data...\r\n");
+
+    if (!pause_emulator()) {
+        usb_cdc_send("ERROR: Failed to pause emulator\r\n");
+        return;
+    }
+
+    // Clear ROM load buffer and mapping bitmap
+    memory_clear_rom_load_buffer();
+    memory_clear_rom_mapping();
+
+    uint16_t       pages_scanned = 0;
+    uint16_t       pages_copied = 0;
+    const uint16_t PAGE_SIZE = 256;  // 256 bytes per page
+
+    // Scan through each 256-byte page in ROM range
+    for (uint16_t page_addr = mem_config.rom_base;
+         page_addr < mem_config.rom_base + mem_config.rom_size;
+         page_addr += PAGE_SIZE) {
+
+        pages_scanned++;
+
+        // Read the entire 256-byte page from bus
+        uint8_t page_buffer[PAGE_SIZE];
+        bus_read_block_with_eclock(page_addr, PAGE_SIZE, page_buffer);
+
+        // Check if page contains any non-0xFF data
+        bool has_data = false;
+        for (uint16_t i = 0; i < PAGE_SIZE; i++) {
+            if (page_buffer[i] != 0xFF) {
+                has_data = true;
+                break;
+            }
+        }
+
+        if (has_data) {
+            // Load page data using memory_load_hex_data (handles address translation)
+            if (memory_load_hex_data(page_addr, page_buffer, PAGE_SIZE)) {
+                // Mark page as mapped
+                memory_set_rom_mapping(page_addr, true);
+                pages_copied++;
+                usb_cdc_printf("Copied page at $%04X\r\n", page_addr);
+            } else {
+                usb_cdc_printf("ERROR: Failed to load page at $%04X\r\n", page_addr);
+            }
+        }
+
+        // Progress update every 16 pages (4KB)
+        if ((pages_scanned % 16) == 0) {
+            usb_cdc_printf("Scanned %u pages, copied %u pages...\r\n", pages_scanned, pages_copied);
+        }
+    }
+
+    usb_cdc_send("Scan complete. Finalizing ROM load...\r\n");
+
+    // Finalize the load (write to flash and update mappings)
+    if (memory_finalize_load()) {
+        usb_cdc_printf("OK: ROM copy complete - %u pages scanned, %u pages copied\r\n",
+                       pages_scanned, pages_copied);
+    } else {
+        usb_cdc_send("ERROR: Failed to finalize ROM load\r\n");
+    }
+
+    resume_emulator();
+}
+
 static void cmd_help(void) {
     // Send as single string to avoid buffer overflow
     usb_cdc_send("MC6800 Emulator Commands:\r\n"
@@ -924,6 +992,7 @@ static void cmd_help(void) {
                  "  map show                  - Show ROM mapping state\r\n"
                  "  map clear                 - Clear all ROM mapping\r\n"
                  "  map program <addr>        - Manually map ROM page\r\n"
+                 "  copy_roms                 - Copy ROM data from bus to persistent storage\r\n"
                  "  bootloader                - Enter bootloader mode\r\n"
                  "  help                      - Show this help\r\n");
 }
@@ -989,6 +1058,7 @@ static const command_entry_t command_table[] = {
     { "map show", cmd_map_show, false },
     { "map clear", cmd_map_clear, false },
     { "map program", cmd_map_program, true },  // needs <addr>
+    { "copy_roms", cmd_copy_roms, false },
     { "help", cmd_help, false },
     { NULL, NULL, false }                      // Terminator
 };

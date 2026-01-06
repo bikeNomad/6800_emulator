@@ -88,6 +88,9 @@ bool memory_save_cmos(void);
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void);
 
+// Clear ROM load buffer (for copy_roms command)
+void memory_clear_rom_load_buffer(void);
+
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void);
 
