@@ -1,6 +1,7 @@
 from main_pio_test import (
     eclock_start,
     eclock_stop,
+    block_checksum,
     bus_read_block,
     bus_write_block,
     bus_read_cycle as bus_read_byte,
@@ -33,6 +34,26 @@ def detect_empty(address):
     block_data = bus_read_block(address, PAGE_SIZE)
     return _is_empty(block_data)
 
+def detect_sys3_7_cmos(address):
+    """Return True if a System 3-7 CMOS RAM is at the address.
+    This RAM reads 0xF in the high nybble and stores the low nybble."""
+    address &= PAGE_ADDRESS_MASK
+    block_data = bus_read_block(address, PAGE_SIZE)
+    # Check for CMOS pattern
+    for i in range(PAGE_SIZE):
+        if (block_data[i] & 0xF0) != 0xF0:
+            return False
+    # Write test data
+    bus_write_block(address, TEST_DATA)
+    # Read data back
+    block_data_readback = bus_read_block(address, len(TEST_DATA))
+    # Restore original data
+    bus_write_block(address, block_data)
+    # Check that low nybbles match
+    for i in range(len(TEST_DATA)):
+        if (block_data_readback[i] & 0x0F) != (TEST_DATA[i] & 0x0F):
+            return False
+    return True
 
 def detect_ram(address):
     """Return True if the given address range appears to be RAM"""
@@ -44,16 +65,16 @@ def detect_ram(address):
     block_data_readback = bus_read_block(address, len(TEST_DATA))
     # Restore original data
     bus_write_block(address, block_data)
-    return block_data == block_data_readback
+    return block_data_readback == TEST_DATA
 
 
 def detect_pia(address):
     """Return True if a 6820 or 6821 PIA is at the start of the given address range"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
-    # Check if rest of block is empty
-    if not _is_empty(block_data[4:]):
-        return False
+    # Check if block repeats the same 4 bytes
+    # if any(block_data[i] != block_data[i % 4] for i in range(PAGE_SIZE)):
+    #   return False
     # Save state in order to restore it later
     pra_ddra, cra, prb_ddrb, crb = block_data[PRA_OFFSET : PRA_OFFSET + 4]
     if cra & SELECT_PR_BIT:
@@ -132,7 +153,7 @@ def detect_pia(address):
     bus_write_byte(address + CRA_OFFSET, cra)
     bus_write_byte(address + CRB_OFFSET, crb)
 
-    if retval:
+    if False:
         print(
             f"cra={hex(cra)} crb={hex(crb)} pra={hex(pra)} prb={hex(prb)} ddra={hex(ddra)} ddrb={hex(ddrb)}"
         )
@@ -151,13 +172,15 @@ def initialize():
 
 def fingerprint(address):
     if detect_pia(address):
-        return "PIA"
+        return f"PIA {hex(address)}"
     elif detect_ram(address):
         return "RAM"
+    elif detect_sys3_7_cmos(address):
+        return "CMOS"
     elif detect_empty(address):
         return "EMPTY"
     else:
-        return "UNKNOWN"
+        return "ROM"
 
 
 def scan():
