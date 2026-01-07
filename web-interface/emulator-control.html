@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -225,10 +226,91 @@
       margin-bottom: 20px;
       border-left: 4px solid #dcdcaa;
     }
+
+    /* Modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-content {
+      background-color: #252526;
+      margin: 10% auto;
+      padding: 0;
+      border: 1px solid #404040;
+      border-radius: 4px;
+      width: 80%;
+      max-width: 600px;
+      color: #d4d4d4;
+    }
+
+    .modal-header {
+      padding: 15px 20px;
+      border-bottom: 1px solid #404040;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: 18px;
+      color: #4ec9b0;
+    }
+
+    .modal-close {
+      color: #d4d4d4;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: #f48771;
+    }
+
+    .modal-body {
+      padding: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .modal-body pre {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 3px;
+      border: 1px solid #404040;
+      margin: 0;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
   </style>
 </head>
+
 <body>
   <h1>MC6800 Emulator Control</h1>
+
+  <!-- Command Output Modal -->
+  <div id="command-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="modal-title" class="modal-title">Command Output</span>
+        <span id="modal-close" class="modal-close">&times;</span>
+      </div>
+      <div class="modal-body">
+        <pre id="command-output"></pre>
+      </div>
+    </div>
+  </div>
 
   <div id="browser-check" class="browser-warning" style="display:none;">
     ⚠️ WebSerial API not supported in this browser. Please use Chrome, Edge, or Opera.
@@ -254,7 +336,7 @@
   <div class="panel">
     <h2>CPU Status</h2>
     <button id="refresh-btn" disabled>Refresh Now</button>
-    <button id="auto-refresh-btn" disabled>Auto-Refresh: ON</button>
+    <button id="auto-refresh-btn" disabled>Auto-Refresh: OFF</button>
     <span style="font-size:12px; color:#808080; margin-left:10px;" id="refresh-status">Not connected</span>
     <div id="status-display">
       <div class="status-row">
@@ -291,8 +373,125 @@
       <div class="status-row">
         <span class="status-label">Speed:</span>
         <span class="status-value" id="speed">0.00x</span>
+        <span class="status-label" style="margin-left:20px;">Ratio:</span>
+        <span class="status-value" id="speed-ratio">0.00x</span>
       </div>
     </div>
+  </div>
+
+  <!-- Memory Configuration Panel -->
+  <div class="panel">
+    <h2>Memory Configuration</h2>
+    <button id="config-btn" disabled>Show Config</button>
+    <button id="cmos-dump-btn" disabled>Dump CMOS</button>
+    <div style="margin-top:10px;">
+      <label style="color:#9cdcfe;">ROM Region:</label>
+      <input type="text" id="rom-base" placeholder="E000" maxlength="4" style="width:60px; margin:0 5px;">
+      <input type="text" id="rom-size" placeholder="2000" maxlength="4" style="width:60px; margin:0 5px;">
+      <button id="config-rom-btn" disabled>Configure ROM</button>
+    </div>
+    <div style="margin-top:5px;">
+      <label style="color:#9cdcfe;">RAM Region:</label>
+      <input type="text" id="ram-base" placeholder="0000" maxlength="4" style="width:60px; margin:0 5px;">
+      <input type="text" id="ram-size" placeholder="8000" maxlength="4" style="width:60px; margin:0 5px;">
+      <button id="config-ram-btn" disabled>Configure RAM</button>
+    </div>
+    <div class="help-text">Configure memory regions (hex addresses, no $ prefix)</div>
+  </div>
+
+  <!-- Memory Operations Panel -->
+  <div class="panel">
+    <h2>Memory Operations</h2>
+    <div style="margin-bottom:10px;">
+      <label style="color:#9cdcfe;">Address:</label>
+      <input type="text" id="mem-addr" placeholder="0000" maxlength="4" style="width:80px; margin:0 5px;">
+      <label style="color:#9cdcfe;">Length:</label>
+      <input type="text" id="mem-len" placeholder="100" maxlength="4" style="width:60px; margin:0 5px;">
+      <button id="mem-read-btn" disabled>Read</button>
+      <button id="mem-checksum-btn" disabled>Checksum</button>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="color:#9cdcfe;">Write Data:</label>
+      <input type="text" id="mem-data" placeholder="00 01 02..." style="width:200px; margin:0 5px;">
+      <button id="mem-write-btn" disabled>Write</button>
+    </div>
+    <div class="help-text">Read/write memory and calculate checksums (hex values, no $ prefix)</div>
+  </div>
+
+  <!-- Debug Panel -->
+  <div class="panel">
+    <h2>Debug Control</h2>
+    <div style="margin-bottom:10px;">
+      <button id="debug-on-btn" disabled>Debug ON</button>
+      <button id="debug-off-btn" disabled>Debug OFF</button>
+      <button id="break-list-btn" disabled>List Breaks</button>
+      <button id="break-clear-all-btn" disabled>Clear All Breaks</button>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="color:#9cdcfe;">Breakpoint:</label>
+      <input type="text" id="break-addr" placeholder="E000" maxlength="4" style="width:80px; margin:0 5px;">
+      <button id="break-set-btn" disabled>Set Break</button>
+      <button id="break-clear-btn" disabled>Clear Break</button>
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="color:#9cdcfe;">Register:</label>
+      <select id="reg-select" style="margin:0 5px;">
+        <option value="pc">PC</option>
+        <option value="a">A</option>
+        <option value="b">B</option>
+        <option value="x">X</option>
+        <option value="sp">SP</option>
+        <option value="ccr">CCR</option>
+      </select>
+      <label style="color:#9cdcfe;">Value:</label>
+      <input type="text" id="reg-value" placeholder="0000" maxlength="4" style="width:80px; margin:0 5px;">
+      <button id="reg-set-btn" disabled>Set Register</button>
+    </div>
+    <div class="help-text">Manage breakpoints and CPU registers (hex values, no $ prefix)</div>
+  </div>
+
+  <!-- Bus Access Panel -->
+  <div class="panel">
+    <h2>Bus Access</h2>
+    <button id="bus-info-btn" disabled>Bus Info</button>
+    <div style="margin-top:10px;">
+      <label style="color:#9cdcfe;">Address:</label>
+      <input type="text" id="bus-addr" placeholder="0000" maxlength="4" style="width:80px; margin:0 5px;">
+      <label style="color:#9cdcfe;">Data:</label>
+      <input type="text" id="bus-data" placeholder="00" maxlength="2" style="width:50px; margin:0 5px;">
+      <button id="bus-read-btn" disabled>Read</button>
+      <button id="bus-write-btn" disabled>Write</button>
+    </div>
+    <div style="margin-top:5px;">
+      <label style="color:#9cdcfe;">Block Length:</label>
+      <input type="text" id="bus-len" placeholder="100" maxlength="4" style="width:60px; margin:0 5px;">
+      <button id="bus-read-block-btn" disabled>Read Block</button>
+      <button id="bus-write-block-btn" disabled>Write Block</button>
+    </div>
+    <div class="help-text">Direct access to hardware bus (hex values, no $ prefix)</div>
+  </div>
+
+  <!-- Advanced Panel -->
+  <div class="panel">
+    <h2>Advanced</h2>
+    <button id="copy-roms-btn" disabled>Copy ROMs</button>
+    <button id="bootloader-btn" class="danger" disabled>Bootloader</button>
+    <div style="margin-top:10px;">
+      <button id="map-show-btn" disabled>Show Map</button>
+      <button id="map-clear-btn" disabled>Clear Map</button>
+    </div>
+    <div style="margin-top:5px;">
+      <label style="color:#9cdcfe;">Map Address:</label>
+      <input type="text" id="map-addr" placeholder="E000" maxlength="4" style="width:80px; margin:0 5px;">
+      <button id="map-program-btn" disabled>Map Page</button>
+    </div>
+    <div style="margin-top:10px;" id="count-controls" style="display:none;">
+      <button id="count-print-btn" disabled>Print Counts</button>
+      <button id="count-reset-btn" disabled>Reset Counts</button>
+      <button id="count-on-btn" disabled>Count ON</button>
+      <button id="count-off-btn" disabled>Count OFF</button>
+    </div>
+    <div class="help-text">ROM operations, bootloader access, and memory mapping</div>
   </div>
 
   <!-- ROM Upload Panel -->
@@ -670,7 +869,7 @@
       parse(statusText) {
         const status = {};
 
-        // Extract fields using regex
+        // Extract fields using regex - updated for new format
         const pcMatch = statusText.match(/PC:\s*\$([0-9A-F]{4})/i);
         const aMatch = statusText.match(/A:\s*\$([0-9A-F]{2})/i);
         const bMatch = statusText.match(/B:\s*\$([0-9A-F]{2})/i);
@@ -679,7 +878,12 @@
         const ccrMatch = statusText.match(/CCR:\s*\$([0-9A-F]{2})\s*\[([^\]]+)\]/i);
         const runningMatch = statusText.match(/Running:\s*(YES|NO)/i);
         const instructionsMatch = statusText.match(/Instructions:\s*(\d+)/i);
-        const speedMatch = statusText.match(/Speed:\s*([\d.]+)x/i);
+        // Updated speed parsing for "Speed: 1.000000x real-time" format
+        const speedMatch = statusText.match(/Speed:\s*([\d.]+)x real-time/i);
+        // Speed ratio parsing
+        const speedRatioMatch = statusText.match(/Speed ratio:\s*([\d.]+)x/i);
+        // Emulator state parsing
+        const stateMatch = statusText.match(/Emulator State:\s*(\w+)/i);
 
         if (pcMatch) status.pc = '$' + pcMatch[1];
         if (aMatch) status.a = '$' + aMatch[1];
@@ -693,6 +897,8 @@
         if (runningMatch) status.running = runningMatch[1];
         if (instructionsMatch) status.instructions = instructionsMatch[1];
         if (speedMatch) status.speed = speedMatch[1] + 'x';
+        if (speedRatioMatch) status.speedRatio = speedRatioMatch[1] + 'x';
+        if (stateMatch) status.emulatorState = stateMatch[1];
 
         return status;
       }
@@ -707,7 +913,7 @@
         this.romLoader = new ROMLoader(this.connection);
         this.statusParser = new StatusParser();
         this.autoRefreshInterval = null;
-        this.autoRefreshEnabled = true;
+        this.autoRefreshEnabled = false;
         this.cpuRunning = false;
         this.commandHistory = [];
         this.historyIndex = -1;
@@ -748,9 +954,60 @@
         document.getElementById('refresh-btn').addEventListener('click', () => this.refreshStatus());
         document.getElementById('auto-refresh-btn').addEventListener('click', () => this.toggleAutoRefresh());
 
+        // Memory Configuration
+        document.getElementById('config-btn').addEventListener('click', () => this.onConfig());
+        document.getElementById('cmos-dump-btn').addEventListener('click', () => this.onCmosDump());
+        document.getElementById('config-rom-btn').addEventListener('click', () => this.onConfigRom());
+        document.getElementById('config-ram-btn').addEventListener('click', () => this.onConfigRam());
+
+        // Memory Operations
+        document.getElementById('mem-read-btn').addEventListener('click', () => this.onMemRead());
+        document.getElementById('mem-write-btn').addEventListener('click', () => this.onMemWrite());
+        document.getElementById('mem-checksum-btn').addEventListener('click', () => this.onMemChecksum());
+
+        // Debug Control
+        document.getElementById('debug-on-btn').addEventListener('click', () => this.sendCommand('debug on'));
+        document.getElementById('debug-off-btn').addEventListener('click', () => this.sendCommand('debug off'));
+        document.getElementById('break-set-btn').addEventListener('click', () => this.onBreakSet());
+        document.getElementById('break-clear-btn').addEventListener('click', () => this.onBreakClear());
+        document.getElementById('break-list-btn').addEventListener('click', () => this.sendCommand('break list'));
+        document.getElementById('break-clear-all-btn').addEventListener('click', () => this.sendCommand('break clear'));
+        document.getElementById('reg-set-btn').addEventListener('click', () => this.onRegSet());
+
+        // Bus Access
+        document.getElementById('bus-info-btn').addEventListener('click', () => this.sendCommand('bus_info'));
+        document.getElementById('bus-read-btn').addEventListener('click', () => this.onBusRead());
+        document.getElementById('bus-write-btn').addEventListener('click', () => this.onBusWrite());
+        document.getElementById('bus-read-block-btn').addEventListener('click', () => this.onBusReadBlock());
+        document.getElementById('bus-write-block-btn').addEventListener('click', () => this.onBusWriteBlock());
+
+        // Advanced
+        document.getElementById('copy-roms-btn').addEventListener('click', () => this.sendCommand('copy_roms'));
+        document.getElementById('bootloader-btn').addEventListener('click', () => this.sendCommand('bootloader'));
+        document.getElementById('map-show-btn').addEventListener('click', () => this.sendCommandWithModal('map show', 'Memory Map'));
+        document.getElementById('map-clear-btn').addEventListener('click', () => this.sendCommand('map clear'));
+        document.getElementById('map-program-btn').addEventListener('click', () => this.onMapProgram());
+
+        // Instruction counting (conditionally shown)
+        document.getElementById('count-print-btn').addEventListener('click', () => this.sendCommandWithModal('count print', 'Instruction Counts'));
+        document.getElementById('count-reset-btn').addEventListener('click', () => this.sendCommand('count reset'));
+        document.getElementById('count-on-btn').addEventListener('click', () => this.sendCommand('count on'));
+        document.getElementById('count-off-btn').addEventListener('click', () => this.sendCommand('count off'));
+
         // ROM Upload
         document.getElementById('rom-file').addEventListener('change', () => this.onFileSelected());
         document.getElementById('upload-btn').addEventListener('click', () => this.onUpload());
+
+        // Modal close handlers
+        document.getElementById('command-modal').addEventListener('click', (e) => {
+          if (e.target === document.getElementById('command-modal')) {
+            this.hideCommandModal();
+          }
+        });
+
+        document.getElementById('modal-close').addEventListener('click', () => {
+          this.hideCommandModal();
+        });
 
         // Terminal
         const terminalInput = document.getElementById('terminal-input');
@@ -785,6 +1042,9 @@
           document.getElementById('refresh-btn').disabled = false;
           document.getElementById('auto-refresh-btn').disabled = false;
 
+          // Enable new controls
+          this.enableAllControls(true);
+
           // Start auto-refresh
           this.startAutoRefresh();
 
@@ -816,8 +1076,307 @@
         document.getElementById('refresh-btn').disabled = true;
         document.getElementById('auto-refresh-btn').disabled = true;
 
+        // Disable new controls
+        this.enableAllControls(false);
+
         this.updateRefreshStatus();
         this.appendTerminal('Disconnected', 'response');
+      }
+
+      enableAllControls(enabled) {
+        // Memory Configuration
+        document.getElementById('config-btn').disabled = !enabled;
+        document.getElementById('cmos-dump-btn').disabled = !enabled;
+        document.getElementById('config-rom-btn').disabled = !enabled;
+        document.getElementById('config-ram-btn').disabled = !enabled;
+
+        // Memory Operations
+        document.getElementById('mem-read-btn').disabled = !enabled;
+        document.getElementById('mem-write-btn').disabled = !enabled;
+        document.getElementById('mem-checksum-btn').disabled = !enabled;
+
+        // Debug Control
+        document.getElementById('debug-on-btn').disabled = !enabled;
+        document.getElementById('debug-off-btn').disabled = !enabled;
+        document.getElementById('break-set-btn').disabled = !enabled;
+        document.getElementById('break-clear-btn').disabled = !enabled;
+        document.getElementById('break-list-btn').disabled = !enabled;
+        document.getElementById('break-clear-all-btn').disabled = !enabled;
+        document.getElementById('reg-set-btn').disabled = !enabled;
+
+        // Bus Access
+        document.getElementById('bus-info-btn').disabled = !enabled;
+        document.getElementById('bus-read-btn').disabled = !enabled;
+        document.getElementById('bus-write-btn').disabled = !enabled;
+        document.getElementById('bus-read-block-btn').disabled = !enabled;
+        document.getElementById('bus-write-block-btn').disabled = !enabled;
+
+        // Advanced
+        document.getElementById('copy-roms-btn').disabled = !enabled;
+        document.getElementById('bootloader-btn').disabled = !enabled;
+        document.getElementById('map-show-btn').disabled = !enabled;
+        document.getElementById('map-clear-btn').disabled = !enabled;
+        document.getElementById('map-program-btn').disabled = !enabled;
+
+        // Instruction counting (conditionally shown)
+        document.getElementById('count-print-btn').disabled = !enabled;
+        document.getElementById('count-reset-btn').disabled = !enabled;
+        document.getElementById('count-on-btn').disabled = !enabled;
+        document.getElementById('count-off-btn').disabled = !enabled;
+      }
+
+      // Helper method for simple commands
+      async sendCommand(cmd) {
+        try {
+          await this.connection.sendCommand(cmd);
+          this.appendTerminal('> ' + cmd, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      // Memory Configuration Handlers
+      async onConfig() {
+        await this.sendCommandWithModal('config', 'Memory Configuration');
+      }
+
+      async onCmosDump() {
+        await this.sendCommandWithModal('cmos dump', 'CMOS RAM Contents');
+      }
+
+      async onConfigRom() {
+        const baseInput = document.getElementById('rom-base');
+        const sizeInput = document.getElementById('rom-size');
+        const base = baseInput.value.trim();
+        const size = sizeInput.value.trim();
+
+        if (!base || !size) {
+          this.appendTerminal('Error: Both base address and size required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`config rom ${base} ${size}`);
+          this.appendTerminal(`> config rom ${base} ${size}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onConfigRam() {
+        const baseInput = document.getElementById('ram-base');
+        const sizeInput = document.getElementById('ram-size');
+        const base = baseInput.value.trim();
+        const size = sizeInput.value.trim();
+
+        if (!base || !size) {
+          this.appendTerminal('Error: Both base address and size required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`config ram ${base} ${size}`);
+          this.appendTerminal(`> config ram ${base} ${size}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      // Memory Operations Handlers
+      async onMemRead() {
+        const addrInput = document.getElementById('mem-addr');
+        const lenInput = document.getElementById('mem-len');
+        const addr = addrInput.value.trim();
+        const len = lenInput.value.trim();
+
+        if (!addr || !len) {
+          this.appendTerminal('Error: Both address and length required', 'error');
+          return;
+        }
+
+        await this.sendCommandWithModal(`read ${addr} ${len}`, `Memory Read: ${len} bytes from $${addr}`);
+      }
+
+      async onMemWrite() {
+        const addrInput = document.getElementById('mem-addr');
+        const dataInput = document.getElementById('mem-data');
+        const addr = addrInput.value.trim();
+        const data = dataInput.value.trim();
+
+        if (!addr || !data) {
+          this.appendTerminal('Error: Both address and data required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`write ${addr} ${data}`);
+          this.appendTerminal(`> write ${addr} ${data}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onMemChecksum() {
+        const addrInput = document.getElementById('mem-addr');
+        const lenInput = document.getElementById('mem-len');
+        const addr = addrInput.value.trim();
+        const len = lenInput.value.trim();
+
+        if (!addr || !len) {
+          this.appendTerminal('Error: Both address and length required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`checksum ${addr} ${len}`);
+          this.appendTerminal(`> checksum ${addr} ${len}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      // Debug Control Handlers
+      async onBreakSet() {
+        const addrInput = document.getElementById('break-addr');
+        const addr = addrInput.value.trim();
+
+        if (!addr) {
+          this.appendTerminal('Error: Breakpoint address required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`break ${addr}`);
+          this.appendTerminal(`> break ${addr}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onBreakClear() {
+        const addrInput = document.getElementById('break-addr');
+        const addr = addrInput.value.trim();
+
+        if (!addr) {
+          this.appendTerminal('Error: Breakpoint address required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`break clear ${addr}`);
+          this.appendTerminal(`> break clear ${addr}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onRegSet() {
+        const regSelect = document.getElementById('reg-select');
+        const valueInput = document.getElementById('reg-value');
+        const reg = regSelect.value;
+        const value = valueInput.value.trim();
+
+        if (!value) {
+          this.appendTerminal('Error: Register value required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`reg ${reg} ${value}`);
+          this.appendTerminal(`> reg ${reg} ${value}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      // Bus Access Handlers
+      async onBusRead() {
+        const addrInput = document.getElementById('bus-addr');
+        const addr = addrInput.value.trim();
+
+        if (!addr) {
+          this.appendTerminal('Error: Address required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`bus_read ${addr}`);
+          this.appendTerminal(`> bus_read ${addr}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onBusWrite() {
+        const addrInput = document.getElementById('bus-addr');
+        const dataInput = document.getElementById('bus-data');
+        const addr = addrInput.value.trim();
+        const data = dataInput.value.trim();
+
+        if (!addr || !data) {
+          this.appendTerminal('Error: Both address and data required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`bus_write ${addr} ${data}`);
+          this.appendTerminal(`> bus_write ${addr} ${data}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onBusReadBlock() {
+        const addrInput = document.getElementById('bus-addr');
+        const lenInput = document.getElementById('bus-len');
+        const addr = addrInput.value.trim();
+        const len = lenInput.value.trim();
+
+        if (!addr || !len) {
+          this.appendTerminal('Error: Both address and length required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`bus_read_block ${addr} ${len}`);
+          this.appendTerminal(`> bus_read_block ${addr} ${len}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
+      }
+
+      async onBusWriteBlock() {
+        const addrInput = document.getElementById('bus-addr');
+        const lenInput = document.getElementById('bus-len');
+        const addr = addrInput.value.trim();
+        const len = lenInput.value.trim();
+
+        if (!addr || !len) {
+          this.appendTerminal('Error: Both address and length required', 'error');
+          return;
+        }
+
+        // For block write, we'd need to collect data bytes, but for now just show the command structure
+        this.appendTerminal('Error: Block write data input not implemented yet', 'error');
+        // TODO: Implement block write data collection UI
+      }
+
+      // Advanced Handlers
+      async onMapProgram() {
+        const addrInput = document.getElementById('map-addr');
+        const addr = addrInput.value.trim();
+
+        if (!addr) {
+          this.appendTerminal('Error: Map address required', 'error');
+          return;
+        }
+
+        try {
+          await this.connection.sendCommand(`map program ${addr}`);
+          this.appendTerminal(`> map program ${addr}`, 'command');
+        } catch (error) {
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
       }
 
       async onRun() {
@@ -857,17 +1416,15 @@
           // Parse response after a short delay
           setTimeout(() => {
             // Get last few lines from terminal buffer
-            const recentLines = this.terminalBuffer.slice(-15).join('\n');
+            const recentLines = this.terminalBuffer.slice(-20).join('\n');
             const status = this.statusParser.parse(recentLines);
             this.updateStatusDisplay(status);
 
             // Update CPU running state
             this.cpuRunning = status.running === 'YES';
 
-            // If CPU is halted and auto-refresh is enabled, stop refreshing
-            if (!this.cpuRunning && this.autoRefreshEnabled && this.autoRefreshInterval) {
-              this.updateRefreshStatus();
-            }
+            // Update the refresh status display with current state
+            this.updateRefreshStatus(status);
           }, 200);
         } catch (error) {
           console.error('Status refresh error:', error);
@@ -881,12 +1438,10 @@
           clearInterval(this.autoRefreshInterval);
         }
         this.autoRefreshInterval = setInterval(() => {
-          // Only refresh if CPU is running or we haven't checked yet
-          if (this.cpuRunning || this.autoRefreshInterval === null) {
-            this.refreshStatus();
-          }
+          // Always refresh when auto-refresh is enabled
+          this.refreshStatus();
         }, 1000);
-        this.updateRefreshStatus();
+        this.updateRefreshStatus(null);
       }
 
       stopAutoRefresh() {
@@ -894,7 +1449,7 @@
           clearInterval(this.autoRefreshInterval);
           this.autoRefreshInterval = null;
         }
-        this.updateRefreshStatus();
+        this.updateRefreshStatus(null);
       }
 
       toggleAutoRefresh() {
@@ -910,16 +1465,45 @@
         }
       }
 
-      updateRefreshStatus() {
+      updateRefreshStatus(status) {
         const statusSpan = document.getElementById('refresh-status');
-        if (!this.autoRefreshEnabled) {
-          statusSpan.textContent = 'Auto-refresh disabled';
-        } else if (!this.cpuRunning && this.autoRefreshInterval) {
-          statusSpan.textContent = 'Paused (CPU halted)';
-        } else if (this.autoRefreshInterval) {
-          statusSpan.textContent = 'Updates every 1s when running';
+
+        // If we have status data and are connected, show the actual state
+        if (status && status.emulatorState && this.connection.isConnected()) {
+          let stateDisplay = status.emulatorState;
+          // Format the state for better readability
+          switch (status.emulatorState) {
+            case 's_running':
+              stateDisplay = 'Running';
+              break;
+            case 's_halted':
+              stateDisplay = 'Halted';
+              break;
+            case 's_stopped':
+              stateDisplay = 'Stopped';
+              break;
+            default:
+              stateDisplay = status.emulatorState;
+          }
+
+          if (!this.autoRefreshEnabled) {
+            statusSpan.textContent = `${stateDisplay} (auto-refresh disabled)`;
+          } else if (this.autoRefreshInterval) {
+            statusSpan.textContent = `${stateDisplay} (updates every 1s)`;
+          } else {
+            statusSpan.textContent = `${stateDisplay} (not refreshing)`;
+          }
         } else {
-          statusSpan.textContent = 'Not connected';
+          // Fallback when not connected
+          if (!this.connection.isConnected()) {
+            statusSpan.textContent = 'Not connected';
+          } else if (!this.autoRefreshEnabled) {
+            statusSpan.textContent = 'Auto-refresh disabled';
+          } else if (this.autoRefreshInterval) {
+            statusSpan.textContent = 'Updates every 1s';
+          } else {
+            statusSpan.textContent = 'Not refreshing';
+          }
         }
       }
 
@@ -1095,6 +1679,87 @@
         if (status.running) document.getElementById('running').textContent = status.running;
         if (status.instructions) document.getElementById('instructions').textContent = status.instructions;
         if (status.speed) document.getElementById('speed').textContent = status.speed;
+        if (status.speedRatio) document.getElementById('speed-ratio').textContent = status.speedRatio;
+      }
+
+      showCommandModal(title, content) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('command-output').textContent = content;
+        document.getElementById('command-modal').style.display = 'block';
+      }
+
+      hideCommandModal() {
+        document.getElementById('command-modal').style.display = 'none';
+        document.getElementById('command-output').textContent = '';
+      }
+
+      // Enhanced sendCommand that can capture output for modal
+      async sendCommandWithModal(cmd, title) {
+        console.log('Starting sendCommandWithModal for:', cmd);
+
+        try {
+          // Check if connected
+          if (!this.connection.isConnected()) {
+            console.log('Not connected, cannot send command');
+            this.appendTerminal('Error: Not connected to emulator', 'error');
+            return;
+          }
+
+          console.log('Sending command:', cmd);
+          // Send command
+          await this.connection.sendCommand(cmd);
+          console.log('Command sent successfully');
+          this.appendTerminal('> ' + cmd, 'command');
+
+          // Capture all subsequent output for a few seconds
+          // Store the current buffer length before sending command
+          const bufferLengthBefore = this.terminalBuffer.length;
+          const responses = [];
+          let captureTimeout;
+
+          // Set up a temporary capture mechanism
+          const originalAppendTerminal = this.appendTerminal;
+          this.appendTerminal = (text, className = 'response') => {
+            // Call original method
+            originalAppendTerminal.call(this, text, className);
+
+            // If this is a response (not a command we just sent), capture it
+            if (className === 'response' && text !== '> ' + cmd) {
+              responses.push(text);
+            }
+          };
+
+          // Stop capturing after delay and show modal
+          setTimeout(() => {
+            // Restore original method
+            this.appendTerminal = originalAppendTerminal;
+
+            console.log('Captured responses:', responses.length, 'lines');
+
+            // Filter out irrelevant lines
+            const filteredResponses = responses.filter(line =>
+              !line.startsWith('> ') && // Skip any commands
+              !line.startsWith('Warning:') && // Skip our warning messages
+              !line.startsWith('Error:') && // Skip error messages
+              line.trim() !== '' // Skip empty lines
+            );
+
+            console.log('Filtered responses:', filteredResponses.length, 'lines');
+
+            // Show modal with captured output
+            if (filteredResponses.length > 0) {
+              console.log('Showing modal with responses');
+              this.showCommandModal(title, filteredResponses.join('\n'));
+            } else {
+              console.log('No valid responses found, not showing modal');
+              this.appendTerminal('Warning: No output received for command', 'error');
+            }
+          }, 2500); // Wait 2.5 seconds for responses (longer for commands with lots of output)
+
+        } catch (error) {
+          console.error('Error in sendCommandWithModal:', error);
+          this.appendTerminal('Error: ' + error.message, 'error');
+        }
       }
     }
 
@@ -1107,4 +1772,5 @@
     });
   </script>
 </body>
+
 </html>
