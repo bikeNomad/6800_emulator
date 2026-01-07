@@ -109,6 +109,8 @@ help:
 	@echo "  doc-pdf      - Generate PDF documentation from Markdown files"
 	@echo "  clean        - Remove all build directories and images"
 	@echo "  clean-images - Remove only images directory"
+	@echo "  micropython-pio - Copy Micropython code to board"
+	@echo "  format-code  - Run clang-format on all source files"
 	@echo "  help         - Show this help"
 	@echo ""
 	@echo "Build options:"
@@ -132,7 +134,8 @@ micropython-pio:
 	mpremote cp micropython/bus_cycle_pio.py :
 	mpremote cp micropython/clock_pio.py :
 	mpremote cp micropython/sm_helpers.py :
-	mpremote cp micropython/main_pio_test.py :main.py
+	mpremote cp micropython/main_pio_test.py :
+	mpremote cp micropython/fingerprint.py :
 
 %.s19: %.asm
 	$(AS6800) $< -l > $(subst .asm,.lst,$<)
