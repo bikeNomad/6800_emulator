@@ -1,0 +1,34 @@
+0000-07ff: RAM
+0800-20ff: EMPTY
+2100-21ff: PIA (3f8e)
+2200-23ff: EMPTY
+2400-27ff: PIA (3f8e)
+2800-2bff: PIA (bf5b)
+2c00-2fff: PIA (3f8e)
+3000-33ff: PIA (e155)
+3400-37ff: PIA (3f8e)
+3800-3fff: EMPTY
+4000-5dff: ROM (9d3a)
+5e00-5eff: EMPTY
+5f00-6cff: ROM (2d9f)
+6d00-6dff: EMPTY
+6e00-88ff: ROM (6048)
+8900-8aff: EMPTY
+8b00-adff: ROM (ac9e)
+ae00-aeff: EMPTY
+af00-bcff: ROM (ffb1)
+bd00-beff: EMPTY
+bf00-ffff: ROM (4eba)
+Address decoding analysis for 'PIA (3f8e)' (4 instances):
+  Address ranges: $2100-$21ff, $2400-$27ff, $2c00-$2fff, $3400-$37ff
+  Within unique range: A8, A10, A11, A12 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A9=0, A13=1, A14=0, A15=0
+  Addresses: $2100, $2400, $2c00, $3400
+  Device size: 256 bytes per instance
+
+Address decoding analysis for 'EMPTY' (8 instances):
+  Address ranges: $0800-$20ff, $6d00-$6dff, $3800-$3fff, $5e00-$5eff, $2200-$23ff, $bd00-$beff, $ae00-$aeff, $8900-$8aff
+  Within unique range: A8, A9, A11, A12, A13, A15 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A10=0, A14=0
+  Addresses: $0800, $2200, $3800, $5e00, $6d00, $8900, $ae00, $bd00
+  Device size: 6400 bytes per instance
