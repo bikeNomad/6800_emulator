@@ -313,7 +313,7 @@ def analyze_address_decoding(summary):
                 f"  Addresses: {', '.join(addr_strs[:8])}... ({len(addr_strs)} total)"
             )
 
-        # Report the device range size based on the first entry's length
+        # Report the device size based on the first instance's length
         length = addr_list[0][1]
-        print(f"  Device size: {length // 256}KB per instance")
+        print(f"  Device size: {length} bytes per instance")
         print()
