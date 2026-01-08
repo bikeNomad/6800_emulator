@@ -1,3 +1,7 @@
+import struct
+import gc
+from micropython import const
+import modbus_crc16
 from main_pio_test import (
     eclock_start,
     eclock_stop,
@@ -6,8 +10,6 @@ from main_pio_test import (
     bus_read_cycle as bus_read_byte,
     bus_write_cycle as bus_write_byte,
 )
-from micropython import const
-from modbus_crc16 import crc16
 
 
 PAGE_SIZE = const(256)
@@ -24,13 +26,17 @@ TEST_DATA = b"This is a test of the bus"
 
 DETECTED = {}
 
+# Return integer
+def crc16(data):
+    crc = modbus_crc16.crc16(data)
+    # convert from bytes to integer
+    return struct.unpack("H", crc)[0]
 
 def _is_empty(data):
     return all(map(lambda x: x == 0xFF, data)) or all(map(lambda x: x == 0x00, data))
 
-
 def detect_empty(address):
-    """Return True if the given address range is empty and reads 0xFF"""
+    """Return 'EMPTY' if the given address range is empty and reads 0xFF"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     if _is_empty(block_data):
@@ -39,14 +45,14 @@ def detect_empty(address):
 
 
 def detect_sys3_7_cmos(address):
-    """Return True if a System 3-7 CMOS RAM is at the address.
+    """Return 'CMOS' if a System 3-7 CMOS RAM is at the address.
     This RAM reads 0xF in the high nybble and stores the low nybble."""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     # Check for CMOS pattern
     for i in range(PAGE_SIZE):
         if (block_data[i] & 0xF0) != 0xF0:
-            return False
+            return None
     # Write test data
     bus_write_block(address, TEST_DATA)
     # Read data back
@@ -56,12 +62,12 @@ def detect_sys3_7_cmos(address):
     # Check that low nybbles match
     for i in range(len(TEST_DATA)):
         if (block_data_readback[i] & 0x0F) != (TEST_DATA[i] & 0x0F):
-            return False
-    return True
+            return None
+    return "CMOS"
 
 
 def detect_ram(address):
-    """Return True if the given address range appears to be RAM"""
+    """Return 'RAM' if the given address range appears to be RAM"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     # Write test data
@@ -76,7 +82,7 @@ def detect_ram(address):
 
 
 def detect_pia(address):
-    """Return True if a 6820 or 6821 PIA is at the start of the given address range"""
+    """Return 'PIA (crc16)' if a 6820 or 6821 PIA is at the start of the given address range"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     # Check if block repeats the same 4 bytes
@@ -192,25 +198,47 @@ def fingerprint(address):
         or detect_ram(address)
         or detect_sys3_7_cmos(address)
         or detect_empty(address)
+        or "ROM"
     )
 
 
 def scan():
+    gc.collect()
     was_started = eclock_start()
     for base in range(0, 0x10000, PAGE_SIZE):
         DETECTED[base] = fingerprint(base)
+        gc.collect()
     if not was_started:
         eclock_stop()
 
+def rom_crc16(address, length):
+    was_started = eclock_start()
+    data = bus_read_block(address, length)
+    crc = crc16(data)
+    if not was_started:
+        eclock_stop()
+    gc.collect()
+    return crc
+
+def print_range(address, length, type):
+    if type == "ROM":
+        label = f"{type} ({rom_crc16(address,length):04x})"
+    else:
+        label = type
+    print(f"{address:04x}-{address+length-1:04x}: {label}")
+    return (address, length, label)
 
 def report():
+    """Print out a report, return a summary dict keyed by address for further analysis."""
     last_type = None
-    last_address = None
-    for base in range(0, 0x10000, PAGE_SIZE):
-        type = DETECTED[base]
+    last_address = 0
+    summary = {}
+    for base in range(0, 0x10000 + PAGE_SIZE, PAGE_SIZE):
+        type = DETECTED.get(base)
         if type != last_type:
             if last_type is not None:
-                print(f"{last_address:04x}-{base - 1:04x}: {last_type}")
+                addr, length, label = print_range(last_address, base-last_address, last_type)
+                summary[addr] = (length, label)
             last_type = type
             last_address = base
-    print(f"{last_address:04x}-FFFF: {last_type}")
+    return summary
