@@ -1,13 +1,14 @@
 from main_pio_test import (
     eclock_start,
     eclock_stop,
-    block_checksum,
     bus_read_block,
     bus_write_block,
     bus_read_cycle as bus_read_byte,
     bus_write_cycle as bus_write_byte,
 )
 from micropython import const
+from modbus_crc16 import crc16
+
 
 PAGE_SIZE = const(256)
 PAGE_ADDRESS_MASK = const(0xFF00)
@@ -32,7 +33,10 @@ def detect_empty(address):
     """Return True if the given address range is empty and reads 0xFF"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
-    return _is_empty(block_data)
+    if _is_empty(block_data):
+        return "EMPTY"
+    return None
+
 
 def detect_sys3_7_cmos(address):
     """Return True if a System 3-7 CMOS RAM is at the address.
@@ -55,6 +59,7 @@ def detect_sys3_7_cmos(address):
             return False
     return True
 
+
 def detect_ram(address):
     """Return True if the given address range appears to be RAM"""
     address &= PAGE_ADDRESS_MASK
@@ -65,7 +70,9 @@ def detect_ram(address):
     block_data_readback = bus_read_block(address, len(TEST_DATA))
     # Restore original data
     bus_write_block(address, block_data)
-    return block_data_readback == TEST_DATA
+    if block_data_readback == TEST_DATA:
+        return "RAM"
+    return None
 
 
 def detect_pia(address):
@@ -110,29 +117,31 @@ def detect_pia(address):
     if ddra_readback != 0x00 or ddrb_readback != 0x00:
         retval = False
 
-    # Access both PRs
-    bus_write_byte(address + CRA_OFFSET, SELECT_PR_BIT)
-    bus_write_byte(address + CRB_OFFSET, SELECT_PR_BIT)
-    # Check that SELECT_PR_BIT is set in both CRs
-    cra_now = bus_read_byte(address + CRA_OFFSET)
-    crb_now = bus_read_byte(address + CRB_OFFSET)
-    if cra_now & SELECT_PR_BIT == 0 or crb_now & SELECT_PR_BIT == 0:
-        retval = False
+    if retval:
+        # Access both PRs
+        bus_write_byte(address + CRA_OFFSET, SELECT_PR_BIT)
+        bus_write_byte(address + CRB_OFFSET, SELECT_PR_BIT)
+        # Check that SELECT_PR_BIT is set in both CRs
+        cra_now = bus_read_byte(address + CRA_OFFSET)
+        crb_now = bus_read_byte(address + CRB_OFFSET)
+        if cra_now & SELECT_PR_BIT == 0 or crb_now & SELECT_PR_BIT == 0:
+            retval = False
 
-    # Read both PRs
-    pra_now = bus_read_byte(address + PRA_OFFSET)
-    prb_now = bus_read_byte(address + PRB_OFFSET)
+    if retval:
+        # Read both PRs
+        pra_now = bus_read_byte(address + PRA_OFFSET)
+        prb_now = bus_read_byte(address + PRB_OFFSET)
 
-    # try to write into the PRs
-    bus_write_byte(address + PRA_OFFSET, 0xFF)
-    bus_write_byte(address + PRB_OFFSET, 0xFF)
-    pra_written = bus_read_byte(address + PRA_OFFSET)
-    prb_written = bus_read_byte(address + PRB_OFFSET)
+        # try to write into the PRs
+        bus_write_byte(address + PRA_OFFSET, 0xFF)
+        bus_write_byte(address + PRB_OFFSET, 0xFF)
+        pra_written = bus_read_byte(address + PRA_OFFSET)
+        prb_written = bus_read_byte(address + PRB_OFFSET)
 
-    # pra_now should == pra_written and
-    # prb_now should == prb_written
-    if pra_now != pra_written or prb_now != prb_written:
-        retval = False
+        # pra_now should == pra_written and
+        # prb_now should == prb_written
+        if pra_now != pra_written or prb_now != prb_written:
+            retval = False
 
     # Restore state
     # Access DDRs
@@ -153,16 +162,23 @@ def detect_pia(address):
     bus_write_byte(address + CRA_OFFSET, cra)
     bus_write_byte(address + CRB_OFFSET, crb)
 
-    if False:
-        print(
-            f"cra={hex(cra)} crb={hex(crb)} pra={hex(pra)} prb={hex(prb)} ddra={hex(ddra)} ddrb={hex(ddrb)}"
-        )
-        print(f"cra_now={hex(cra_now)} crb_now={hex(crb_now)}")
-        print(f"ddra_readback={hex(ddra_readback)} ddrb_readback={hex(ddrb_readback)}")
-        print(f"pra_now={hex(pra_now)} prb_now={hex(prb_now)}")
-        print(f"pra_written={hex(pra_written)} prb_written={hex(prb_written)}")
+    if retval:
+        if False:
+            print(
+                f"cra={hex(cra)} crb={hex(crb)} pra={hex(pra)} prb={hex(prb)} ddra={hex(ddra)} ddrb={hex(ddrb)}"
+            )
+            print(f"cra_now={hex(cra_now)} crb_now={hex(crb_now)}")
+            print(
+                f"ddra_readback={hex(ddra_readback)} ddrb_readback={hex(ddrb_readback)}"
+            )
+            print(f"pra_now={hex(pra_now)} prb_now={hex(prb_now)}")
+            print(f"pra_written={hex(pra_written)} prb_written={hex(prb_written)}")
 
-    return retval
+        pras = bytearray(pra_now, prb_now)
+        crc = crc16(pras)
+        return f"PIA ({crc:04x})"
+    else:
+        return None
 
 
 def initialize():
@@ -171,16 +187,12 @@ def initialize():
 
 
 def fingerprint(address):
-    if detect_pia(address):
-        return f"PIA {hex(address)}"
-    elif detect_ram(address):
-        return "RAM"
-    elif detect_sys3_7_cmos(address):
-        return "CMOS"
-    elif detect_empty(address):
-        return "EMPTY"
-    else:
-        return "ROM"
+    return (
+        detect_pia(address)
+        or detect_ram(address)
+        or detect_sys3_7_cmos(address)
+        or detect_empty(address)
+    )
 
 
 def scan():

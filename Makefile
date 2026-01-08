@@ -136,6 +136,7 @@ micropython-pio:
 	mpremote cp micropython/sm_helpers.py :
 	mpremote cp micropython/main_pio_test.py :
 	mpremote cp micropython/fingerprint.py :
+	mpremote cp micropython/modbus_crc16.py :
 
 %.s19: %.asm
 	$(AS6800) $< -l > $(subst .asm,.lst,$<)
