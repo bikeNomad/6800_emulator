@@ -263,49 +263,66 @@ def analyze_address_decoding(summary):
         if len(addr_list) < 2:
             continue
 
-        addresses = [addr for addr, _ in addr_list]
+        addresses = sorted([addr for addr, _ in addr_list])
         min_addr = min(addresses)
         max_addr = max(addresses)
-
-        # Compute XOR of all addresses to find differing bits
-        xor_val = 0
-        for addr in addresses:
-            xor_val ^= addr
-
-        # Also compute AND of all addresses to find constant bits
-        and_val = addresses[0]
-        for addr in addresses[1:]:
-            and_val &= addr
-
-        # Find bits that vary (set in XOR) and constant bits
-        varying_bits = [f"A{i}" for i in range(16) if (xor_val >> i) & 1]
-        constant_bits = []
-        for i in range(16):
-            if not ((xor_val >> i) & 1):
-                bit_val = (and_val >> i) & 1
-                constant_bits.append(f"A{i}={bit_val}")
 
         print(f"Address decoding analysis for '{label}' ({len(addr_list)} instances):")
         print(f"  Address range: ${min_addr:04x}-${max_addr:04x}")
 
-        if varying_bits:
-            bits_str = ", ".join(varying_bits)
-            verb = "varies" if len(varying_bits) == 1 else "vary"
-            print(f"  {bits_str} {verb}")
+        # Analyze hierarchical address aliasing
+        unique_addrs = set(addresses)
+        aliased_bits = []
 
-        if constant_bits:
-            bits_str = ", ".join(constant_bits)
-            print(f"  Constant bits: {bits_str}")
+        # Check for aliasing starting from highest bit (A15) down to A0
+        for bit in range(15, -1, -1):
+            mask = 1 << bit
+            lower_half = {addr for addr in unique_addrs if (addr & mask) == 0}
+            upper_half = {addr for addr in unique_addrs if (addr & mask) != 0}
 
-        if xor_val != 0:
-            # This indicates potential mirroring/aliasing
-            undecoded_bits = [f"A{i}" for i in range(16) if (xor_val >> i) & 1]
-            bits_str = ", ".join(undecoded_bits)
-            verb = "is" if len(undecoded_bits) == 1 else "are"
-            print(f"  Possible mirroring: {bits_str} {verb} not decoded")
+            # Check if upper half is exactly lower half + mask
+            if lower_half and upper_half == {addr + mask for addr in lower_half}:
+                aliased_bits.append(f"A{bit}")
+                # Remove the aliased addresses, keep only lower half for further analysis
+                unique_addrs = lower_half
+
+        if aliased_bits:
+            bits_str = ", ".join(aliased_bits)
+            verb = "is" if len(aliased_bits) == 1 else "are"
+            print(f"  Mirrored bits: {bits_str} {verb} not decoded")
+
+        # Analyze remaining unique addresses for constant/varying bits
+        if unique_addrs:
+            unique_list = sorted(unique_addrs)
+
+            # Compute XOR of unique addresses to find varying bits
+            xor_val = 0
+            for addr in unique_list:
+                xor_val ^= addr
+
+            # Compute AND of unique addresses to find constant bits
+            and_val = unique_list[0]
+            for addr in unique_list[1:]:
+                and_val &= addr
+
+            varying_bits = [f"A{i}" for i in range(16) if (xor_val >> i) & 1]
+            constant_bits = []
+            for i in range(16):
+                if not ((xor_val >> i) & 1):
+                    bit_val = (and_val >> i) & 1
+                    constant_bits.append(f"A{i}={bit_val}")
+
+            if varying_bits:
+                bits_str = ", ".join(varying_bits)
+                verb = "varies" if len(varying_bits) == 1 else "vary"
+                print(f"  Within unique range: {bits_str} {verb}")
+
+            if constant_bits:
+                bits_str = ", ".join(constant_bits)
+                print(f"  Constant bits: {bits_str}")
 
         # Show the specific addresses
-        addr_strs = [f"${addr:04x}" for addr in sorted(addresses)]
+        addr_strs = [f"${addr:04x}" for addr in addresses]
         if len(addr_strs) <= 8:
             print(f"  Addresses: {', '.join(addr_strs)}")
         else:
