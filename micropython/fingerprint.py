@@ -26,14 +26,17 @@ TEST_DATA = b"This is a test of the bus"
 
 DETECTED = {}
 
+
 # Return integer
 def crc16(data):
     crc = modbus_crc16.crc16(data)
     # convert from bytes to integer
     return struct.unpack("H", crc)[0]
 
+
 def _is_empty(data):
     return all(map(lambda x: x == 0xFF, data)) or all(map(lambda x: x == 0x00, data))
+
 
 def detect_empty(address):
     """Return 'EMPTY' if the given address range is empty and reads 0xFF"""
@@ -211,6 +214,7 @@ def scan():
     if not was_started:
         eclock_stop()
 
+
 def rom_crc16(address, length):
     was_started = eclock_start()
     data = bus_read_block(address, length)
@@ -220,13 +224,15 @@ def rom_crc16(address, length):
     gc.collect()
     return crc
 
+
 def print_range(address, length, type):
     if type == "ROM":
-        label = f"{type} ({rom_crc16(address,length):04x})"
+        label = f"{type} ({rom_crc16(address, length):04x})"
     else:
         label = type
-    print(f"{address:04x}-{address+length-1:04x}: {label}")
+    print(f"{address:04x}-{address + length - 1:04x}: {label}")
     return (address, length, label)
+
 
 def report():
     """Print out a report, return a summary dict keyed by address for further analysis."""
@@ -237,7 +243,9 @@ def report():
         type = DETECTED.get(base)
         if type != last_type:
             if last_type is not None:
-                addr, length, label = print_range(last_address, base-last_address, last_type)
+                addr, length, label = print_range(
+                    last_address, base - last_address, last_type
+                )
                 summary[addr] = (length, label)
             last_type = type
             last_address = base
