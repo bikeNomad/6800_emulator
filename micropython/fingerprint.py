@@ -264,11 +264,16 @@ def analyze_address_decoding(summary):
             continue
 
         addresses = sorted([addr for addr, _ in addr_list])
-        min_addr = min(addresses)
-        max_addr = max(addresses)
 
         print(f"Address decoding analysis for '{label}' ({len(addr_list)} instances):")
-        print(f"  Address range: ${min_addr:04x}-${max_addr:04x}")
+
+        # Show each address range separately
+        range_strs = []
+        for addr, length in addr_list:
+            end_addr = addr + length - 1
+            range_strs.append(f"${addr:04x}-${end_addr:04x}")
+        ranges_str = ", ".join(range_strs)
+        print(f"  Address ranges: {ranges_str}")
 
         # Analyze hierarchical address aliasing
         unique_addrs = set(addresses)
@@ -326,9 +331,8 @@ def analyze_address_decoding(summary):
         if len(addr_strs) <= 8:
             print(f"  Addresses: {', '.join(addr_strs)}")
         else:
-            print(
-                f"  Addresses: {', '.join(addr_strs[:8])}... ({len(addr_strs)} total)"
-            )
+            addr_summary = f"{', '.join(addr_strs[:8])}... ({len(addr_strs)} total)"
+            print(f"  Addresses: {addr_summary}")
 
         # Report the device size based on the first instance's length
         length = addr_list[0][1]
