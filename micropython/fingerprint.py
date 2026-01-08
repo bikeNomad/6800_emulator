@@ -263,35 +263,57 @@ def analyze_address_decoding(summary):
         if len(addr_list) < 2:
             continue
 
+        addresses = [addr for addr, _ in addr_list]
+        min_addr = min(addresses)
+        max_addr = max(addresses)
+
         # Compute XOR of all addresses to find differing bits
         xor_val = 0
-        for addr, _ in addr_list:
+        for addr in addresses:
             xor_val ^= addr
 
-        if xor_val == 0:
-            continue  # No differing bits, shouldn't happen
+        # Also compute AND of all addresses to find constant bits
+        and_val = addresses[0]
+        for addr in addresses[1:]:
+            and_val &= addr
 
-        # Find all undecoded bits (set bits in XOR)
-        undecoded_bits = [f"A{i}" for i in range(16) if (xor_val >> i) & 1]
+        # Find bits that vary (set in XOR) and constant bits
+        varying_bits = [f"A{i}" for i in range(16) if (xor_val >> i) & 1]
+        constant_bits = []
+        for i in range(16):
+            if not ((xor_val >> i) & 1):
+                bit_val = (and_val >> i) & 1
+                constant_bits.append(f"A{i}={bit_val}")
 
-        # Base address is the smallest address
-        base_addr = min(addr for addr, _ in addr_list)
+        print(f"Address decoding analysis for '{label}' ({len(addr_list)} instances):")
+        print(f"  Address range: ${min_addr:04x}-${max_addr:04x}")
 
-        # Aliased addresses are the others
-        aliased = [addr for addr, _ in addr_list if addr != base_addr]
+        if varying_bits:
+            bits_str = ", ".join(varying_bits)
+            verb = "varies" if len(varying_bits) == 1 else "vary"
+            print(f"  {bits_str} {verb}")
 
-        print(f"Address aliasing detected for label '{label}':")
-        print(f"  Base address: ${base_addr:04x}")
-        if aliased:
-            aliased_str = ", ".join(f"${a:04x}" for a in sorted(aliased))
-            print(f"  Aliased at: {aliased_str}")
-        bits_str = ", ".join(undecoded_bits)
-        verb = "is" if len(undecoded_bits) == 1 else "are"
-        print(f"  {bits_str} {verb} not decoded")
+        if constant_bits:
+            bits_str = ", ".join(constant_bits)
+            print(f"  Constant bits: {bits_str}")
 
-        # Report the ROM range size based on the first entry's length
+        if xor_val != 0:
+            # This indicates potential mirroring/aliasing
+            undecoded_bits = [f"A{i}" for i in range(16) if (xor_val >> i) & 1]
+            bits_str = ", ".join(undecoded_bits)
+            verb = "is" if len(undecoded_bits) == 1 else "are"
+            print(f"  Possible mirroring: {bits_str} {verb} not decoded")
+
+        # Show the specific addresses
+        addr_strs = [f"${addr:04x}" for addr in sorted(addresses)]
+        if len(addr_strs) <= 8:
+            print(f"  Addresses: {', '.join(addr_strs)}")
+        else:
+            print(
+                f"  Addresses: {', '.join(addr_strs[:8])}... ({len(addr_strs)} total)"
+            )
+
+        # Report the device range size based on the first entry's length
         length = addr_list[0][1]
-        print(
-            f"  ROM range: ${base_addr:04x}-${base_addr + length - 1:04x} ({length // 256}KB)"
-        )
-        print()  # Restore original data
+        print(f"  Device size: {length // 256}KB per instance")
+        print()
