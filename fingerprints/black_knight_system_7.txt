@@ -8,39 +8,15 @@
 0d00-0dff: CMOS
 0e00-1fff: RAM
 2000-20ff: EMPTY
-2100-21ff: PIA 0x2100
-2200-22ff: PIA 0x2200
-2300-23ff: PIA 0x2300
-2400-24ff: PIA 0x2400
-2500-25ff: PIA 0x2500
-2600-26ff: PIA 0x2600
-2700-27ff: PIA 0x2700
-2800-28ff: PIA 0x2800
-2900-29ff: PIA 0x2900
-2a00-2aff: PIA 0x2a00
-2b00-2bff: PIA 0x2b00
-2c00-2cff: PIA 0x2c00
-2d00-2dff: PIA 0x2d00
-2e00-2eff: PIA 0x2e00
-2f00-2fff: PIA 0x2f00
-3000-30ff: PIA 0x3000
-3100-31ff: PIA 0x3100
-3200-32ff: PIA 0x3200
-3300-33ff: PIA 0x3300
-3400-34ff: PIA 0x3400
-3500-35ff: PIA 0x3500
-3600-36ff: PIA 0x3600
-3700-37ff: PIA 0x3700
-3800-38ff: PIA 0x3800
-3900-39ff: PIA 0x3900
-3a00-3aff: PIA 0x3a00
-3b00-3bff: PIA 0x3b00
-3c00-3cff: PIA 0x3c00
-3d00-3dff: PIA 0x3d00
-3e00-3eff: PIA 0x3e00
-3f00-3fff: PIA 0x3f00
+2100-21ff: PIA (bf5b)
+2200-2fff: PIA (3f8e)
+3000-30ff: PIA (e967)
+3100-31ff: PIA (bf5b)
+3200-32ff: PIA (3f8e)
+3300-33ff: PIA (bf5b)
+3400-3fff: PIA (3f8e)
 4000-57ff: EMPTY
-5800-7fff: ROM
+5800-7fff: ROM (4084)
 8000-80ff: RAM
 8100-81ff: CMOS
 8200-84ff: RAM
@@ -51,36 +27,66 @@
 8d00-8dff: CMOS
 8e00-9fff: RAM
 a000-a0ff: EMPTY
-a100-a1ff: PIA 0xa100
-a200-a2ff: PIA 0xa200
-a300-a3ff: PIA 0xa300
-a400-a4ff: PIA 0xa400
-a500-a5ff: PIA 0xa500
-a600-a6ff: PIA 0xa600
-a700-a7ff: PIA 0xa700
-a800-a8ff: PIA 0xa800
-a900-a9ff: PIA 0xa900
-aa00-aaff: PIA 0xaa00
-ab00-abff: PIA 0xab00
-ac00-acff: PIA 0xac00
-ad00-adff: PIA 0xad00
-ae00-aeff: PIA 0xae00
-af00-afff: PIA 0xaf00
-b000-b0ff: PIA 0xb000
-b100-b1ff: PIA 0xb100
-b200-b2ff: PIA 0xb200
-b300-b3ff: PIA 0xb300
-b400-b4ff: PIA 0xb400
-b500-b5ff: PIA 0xb500
-b600-b6ff: PIA 0xb600
-b700-b7ff: PIA 0xb700
-b800-b8ff: PIA 0xb800
-b900-b9ff: PIA 0xb900
-ba00-baff: PIA 0xba00
-bb00-bbff: PIA 0xbb00
-bc00-bcff: PIA 0xbc00
-bd00-bdff: PIA 0xbd00
-be00-beff: PIA 0xbe00
-bf00-bfff: PIA 0xbf00
+a100-a1ff: PIA (bf5b)
+a200-afff: PIA (3f8e)
+b000-b0ff: PIA (e967)
+b100-b1ff: PIA (bf5b)
+b200-b2ff: PIA (3f8e)
+b300-b3ff: PIA (bf5b)
+b400-bfff: PIA (3f8e)
 c000-d7ff: EMPTY
-d800-FFFF: ROM
+d800-ffff: ROM (4084)
+Address decoding analysis for 'EMPTY' (4 instances):
+  Address ranges: $2000-$20ff, $a000-$a0ff, $4000-$57ff, $c000-$d7ff
+  Mirrored bits: A15 is not decoded
+  Within unique range: A13, A14 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A8=0, A9=0, A10=0, A11=0, A12=0, A15=0
+  Addresses: $2000, $4000, $a000, $c000
+  Device size: 256 bytes per instance
+
+Address decoding analysis for 'PIA (bf5b)' (6 instances):
+  Address ranges: $b100-$b1ff, $2100-$21ff, $3300-$33ff, $3100-$31ff, $a100-$a1ff, $b300-$b3ff
+  Mirrored bits: A15 is not decoded
+  Within unique range: A8, A9, A13 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A10=0, A11=0, A12=0, A14=0, A15=0
+  Addresses: $2100, $3100, $3300, $a100, $b100, $b300
+  Device size: 256 bytes per instance
+
+Address decoding analysis for 'PIA (e967)' (2 instances):
+  Address ranges: $3000-$30ff, $b000-$b0ff
+  Mirrored bits: A15 is not decoded
+  Within unique range: A12, A13 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A8=0, A9=0, A10=0, A11=0, A14=0, A15=0
+  Addresses: $3000, $b000
+  Device size: 256 bytes per instance
+
+Address decoding analysis for 'RAM' (10 instances):
+  Address ranges: $0000-$00ff, $8200-$84ff, $8000-$80ff, $0e00-$1fff, $0a00-$0cff, $8e00-$9fff, $0600-$08ff, $8a00-$8cff, $8600-$88ff, $0200-$04ff
+  Mirrored bits: A15 is not decoded
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A8=0, A9=0, A10=0, A11=0, A12=0, A13=0, A14=0, A15=0
+  Addresses: $0000, $0200, $0600, $0a00, $0e00, $8000, $8200, $8600... (10 total)
+  Device size: 256 bytes per instance
+
+Address decoding analysis for 'ROM (4084)' (2 instances):
+  Address ranges: $5800-$7fff, $d800-$ffff
+  Mirrored bits: A15 is not decoded
+  Within unique range: A11, A12, A14 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A8=0, A9=0, A10=0, A13=0, A15=0
+  Addresses: $5800, $d800
+  Device size: 10240 bytes per instance
+
+Address decoding analysis for 'PIA (3f8e)' (6 instances):
+  Address ranges: $2200-$2fff, $3400-$3fff, $3200-$32ff, $a200-$afff, $b400-$bfff, $b200-$b2ff
+  Mirrored bits: A15 is not decoded
+  Within unique range: A10, A13 vary
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A8=0, A9=0, A11=0, A12=0, A14=0, A15=0
+  Addresses: $2200, $3200, $3400, $a200, $b200, $b400
+  Device size: 3584 bytes per instance
+
+Address decoding analysis for 'CMOS' (8 instances):
+  Address ranges: $0900-$09ff, $8d00-$8dff, $0500-$05ff, $8900-$89ff, $8500-$85ff, $0100-$01ff, $8100-$81ff, $0d00-$0dff
+  Mirrored bits: A15, A11, A10 are not decoded
+  Within unique range: A8 varies
+  Constant bits: A0=0, A1=0, A2=0, A3=0, A4=0, A5=0, A6=0, A7=0, A9=0, A10=0, A11=0, A12=0, A13=0, A14=0, A15=0
+  Addresses: $0100, $0500, $0900, $0d00, $8100, $8500, $8900, $8d00
+  Device size: 256 bytes per instance
