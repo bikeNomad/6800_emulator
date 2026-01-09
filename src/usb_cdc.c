@@ -815,6 +815,9 @@ static const char *format_memory_info(memory_type_t type, bool mapped) {
 }
 
 static void cmd_map_show(void) {
+    // Reload memory map from flash to ensure it's not corrupted
+    memory_load_memory_map_from_flash();
+
     // Display memory mapping state with contiguous ranges
     usb_cdc_send("Memory Map:\r\n");
 
@@ -1133,7 +1136,14 @@ static void cmd_verify_memory(void) {
     // Verify memory configuration against hardware
     usb_cdc_send("Verifying memory configuration...\r\n");
 
+    if (!pause_emulator()) {
+        usb_cdc_send("ERROR: Failed to pause emulator\r\n");
+        return;
+    }
+
     sanity_result_t result = memory_sanity_check();
+
+    resume_emulator();
 
     switch (result) {
     case SANITY_OK:

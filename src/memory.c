@@ -100,8 +100,11 @@ static sanity_result_t startup_status = SANITY_OK;
 
 // Memory map persistence - no bitmap needed anymore
 
-// Flash storage for complete memory map (1024 bytes)
-#define FLASH_MEMORY_MAP_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
+// Flash storage for memory config and map
+#define FLASH_MEMORY_CONFIG_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
+#define FLASH_MEMORY_CONFIG_SIZE sizeof(memory_config_t)
+#define FLASH_MEMORY_CONFIG_PADDED_SIZE 256  // Config must be padded to 256 bytes for flash_range_program
+#define FLASH_MEMORY_MAP_OFFSET (FLASH_MEMORY_CONFIG_OFFSET + FLASH_MEMORY_CONFIG_PADDED_SIZE)
 #define FLASH_MEMORY_MAP_SIZE (MEMORY_TABLE_SIZE * sizeof(uint32_t))
 
 memory_type_t memory_get_type(uint16_t address) {
@@ -365,6 +368,9 @@ bool memory_finalize_load(void) {
     // Program flash
     flash_range_program(mem_config.flash_offset, rom_load_buffer, mem_config.flash_size);
 
+    // Flush cache after flash programming
+    flash_flush_cache();
+
     // Restore interrupts
     restore_interrupts(ints);
 
@@ -389,27 +395,27 @@ bool memory_finalize_load(void) {
 
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void) {
-    const uint8_t *src_addr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
-    uint8_t       *dest_addr = (uint8_t *)rom_shadow;
+    const uint8_t *flash_base = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
     uint16_t       bytes_loaded = 0;
 
-    for (uint16_t address = mem_config.rom_base;
-         address < mem_config.rom_base + mem_config.rom_size;
-         address += ENTRY_PAGE_SIZE) {
-        memory_type_t type = memory_get_mapping_type(address);
-        if (type == MEM_TYPE_ROM) {
-            memcpy(dest_addr, src_addr, ENTRY_PAGE_SIZE);
-            bytes_loaded += ENTRY_PAGE_SIZE;
-            printf("Restored ROM page at $%04X\n", address);
-        } else {
-            memset(dest_addr, 0xFF, ENTRY_PAGE_SIZE);
-        }
-        src_addr += ENTRY_PAGE_SIZE;
-        dest_addr += ENTRY_PAGE_SIZE;
-    }
+    // Simply load ALL ROM data from flash contiguously - the flash contains
+    // all pages from rom_base to rom_base+rom_size stored contiguously
+    memcpy(rom_shadow, flash_base, mem_config.flash_size);
+    bytes_loaded = mem_config.flash_size;
 
-    printf("ROM restored from flash (%u/%u bytes)\n",
-           bytes_loaded, (unsigned int)mem_config.flash_size);
+    printf("ROM restored from flash (%u bytes)\n", bytes_loaded);
+
+    // Debug: Check what's at $FFF8 in rom_shadow
+    uint16_t vec_offset = 0xFFF8 - mem_config.rom_base;
+    printf("Debug: rom_shadow[$%04X] (offset %u) = ", 0xFFF8, vec_offset);
+    for (int i = 0; i < 8; i++) {
+        printf("%02X ", rom_shadow[vec_offset + i]);
+    }
+    printf("\n");
+
+    // Debug: Check memory map for page $FF
+    memory_type_t type = memory_get_mapping_type(0xFF00);
+    printf("Debug: Page $FF memory type: %d (0=unmapped,1=ROM,2=RAM,3=CMOS)\n", type);
 }
 
 // Load Intel HEX data into CMOS shadow copy
@@ -481,53 +487,192 @@ void memory_print_summary(printf_func_t printf_func) {
                 MEMORY_TABLE_SIZE * ENTRY_PAGE_SIZE);
 }
 
-// Save complete memory map to flash
+// Save memory config and map to flash
 void memory_save_memory_map_to_flash(void) {
+    // flash_range_program requires sizes to be multiples of FLASH_PAGE_SIZE (256 bytes)
+    // FLASH_PAGE_SIZE is defined in hardware/flash.h
+
+    // Round up config size to page boundary
+    uint32_t config_write_size = (FLASH_MEMORY_CONFIG_SIZE + FLASH_PAGE_SIZE - 1) & ~(FLASH_PAGE_SIZE - 1);
+    uint32_t map_write_size = (FLASH_MEMORY_MAP_SIZE + FLASH_PAGE_SIZE - 1) & ~(FLASH_PAGE_SIZE - 1);
+
     // Calculate erase size (round up to sector boundary)
-    uint32_t erase_size = (FLASH_MEMORY_MAP_SIZE + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
+    uint32_t total_size = config_write_size + map_write_size;
+    uint32_t erase_size = (total_size + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
+
+    // Disable interrupts during flash operations
+    uint32_t ints = save_and_disable_interrupts();
 
     // Erase flash sector(s)
-    flash_range_erase(FLASH_MEMORY_MAP_OFFSET, erase_size);
+    flash_range_erase(FLASH_MEMORY_CONFIG_OFFSET, erase_size);
 
-    // Program memory map to flash
-    flash_range_program(FLASH_MEMORY_MAP_OFFSET, (uint8_t *)memory_map, FLASH_MEMORY_MAP_SIZE);
-    printf("Memory map saved to flash (%u bytes)\n", FLASH_MEMORY_MAP_SIZE);
+    // Create aligned buffers
+    static uint8_t config_buffer[256] __attribute__((aligned(4)));
+    static uint8_t map_buffer[1024] __attribute__((aligned(4)));
+
+    // Copy data to aligned buffers and zero-pad
+    memset(config_buffer, 0, sizeof(config_buffer));
+    memcpy(config_buffer, &mem_config, FLASH_MEMORY_CONFIG_SIZE);
+
+    memset(map_buffer, 0, sizeof(map_buffer));
+    memcpy(map_buffer, memory_map, FLASH_MEMORY_MAP_SIZE);
+
+    // Program memory config to flash (must be 256-byte aligned size)
+    flash_range_program(FLASH_MEMORY_CONFIG_OFFSET, config_buffer, config_write_size);
+
+    // Program memory map to flash (already 1024 bytes, which is 256-byte aligned)
+    flash_range_program(FLASH_MEMORY_MAP_OFFSET, map_buffer, map_write_size);
+
+    // Flush cache
+    flash_flush_cache();
+
+    // Restore interrupts
+    restore_interrupts(ints);
+
+    printf("Memory config and map saved to flash (%u + %u bytes, padded to %lu + %lu)\n",
+           FLASH_MEMORY_CONFIG_SIZE, FLASH_MEMORY_MAP_SIZE,
+           (unsigned long)config_write_size, (unsigned long)map_write_size);
 }
 
-// Load complete memory map from flash
+// Load memory config and map from flash
 void memory_load_memory_map_from_flash(void) {
-    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + FLASH_MEMORY_MAP_OFFSET);
+    const uint8_t *config_flash_ptr = (const uint8_t *)(XIP_BASE + FLASH_MEMORY_CONFIG_OFFSET);
+    const uint8_t *map_flash_ptr = (const uint8_t *)(XIP_BASE + FLASH_MEMORY_MAP_OFFSET);
 
-    // Check if memory map data exists (not all 0xFF)
-    bool has_data = false;
-    for (uint32_t i = 0; i < FLASH_MEMORY_MAP_SIZE; i++) {
-        if (flash_ptr[i] != 0xFF) {
-            has_data = true;
+    // Check if memory config data exists (not all 0xFF)
+    bool has_config_data = false;
+    for (uint32_t i = 0; i < FLASH_MEMORY_CONFIG_SIZE; i++) {
+        if (config_flash_ptr[i] != 0xFF) {
+            has_config_data = true;
             break;
         }
     }
 
-    if (has_data) {
-        memcpy(memory_map, flash_ptr, FLASH_MEMORY_MAP_SIZE);
-        printf("Memory map loaded from flash (%u bytes)\n", FLASH_MEMORY_MAP_SIZE);
+    // Check if memory map data exists (not all 0xFF)
+    bool has_map_data = false;
+    for (uint32_t i = 0; i < FLASH_MEMORY_MAP_SIZE; i++) {
+        if (map_flash_ptr[i] != 0xFF) {
+            has_map_data = true;
+            break;
+        }
+    }
+
+    if (has_config_data && has_map_data) {
+        // Load config and validate it
+        memory_config_t loaded_config;
+        memcpy(&loaded_config, config_flash_ptr, FLASH_MEMORY_CONFIG_SIZE);
+
+        // Validate loaded config
+        bool config_valid = true;
+        printf("Debug: Loaded config - rom_base=$%04X rom_size=%u ram_base=$%04X ram_size=%u\n",
+               loaded_config.rom_base, loaded_config.rom_size,
+               loaded_config.ram_base, loaded_config.ram_size);
+        printf("Debug: MAX_ROM_SIZE=%u MAX_RAM_SIZE=%u\n", MAX_ROM_SIZE, MAX_RAM_SIZE);
+
+        if (loaded_config.rom_size > MAX_ROM_SIZE) {
+            printf("Debug: rom_size check failed\n");
+            config_valid = false;
+        }
+        if (loaded_config.ram_size > MAX_RAM_SIZE) {
+            printf("Debug: ram_size check failed\n");
+            config_valid = false;
+        }
+        if (loaded_config.rom_size == 0) {
+            printf("Debug: rom_size is zero\n");
+            config_valid = false;
+        }
+        if (loaded_config.ram_size == 0) {
+            printf("Debug: ram_size is zero\n");
+            config_valid = false;
+        }
+        // Allow rom_base + rom_size to equal 0x10000 (full address space for System 11)
+        if ((uint32_t)loaded_config.rom_base + loaded_config.rom_size > 0x10000) {
+            printf("Debug: rom address range check failed (base+size=%lu > 0x10000)\n",
+                   (unsigned long)((uint32_t)loaded_config.rom_base + loaded_config.rom_size));
+            config_valid = false;
+        }
+        if ((uint32_t)loaded_config.ram_base + loaded_config.ram_size > 0x10000) {
+            printf("Debug: ram address range check failed\n");
+            config_valid = false;
+        }
+
+        printf("Debug: config_valid=%d\n", config_valid);
+
+        if (config_valid) {
+            // Load and validate memory map
+            uint32_t loaded_map[MEMORY_TABLE_SIZE];
+            memcpy(loaded_map, map_flash_ptr, FLASH_MEMORY_MAP_SIZE);
+
+            // Validate loaded map - check for reasonable distribution
+            int rom_pages = 0, ram_pages = 0, cmos_pages = 0, unmapped_pages = 0;
+            for (unsigned int i = 0; i < MEMORY_TABLE_SIZE; i++) {
+                uint32_t entry = loaded_map[i];
+                if (entry & ENTRY_UNMAPPED) {
+                    unmapped_pages++;
+                } else if (entry & ENTRY_WRITABLE) {
+                    if (entry & ENTRY_WRITE_THROUGH) {
+                        cmos_pages++;
+                    } else {
+                        ram_pages++;
+                    }
+                } else {
+                    rom_pages++;
+                }
+            }
+
+            // Check for reasonable map (not all ROM, not all unmapped, etc.)
+            bool map_valid = true;
+            if (rom_pages > 200 || rom_pages < 10 || ram_pages > 50 || ram_pages < 1 ||
+                unmapped_pages > 200 || cmos_pages > 10) {
+                map_valid = false;
+            }
+
+            if (map_valid) {
+                memcpy(&mem_config, &loaded_config, FLASH_MEMORY_CONFIG_SIZE);
+                // Always use the correct flash offset
+                mem_config.flash_offset = FLASH_TARGET_OFFSET;
+                memcpy(memory_map, loaded_map, FLASH_MEMORY_MAP_SIZE);
+                printf("Memory config and map loaded from flash (%u + %u bytes)\n",
+                       FLASH_MEMORY_CONFIG_SIZE, FLASH_MEMORY_MAP_SIZE);
+            } else {
+                printf("Invalid memory map data in flash, using default initialization\n");
+                config_valid = false;  // Force default initialization
+            }
+        }
+
+        if (!config_valid) {
+            printf("Invalid memory config data in flash, using default initialization\n");
+        }
     } else {
-        printf("No memory map data found in flash, using default initialization\n");
+        printf("No memory config/map data found in flash, using default initialization\n");
     }
 }
 
 // Clear all ROM mapping (set ROM pages to unmapped in memory map)
 void memory_clear_rom_mapping(void) {
+    // Check if this is System 11 (has mappings in high address space)
+    bool is_system11 = false;
+    for (int i = 128; i < 256; i++) {
+        if (memory_map[i] != ENTRY_UNMAPPED_BUS) {
+            is_system11 = true;
+            break;
+        }
+    }
+
     // Set all ROM pages to unmapped
-    for (uint16_t address = mem_config.rom_base;
-         address < mem_config.rom_base + mem_config.rom_size;
+    for (uint32_t address = mem_config.rom_base;
+         address < (uint32_t)mem_config.rom_base + mem_config.rom_size;
          address += ENTRY_PAGE_SIZE) {
-        // Use hardcoded A15 mask for backward compatibility
-        uint16_t physical_addr = address & ADDR_MASK_A15;
-        uint8_t  table_index = ADDR_TO_TABLE_INDEX(physical_addr);
+        uint16_t addr = (uint16_t)address;
+        uint8_t  table_index = ADDR_TO_TABLE_INDEX(addr);
 
         // Set to unmapped (route to bus)
         memory_map[table_index] = ENTRY_UNMAPPED_BUS;
-        memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;  // Use hardcoded offset
+
+        // For non-System 11, also clear the high alias
+        if (!is_system11) {
+            memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;
+        }
     }
 
     // Save updated memory map to flash

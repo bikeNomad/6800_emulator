@@ -486,6 +486,10 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
     if (rom_start != 0xFFFF) {
         mem_config.rom_base = rom_start;
         mem_config.rom_size = (rom_end - rom_start) + 256;
+        // For System 11, if ROM extends to the end of address space, ensure full coverage
+        if (arch == ARCH_WILLIAMS_SYS11 && rom_end >= 0xFF00) {
+            mem_config.rom_size = 0x10000 - rom_start;
+        }
         mem_config.flash_size = mem_config.rom_size;
     }
     if (cmos_start != 0xFFFF) {
@@ -507,8 +511,14 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
         case PAGE_ROM:
             setup_rom_mapping(addr);
             break;
+        case PAGE_EMPTY:
+            // For System 11, map EMPTY pages in ROM range as ROM
+            if (arch == ARCH_WILLIAMS_SYS11 && addr >= rom_start && addr <= rom_end) {
+                setup_rom_mapping(addr);
+            }
+            break;
         default:
-            // PIA, EMPTY, UNMAPPED stay as ENTRY_UNMAPPED_BUS
+            // PIA, UNMAPPED stay as ENTRY_UNMAPPED_BUS
             break;
         }
     }
@@ -517,8 +527,8 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
     if (arch == ARCH_WILLIAMS_SYS7) {
         apply_system7_rules();
     } else if (arch == ARCH_WILLIAMS_SYS11) {
-        // System 11 uses full A15 decode, no special aliasing needed
-        // All mappings are already set for the full address space
+        // System 11 uses full A15 decode, no aliasing needed
+        // ROM is continuous from $4000-$FFFF
     } else {
         // Unknown architecture - analyze actual address aliasing from scan results
         int decoded_bits = detect_address_aliasing(results);
@@ -565,32 +575,63 @@ static bool copy_rom_contents_from_bus(scan_result_t *results, printf_func_t pri
 
     int max_pages = (arch == ARCH_WILLIAMS_SYS11) ? 256 : 128;
 
-    // For each page marked as ROM, read from bus and store
-    for (int page = 0; page < max_pages; page++) {
-        if (results[page].type != PAGE_ROM) {
-            continue;
+    // For System 11, copy all pages in ROM range since ROM is continuous
+    // For other systems, only copy pages detected as ROM
+    if (arch == ARCH_WILLIAMS_SYS11) {
+        // Copy all pages in the configured ROM range
+        for (uint32_t addr = mem_config.rom_base;
+             addr < (uint32_t)mem_config.rom_base + mem_config.rom_size;
+             addr += ENTRY_PAGE_SIZE) {
+
+            // Check if this page is actually ROM (skip PIA, etc.)
+            uint16_t page = (uint16_t)addr >> 8;
+            if (page < 256 && results[page].type != PAGE_ROM && results[page].type != PAGE_EMPTY) {
+                // Skip non-ROM pages (PIA, etc.) - leave as 0xFF in flash
+                continue;
+            }
+
+            // Read 256-byte page from bus
+            uint8_t page_buffer[ENTRY_PAGE_SIZE];
+            for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
+                page_buffer[i] = bus_read_cycle((uint16_t)addr + i);
+                busy_wait_us(3);
+            }
+
+            // Load into ROM buffer using existing function
+            if (memory_load_hex_data((uint16_t)addr, page_buffer, ENTRY_PAGE_SIZE)) {
+                pages_copied++;
+            } else {
+                printf_func("Warning: Failed to load ROM page at $%04X\r\n", (uint16_t)addr);
+            }
         }
+    } else {
+        // For other architectures, only copy pages detected as ROM
+        for (int page = 0; page < max_pages; page++) {
+            if (results[page].type != PAGE_ROM) {
+                continue;
+            }
 
-        uint16_t addr = page << 8;
+            uint16_t addr = page << 8;
 
-        // Only copy if address is in configured ROM range
-        if (addr < mem_config.rom_base ||
-            addr >= mem_config.rom_base + mem_config.rom_size) {
-            continue;
-        }
+            // Only copy if address is in configured ROM range
+            if (addr < mem_config.rom_base ||
+                addr >= mem_config.rom_base + mem_config.rom_size) {
+                continue;
+            }
 
-        // Read 256-byte page from bus
-        uint8_t page_buffer[ENTRY_PAGE_SIZE];
-        for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
-            page_buffer[i] = bus_read_cycle(addr + i);
-            busy_wait_us(3);
-        }
+            // Read 256-byte page from bus
+            uint8_t page_buffer[ENTRY_PAGE_SIZE];
+            for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
+                page_buffer[i] = bus_read_cycle(addr + i);
+                busy_wait_us(3);
+            }
 
-        // Load into ROM buffer using existing function
-        if (memory_load_hex_data(addr, page_buffer, ENTRY_PAGE_SIZE)) {
-            pages_copied++;
-        } else {
-            printf_func("Warning: Failed to load ROM page at $%04X\r\n", addr);
+            // Load into ROM buffer using existing function
+            if (memory_load_hex_data(addr, page_buffer, ENTRY_PAGE_SIZE)) {
+                pages_copied++;
+            } else {
+                printf_func("Warning: Failed to load ROM page at $%04X\r\n", addr);
+            }
         }
     }
 
@@ -669,8 +710,8 @@ bool memory_scan_and_build_map(printf_func_t printf_func) {
     // 7. Build memory map from scan + architecture rules
     build_memory_map_from_scan(coalesced_results, arch, printf_func);
 
-    // 8. Copy ROM contents from bus to flash
-    if (!copy_rom_contents_from_bus(scan_results, printf_func)) {
+    // 8. Copy ROM contents from bus to flash (use coalesced results)
+    if (!copy_rom_contents_from_bus(coalesced_results, printf_func)) {
         printf_func("Warning: Failed to copy ROM contents\r\n");
     }
 

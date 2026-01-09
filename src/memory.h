@@ -15,7 +15,7 @@
 #define ADDR_MASK_A15 0x7FFF // Mask off A15
 
 // Flash storage for ROM (at the end of program flash)
-#define FLASH_TARGET_OFFSET (1024 * 1024) // 1MB offset (adjust based on program size)
+#define FLASH_TARGET_OFFSET (2 * 1024 * 1024) // 2MB offset (adjust based on program size)
 #define MAX_ROM_SIZE (48 * 1024)          // 48KB max ROM (increased for System 11)
 #define MAX_RAM_SIZE (8 * 1024)           // 8KB max RAM (supports up to 0x1FFF)
 
