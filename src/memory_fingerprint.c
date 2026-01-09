@@ -549,8 +549,24 @@ static bool copy_rom_contents_from_bus(scan_result_t *results, printf_func_t pri
 
     uint16_t pages_copied = 0;
 
+    // Determine how many pages to scan based on architecture
+    // For System 11, scan full 64KB address space since A15 is fully decoded
+    // For other systems, only scan low address space to avoid aliases
+    architecture_type_t arch = ARCH_UNKNOWN;
+    // We need to re-detect architecture since we don't have it passed in
+    int ram_pages = 0;
+    for (int i = 0; i <= 0x07; i++) {
+        if (results[i].type == PAGE_RAM)
+            ram_pages++;
+    }
+    if (ram_pages >= 6) {
+        arch = ARCH_WILLIAMS_SYS11;
+    }
+
+    int max_pages = (arch == ARCH_WILLIAMS_SYS11) ? 256 : 128;
+
     // For each page marked as ROM, read from bus and store
-    for (int page = 0; page < 128; page++) {  // Only low address space
+    for (int page = 0; page < max_pages; page++) {
         if (results[page].type != PAGE_ROM) {
             continue;
         }
@@ -599,25 +615,42 @@ static bool copy_rom_contents_from_bus(scan_result_t *results, printf_func_t pri
 bool memory_scan_and_build_map(printf_func_t printf_func) {
     printf_func("Starting memory scan...\r\n");
 
-    // 1. Ensure emulator is stopped
-    bool        was_running = false;
-    const char *state = sm_current_state_name();
-    if (strcmp(state, "s_running") == 0 || strcmp(state, "s_waiting_for_interrupt") == 0) {
-        if (!post_sm_event(EV_CMD_HALT)) {
-            printf_func("Error: Failed to halt emulator\r\n");
+    // 1. Pause emulator (keep E clock running for bus operations)
+    bool was_paused = false;
+    if (!post_sm_event(EV_PAUSE_EMULATOR)) {
+        printf_func("Error: Failed to pause emulator\r\n");
+        return false;
+    }
+    // Wait for pause to complete
+    sm_notification_t notification;
+    uint32_t          tries = 0;
+    while (!receive_sm_notification(&notification)) {
+        sleep_ms(1);
+        tries++;
+        if (tries > 100) {
+            printf_func("Timeout waiting for pause notification\r\n");
             return false;
         }
-        sleep_ms(10);  // Give emulator time to halt
-        was_running = true;
     }
+    if (notification != NOTIF_OK) {
+        printf_func("Pause failed\r\n");
+        return false;
+    }
+    was_paused = true;
 
-    // 2. Start E clock for bus operations
+    // 2. Initialize E clock for bus operations
+    eclock_init();
+
+    // 3. Initialize PIO bus cycles for bus operations
+    bus_cycle_pio_init();
+
+    // 4. Start E clock for bus operations
     bool eclock_was_running = eclock_is_running();
     if (!eclock_was_running) {
         eclock_start();
     }
 
-    // 3. Scan all 256 pages
+    // 4. Scan all 256 pages
     printf_func("Scanning 256 pages...\r\n");
     for (uint16_t page = 0; page < 256; page++) {
         uint16_t addr = page << 8;
@@ -626,32 +659,35 @@ bool memory_scan_and_build_map(printf_func_t printf_func) {
     }
     printf_func("Scan complete\r\n");
 
-    // 4. Recognize architecture
+    // 5. Recognize architecture
     architecture_type_t arch = recognize_architecture(scan_results);
     printf_func("Architecture: %s\r\n", architecture_name(arch));
 
-    // 5. Coalesce regions for better presentation
+    // 6. Coalesce regions for better presentation
     coalesce_regions(arch);
 
-    // 6. Build memory map from scan + architecture rules
+    // 7. Build memory map from scan + architecture rules
     build_memory_map_from_scan(coalesced_results, arch, printf_func);
 
-    // 6. Copy ROM contents from bus to flash
+    // 8. Copy ROM contents from bus to flash
     if (!copy_rom_contents_from_bus(scan_results, printf_func)) {
         printf_func("Warning: Failed to copy ROM contents\r\n");
     }
 
-    // 7. Save memory map to flash
+    // 9. Save memory map to flash
     memory_save_memory_map_to_flash();
 
-    // 8. Stop E clock if we started it
+    // 10. Stop E clock if we started it
     if (!eclock_was_running) {
         eclock_stop();
     }
 
-    // 9. Restart emulator if it was running
-    if (was_running) {
-        post_sm_event(EV_CMD_RUN);
+    // 11. Resume emulator
+    if (was_paused) {
+        if (!post_sm_event(EV_RESUME_EMULATOR)) {
+            printf_func("Error: Failed to resume emulator\r\n");
+            return false;
+        }
     }
 
     printf_func("Memory scan and configuration complete\r\n");
@@ -675,6 +711,12 @@ sanity_result_t memory_sanity_check(void) {
     if (!has_valid_map) {
         return SANITY_NO_SAVED_MAP;
     }
+
+    // Initialize E clock for bus operations
+    eclock_init();
+
+    // Initialize PIO bus cycles for bus operations
+    bus_cycle_pio_init();
 
     // Start E clock for bus operations
     bool eclock_was_running = eclock_is_running();
@@ -736,7 +778,7 @@ static void coalesce_regions(architecture_type_t arch) {
 
     for (int page = 1; page <= 256; page++) {
         uint8_t  current_type = (page < 256) ? scan_results[page].type : 255;  // 255 = sentinel
-        uint16_t current_addr = page << 8;
+        uint32_t current_addr = (uint32_t)page << 8;
 
         // Determine effective type for coalescing
         uint8_t current_effective_type = current_type;
@@ -746,8 +788,8 @@ static void coalesce_regions(architecture_type_t arch) {
             current_effective_type = PAGE_ROM;
         }
 
-        uint8_t last_addr_check = (page - 1) << 8;
-        uint8_t last_effective_check = last_effective_type;
+        uint32_t last_addr_check = (uint32_t)(page - 1) << 8;
+        uint8_t  last_effective_check = last_effective_type;
 
         // For System 11, treat EMPTY as ROM in ROM space for coalescing
         if (arch == ARCH_WILLIAMS_SYS11 && last_addr_check >= SYS11_ROM_START && last_effective_type == PAGE_EMPTY) {
@@ -755,13 +797,13 @@ static void coalesce_regions(architecture_type_t arch) {
         }
 
         if (current_effective_type != last_effective_check || page == 256) {
-            uint16_t end = (page << 8) - 1;
+            uint32_t end = ((uint32_t)page << 8) - 1;
 
             // For System 11 ROM space regions that were coalesced, determine the correct type
             if (arch == ARCH_WILLIAMS_SYS11 && last_effective_check == PAGE_ROM && start >= SYS11_ROM_START) {
                 // Check if this region contains any actual ROM data
                 bool has_real_rom = false;
-                for (uint16_t check_page = start >> 8; check_page < (end + 1) >> 8; check_page++) {
+                for (uint16_t check_page = start >> 8; check_page < ((end + 1) >> 8) && check_page < 256; check_page++) {
                     if (scan_results[check_page].type == PAGE_ROM) {
                         has_real_rom = true;
                         break;
@@ -772,7 +814,7 @@ static void coalesce_regions(architecture_type_t arch) {
                 uint8_t coalesced_type = has_real_rom ? PAGE_ROM : PAGE_EMPTY;
 
                 // Apply the coalesced type to all pages in this region
-                for (uint16_t addr = start; addr <= end; addr += 256) {
+                for (uint32_t addr = start; addr <= end && (addr >> 8) < 256; addr += 256) {
                     uint16_t page_idx = addr >> 8;
                     if (page_idx < 256) {
                         coalesced_results[page_idx].type = coalesced_type;
@@ -782,7 +824,7 @@ static void coalesce_regions(architecture_type_t arch) {
             // For other architectures, just coalesce consecutive regions of the same type
             // (no special processing needed since we're not changing the types)
 
-            start = page << 8;
+            start = (uint32_t)page << 8;
             last_effective_type = current_type;
         }
     }
