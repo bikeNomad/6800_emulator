@@ -18,6 +18,7 @@
 #define MEMORY_H
 
 #include "emulator.h"
+#include "memory_map.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -33,27 +34,11 @@
 #define CMOS_SIZE 256       // SYS7
 #define CMOS_BASE 0x0100    // SYS7
 
-// Memory region types
-typedef enum {
-    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
-    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
-    MEM_TYPE_RAM,       // RAM - read/write from shadow
-    MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
-} memory_type_t;
+// Memory region types are now defined in memory_map.h
 
 #define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
 
-// Memory configuration
-typedef struct {
-    uint16_t rom_base;      // Base address in MC6800 space (e.g., $E000)
-    uint16_t rom_size;      // Size of ROM region
-    uint16_t ram_base;      // Base address of RAM (e.g., $0000)
-    uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
-    uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
-    uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
-    uint8_t  alias_offset;  // High address alias offset (default: 0x80)
-    bool     configured;    // Configuration complete
-} memory_config_t;
+// Memory configuration is now defined in memory_map.h
 
 extern memory_config_t mem_config;
 extern uint8_t         rom_shadow[MAX_ROM_SIZE]
@@ -107,14 +92,14 @@ void memory_init_rom_from_flash(void);
 // Clear ROM load buffer (for copy_roms command)
 void memory_clear_rom_load_buffer(void);
 
+// Read RAM data from bus into shadow copy
+void memory_read_ram_from_bus(void);
+
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void);
 
 // Print a summary of the various memory ranges defined in the memory_map
 void memory_print_summary(printf_func_t printf_func);
-
-// Read RAM data from bus into shadow copy
-void memory_read_ram_from_bus(void);
 
 // Memory map persistence functions
 void memory_save_memory_map_to_flash(void);
@@ -141,21 +126,11 @@ static inline uint8_t memory_read_rom_shadow(uint16_t address) {
 void led_all_off(void);
 
 // Memory fingerprinting and auto-configuration
-bool memory_scan_and_build_map(printf_func_t printf_func);
-typedef enum {
-    SANITY_OK,
-    SANITY_NO_SAVED_MAP,
-    SANITY_RAM_MISMATCH,
-    SANITY_ROM_UNEXPECTED
-} sanity_result_t;
+bool            memory_scan_and_build_map(printf_func_t printf_func);
 sanity_result_t memory_sanity_check(void);
 sanity_result_t memory_get_startup_status(void);  // Get status from boot for display
 
 // Scan result access
-typedef struct {
-    uint8_t  type;  // page_type_t from memory_fingerprint.c
-    uint16_t address;
-} scan_result_t;
 const scan_result_t *memory_get_scan_results(void);
 const scan_result_t *memory_get_coalesced_scan_results(void);
 
