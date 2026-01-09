@@ -95,6 +95,8 @@ tio /dev/tty.usbmodem14201
 | `map clear` | none | Clear all ROM mapping |
 | `map program` | addr | Manually map ROM page |
 | `copy_roms` | none | Copy ROM data from bus to persistent storage |
+| `scan_memory` | none | Auto-detect and configure memory map |
+| `verify_memory` | none | Verify memory configuration |
 | `count print` | none | Print instruction execution counts and cycles |
 | `count reset` | none | Reset instruction execution counts |
 | `count on` | none | Enable instruction counting |
@@ -150,6 +152,8 @@ MC6800 Emulator Commands:
   map clear                 - Clear all ROM mapping
   map program <addr>        - Manually map ROM page
   copy_roms                 - Copy ROM data from bus to persistent storage
+  scan_memory               - Auto-detect and configure memory map
+  verify_memory             - Verify memory configuration
   count print               - Print instruction execution counts
   count reset               - Reset instruction execution counts
   count on                  - Enable instruction counting
@@ -979,6 +983,105 @@ Entering bootloader mode...
 - Or flash new firmware (auto-resets)
 
 **Warning**: This command is irreversible without a power cycle or RESET!
+
+### scan_memory
+
+Auto-detect and configure memory map by scanning the target system's bus.
+
+**Syntax**:
+
+```
+scan_memory
+```
+
+**Example**:
+
+```
+> scan_memory
+Starting memory scan...
+Scanning 256 pages...
+Scan complete
+Architecture: Williams System 7
+
+Scan Results:
+  $0000-$13FF: RAM
+  $5000-$7FFF: ROM
+  $0100-$01FF: CMOS
+
+Memory Configuration:
+  ROM: $5000-$7FFF (12288 bytes)
+  RAM: $0000-$13FF (5120 bytes)
+  CMOS: $0100-$01FF (256 bytes)
+
+Copied 12 ROM pages from bus
+ROM contents saved to flash
+Memory scan and configuration complete
+```
+
+**What it does**:
+
+1. **Scans all 256 pages** (256-byte blocks) of the 64KB address space
+2. **Detects memory types** by testing each page:
+   - **ROM**: Read-only memory with consistent data
+   - **RAM**: Read/write memory that passes write tests
+   - **CMOS**: Special RAM with high nybble always 0xF (Williams System 7)
+   - **PIA**: 6820/6821 Peripheral Interface Adapter chips
+   - **Empty**: All 0xFF or all 0x00
+3. **Recognizes architecture** based on detected patterns:
+   - Williams System 7: CMOS at specific addresses, RAM mirroring
+   - Williams System 11: Contiguous RAM at start
+4. **Builds memory map** with appropriate mappings and aliases
+5. **Copies ROM contents** from bus to persistent flash storage
+6. **Saves configuration** to flash for use on next boot
+
+**Notes**:
+
+- Automatically halts emulator during scan if running
+- Requires target system to be connected and powered
+- May take 10-30 seconds depending on target system
+- Configuration is saved and used automatically on reboot
+- Useful for initial setup or when changing target systems
+
+### verify_memory
+
+Verify current memory configuration matches hardware.
+
+**Syntax**:
+
+```
+verify_memory
+```
+
+**Example**:
+
+```
+> verify_memory
+Verifying memory configuration...
+OK: Memory configuration matches hardware
+
+> verify_memory
+ERROR: RAM mismatch - run 'scan_memory' to update
+```
+
+**What it does**:
+
+1. **Checks saved configuration** against current hardware
+2. **Tests RAM regions** by writing/reading test patterns
+3. **Validates ROM regions** (should not be writable)
+4. **Reports discrepancies** if hardware doesn't match saved map
+
+**Possible Results**:
+
+- `OK: Memory configuration matches hardware` - All good
+- `ERROR: RAM mismatch - run 'scan_memory' to update` - RAM not found where expected
+- `WARNING: ROM/RAM differs from saved - run 'scan_memory' to update` - Minor differences detected
+- `ERROR: No saved memory map - run 'scan_memory' first` - No configuration saved
+
+**Notes**:
+
+- Useful for diagnosing hardware changes or connection issues
+- Non-destructive (restores any test data written)
+- Run after changing target systems or if emulation seems unstable
 
 ## Command Line Editing
 
