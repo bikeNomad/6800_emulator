@@ -125,4 +125,21 @@ static inline uint8_t memory_read_rom_shadow(uint16_t address) {
 // Turn off all LEDs (for NED_SYS7 board)
 void led_all_off(void);
 
+// Memory fingerprinting and auto-configuration
+bool memory_scan_and_build_map(printf_func_t printf_func);
+typedef enum {
+    SANITY_OK,
+    SANITY_NO_SAVED_MAP,
+    SANITY_RAM_MISMATCH,
+    SANITY_ROM_UNEXPECTED
+} sanity_result_t;
+sanity_result_t memory_sanity_check(printf_func_t printf_func);
+
+// Scan result access
+typedef struct {
+    uint8_t  type;  // Use uint8_t to avoid exposing page_type_t enum
+    uint16_t address;
+} scan_result_t;
+const scan_result_t *memory_get_scan_results(void);
+
 #endif  // MEMORY_H

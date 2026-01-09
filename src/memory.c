@@ -191,11 +191,41 @@ void memory_init(void) {
     // Try to load complete memory map from flash
     memory_load_memory_map_from_flash();
 
-    // Initialize memory map with defaults if no saved map exists
-    memory_initialize_map();
+    // Check if we have a valid saved map
+    bool has_valid_map = false;
+    for (int i = 0; i < 256; i++) {
+        if (memory_map[i] != ENTRY_UNMAPPED_BUS) {
+            has_valid_map = true;
+            break;
+        }
+    }
 
-    // If we loaded a memory map from flash, use it; otherwise use the newly initialized one
-    // (memory_load_memory_map_from_flash() only loads if data exists)
+    if (!has_valid_map) {
+        printf("No valid memory map found. Using defaults.\n");
+        printf("Run 'scan_memory' command to auto-configure.\n");
+        memory_initialize_map();
+    } else {
+        printf("Loaded memory map from flash\n");
+
+        // Perform sanity check
+        sanity_result_t check = memory_sanity_check();
+        switch (check) {
+        case SANITY_OK:
+            printf("Memory configuration verified\n");
+            break;
+        case SANITY_RAM_MISMATCH:
+            printf("WARNING: RAM mismatch detected!\n");
+            printf("Run 'scan_memory' to update configuration.\n");
+            break;
+        case SANITY_ROM_UNEXPECTED:
+            printf("INFO: Unexpected ROM/RAM detected.\n");
+            printf("Run 'scan_memory' to update configuration.\n");
+            break;
+        case SANITY_NO_SAVED_MAP:
+            // Already handled above
+            break;
+        }
+    }
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n", mem_config.rom_base,
            mem_config.rom_base + mem_config.rom_size - 1, mem_config.ram_base,

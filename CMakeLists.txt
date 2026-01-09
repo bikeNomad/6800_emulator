@@ -32,6 +32,7 @@ add_executable(mc6800_emulator
     src/main.c
     src/cpu_state.c
     src/memory.c
+    src/memory_fingerprint.c
     src/bus.c
     src/clock.c
     src/instructions.c

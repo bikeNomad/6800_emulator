@@ -990,6 +990,102 @@ static void cmd_copy_roms(void) {
     resume_emulator();
 }
 
+static void cmd_scan_memory(void) {
+    // Scan memory and auto-configure memory map
+    usb_cdc_send("Scanning target system memory...\r\n");
+
+    if (!memory_scan_and_build_map(usb_cdc_printf)) {
+        usb_cdc_send("ERROR: Failed to scan memory\r\n");
+        return;
+    }
+
+    // Print scan results
+    usb_cdc_send("\r\nScan Results:\r\n");
+
+    const scan_result_t *results = memory_get_scan_results();
+    uint16_t             start = 0;
+    uint8_t              last_type = results[0].type;
+
+    for (int page = 1; page <= 256; page++) {
+        uint8_t current_type = (page < 256) ? results[page].type : 255;  // 255 = sentinel
+
+        if (current_type != last_type || page == 256) {
+            uint16_t    end = (page << 8) - 1;
+            const char *type_str;
+            switch (last_type) {
+            case 0:
+                type_str = "EMPTY";
+                break;
+            case 1:
+                type_str = "ROM";
+                break;
+            case 2:
+                type_str = "RAM";
+                break;
+            case 3:
+                type_str = "CMOS";
+                break;
+            case 4:
+                type_str = "PIA";
+                break;
+            case 5:
+                type_str = "UNMAPPED";
+                break;
+            default:
+                type_str = "UNKNOWN";
+                break;
+            }
+            usb_cdc_printf("  $%04X-$%04X: %s\r\n", start, end, type_str);
+
+            start = page << 8;
+            last_type = current_type;
+        }
+    }
+
+    // Show configuration
+    usb_cdc_printf("\r\nMemory Configuration:\r\n");
+    usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes)\r\n",
+                   mem_config.rom_base,
+                   mem_config.rom_base + mem_config.rom_size - 1,
+                   mem_config.rom_size);
+    usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes)\r\n",
+                   mem_config.ram_base,
+                   mem_config.ram_base + mem_config.ram_size - 1,
+                   mem_config.ram_size);
+    if (mem_config.cmos_size > 0) {
+        usb_cdc_printf("  CMOS: $%04X-$%04X (%d bytes)\r\n",
+                       mem_config.cmos_base,
+                       mem_config.cmos_base + mem_config.cmos_size - 1,
+                       mem_config.cmos_size);
+    }
+
+    usb_cdc_send("\r\nMemory map and ROM contents have been saved to flash.\r\n");
+    usb_cdc_send("Configuration will be used automatically on next boot.\r\n");
+    usb_cdc_send("Target system can now be removed - emulator will run from stored ROM.\r\n");
+}
+
+static void cmd_verify_memory(void) {
+    // Verify memory configuration against hardware
+    usb_cdc_send("Verifying memory configuration...\r\n");
+
+    sanity_result_t result = memory_sanity_check();
+
+    switch (result) {
+    case SANITY_OK:
+        usb_cdc_send("OK: Memory configuration matches hardware\r\n");
+        break;
+    case SANITY_RAM_MISMATCH:
+        usb_cdc_send("ERROR: RAM mismatch - run 'scan_memory' to update\r\n");
+        break;
+    case SANITY_ROM_UNEXPECTED:
+        usb_cdc_send("WARNING: ROM/RAM differs from saved - run 'scan_memory' to update\r\n");
+        break;
+    case SANITY_NO_SAVED_MAP:
+        usb_cdc_send("ERROR: No saved memory map - run 'scan_memory' first\r\n");
+        break;
+    }
+}
+
 static void cmd_help(void) {
     // Send as single string to avoid buffer overflow
     usb_cdc_send("MC6800 Emulator Commands:\r\n"
@@ -1032,6 +1128,8 @@ static void cmd_help(void) {
                  "  map clear                 - Clear all ROM mapping\r\n"
                  "  map program <addr>        - Manually map ROM page\r\n"
                  "  copy_roms                 - Copy ROM data from bus to persistent storage\r\n"
+                 "  scan_memory               - Auto-detect and configure memory map\r\n"
+                 "  verify_memory             - Verify memory configuration\r\n"
                  "  bootloader                - Enter bootloader mode\r\n"
                  "  help                      - Show this help\r\n");
 }
@@ -1099,8 +1197,10 @@ static const command_entry_t command_table[] = {
     { "map clear", cmd_map_clear, false },
     { "map program", cmd_map_program, true },  // needs <addr>
     { "copy_roms", cmd_copy_roms, false },
+    { "scan_memory", cmd_scan_memory, false },
+    { "verify_memory", cmd_verify_memory, false },
     { "help", cmd_help, false },
-    { NULL, NULL, false }                      // Terminator
+    { NULL, NULL, false }  // Terminator
 };
 
 static void dispatch_command(void) {
