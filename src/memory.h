@@ -133,13 +133,25 @@ typedef enum {
     SANITY_RAM_MISMATCH,
     SANITY_ROM_UNEXPECTED
 } sanity_result_t;
-sanity_result_t memory_sanity_check(printf_func_t printf_func);
+sanity_result_t memory_sanity_check(void);
 
 // Scan result access
 typedef struct {
-    uint8_t  type;  // Use uint8_t to avoid exposing page_type_t enum
+    uint8_t  type;  // page_type_t from memory_fingerprint.c
     uint16_t address;
 } scan_result_t;
 const scan_result_t *memory_get_scan_results(void);
+
+// Internal symbols needed by memory_fingerprint.c
+extern uint32_t memory_map[];
+extern uint8_t  ram_shadow[];
+
+#define ADDR_TO_TABLE_INDEX(addr) ((addr) >> 8)
+#define ENTRY_ADDR_MASK ~0xFFU
+#define ENTRY_FLAG_MASK 0b111
+#define ENTRY_MAPPED_RAM 0b010
+#define ENTRY_MAPPED_CMOS 0b110
+#define ENTRY_MAPPED_ROM 0b000
+#define ENTRY_UNMAPPED_BUS 0b011
 
 #endif  // MEMORY_H

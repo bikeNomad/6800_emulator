@@ -40,20 +40,7 @@ typedef enum {
     ARCH_WILLIAMS_SYS11
 } architecture_type_t;
 
-// Scan result per page
-typedef struct {
-    page_type_t type;
-    uint16_t    address;
-} scan_result_t;
-
-// Sanity check results
-typedef enum {
-    SANITY_OK,
-    SANITY_NO_SAVED_MAP,
-    SANITY_RAM_MISMATCH,
-    SANITY_ROM_UNEXPECTED
-} sanity_result_t;
-
+// Scan results storage
 static scan_result_t scan_results[256];  // One per 256-byte page
 
 // Forward declarations

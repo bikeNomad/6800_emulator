@@ -75,22 +75,11 @@ So the bottom 3 bits are encoded like this:
 0b110   mapped CMOS RAM (read from RAM shadow, write to both shadow and bus)
 */
 
-#define ENTRY_MAPPED 0b000
+// Memory map entry flags (local definitions not exported)
 #define ENTRY_UNMAPPED 0b001
-#define ENTRY_RAM 0b010
 #define ENTRY_WRITABLE 0b010
-#define ENTRY_ROM 0b000
 #define ENTRY_WRITE_THROUGH 0b100
-#define ENTRY_NO_WRITE_THROUGH 0b000
 
-#define ENTRY_MAPPED_RAM (ENTRY_RAM | ENTRY_NO_WRITE_THROUGH)
-#define ENTRY_MAPPED_CMOS (ENTRY_RAM | ENTRY_WRITE_THROUGH)
-#define ENTRY_MAPPED_ROM (ENTRY_ROM | ENTRY_NO_WRITE_THROUGH)
-#define ENTRY_UNMAPPED_BUS (ENTRY_UNMAPPED | ENTRY_WRITABLE)
-
-#define ENTRY_FLAG_MASK 0b111
-#define ENTRY_ADDR_MASK ~0xFFU
-#define ADDR_TO_TABLE_INDEX(addr) ((addr) >> 8)
 #define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
 #define HIGH_ALIAS_TABLE_OFFSET 0x80
 #define MEMORY_TABLE_SIZE (0x10000U / ENTRY_PAGE_SIZE)
@@ -101,10 +90,10 @@ uint32_t memory_map[MEMORY_TABLE_SIZE];
 memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
-static uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(ENTRY_PAGE_SIZE)));
-uint8_t        rom_shadow[MAX_ROM_SIZE]
-    __attribute__((aligned(ENTRY_PAGE_SIZE)));  // Fast RAM copy of ROM for execution
-static uint8_t rom_load_buffer[MAX_ROM_SIZE];   // Buffer for loading before flash write
+uint8_t ram_shadow[MAX_RAM_SIZE] __attribute__((aligned(ENTRY_PAGE_SIZE)));  // Exported for fingerprint.c
+uint8_t rom_shadow[MAX_ROM_SIZE]
+    __attribute__((aligned(ENTRY_PAGE_SIZE)));                               // Fast RAM copy of ROM for execution
+static uint8_t rom_load_buffer[MAX_ROM_SIZE];                                // Buffer for loading before flash write
 
 // Memory map persistence - no bitmap needed anymore
 
