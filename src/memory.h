@@ -16,7 +16,7 @@
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (1024 * 1024) // 1MB offset (adjust based on program size)
-#define MAX_ROM_SIZE (32 * 1024)          // 32KB max ROM
+#define MAX_ROM_SIZE (48 * 1024)          // 48KB max ROM (increased for System 11)
 #define MAX_RAM_SIZE (8 * 1024)           // 8KB max RAM (supports up to 0x1FFF)
 
 // CMOS RAM
@@ -142,6 +142,7 @@ typedef struct {
     uint16_t address;
 } scan_result_t;
 const scan_result_t *memory_get_scan_results(void);
+const scan_result_t *memory_get_coalesced_scan_results(void);
 
 // Internal symbols needed by memory_fingerprint.c
 extern uint32_t memory_map[];

@@ -236,19 +236,55 @@ def print_range(address, length, type):
 
 def report():
     """Print out a report, return a summary dict keyed by address for further analysis."""
+    # For System 11 ROM space ($4000-$FFFF), coalesce consecutive ROM and EMPTY regions
+    # since EMPTY areas are just unused ROM space
+    SYS11_ROM_START = 0x4000
+
+    # First pass: create coalesced regions for System 11 ROM space
+    coalesced_regions = []
     last_type = None
     last_address = 0
-    summary = {}
+
     for base in range(0, 0x10000 + PAGE_SIZE, PAGE_SIZE):
         type = DETECTED.get(base)
-        if type != last_type:
+        is_rom_space = base >= SYS11_ROM_START
+
+        # In System 11 ROM space, treat EMPTY as ROM for coalescing purposes
+        if is_rom_space and type == "EMPTY":
+            effective_type = "ROM"
+        else:
+            effective_type = type
+
+        if effective_type != last_type:
             if last_type is not None:
-                addr, length, label = print_range(
-                    last_address, base - last_address, last_type
-                )
-                summary[addr] = (length, label)
-            last_type = type
+                # For ROM space regions that were coalesced, determine the correct label
+                if last_type == "ROM" and last_address >= SYS11_ROM_START:
+                    # Check if this region contains any actual ROM data
+                    has_real_rom = False
+                    for check_base in range(last_address, base, PAGE_SIZE):
+                        if DETECTED.get(check_base) == "ROM":
+                            has_real_rom = True
+                            break
+
+                    if has_real_rom:
+                        # Calculate CRC over the entire coalesced region
+                        crc = rom_crc16(last_address, base - last_address)
+                        label = f"ROM ({crc:04x})"
+                    else:
+                        label = "EMPTY"
+                else:
+                    label = last_type
+
+                coalesced_regions.append((last_address, base - last_address, label))
+            last_type = effective_type
             last_address = base
+
+    # Print the coalesced regions and build summary
+    summary = {}
+    for addr, length, label in coalesced_regions:
+        print(f"{addr:04x}-{addr + length - 1:04x}: {label}")
+        summary[addr] = (length, label)
+
     return summary
 
 

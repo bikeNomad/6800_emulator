@@ -1022,10 +1022,10 @@ static void cmd_scan_memory(void) {
         return;
     }
 
-    // Print scan results
+    // Print scan results (use coalesced results for System 11)
     usb_cdc_send("\r\nScan Results:\r\n");
 
-    const scan_result_t *results = memory_get_scan_results();
+    const scan_result_t *results = memory_get_coalesced_scan_results();
     uint16_t             start = 0;
     uint8_t              last_type = results[0].type;
 

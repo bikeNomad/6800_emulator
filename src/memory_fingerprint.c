@@ -41,13 +41,14 @@ typedef enum {
 } architecture_type_t;
 
 // Scan results storage
-static scan_result_t scan_results[256];  // One per 256-byte page
+static scan_result_t scan_results[256];       // One per 256-byte page
+static scan_result_t coalesced_results[256];  // Coalesced results for System 11
 
-// Forward declarations
 static page_type_t         fingerprint_page(uint16_t address);
 static architecture_type_t recognize_architecture(scan_result_t *results);
-static void                build_memory_map_from_scan(scan_result_t *results, architecture_type_t arch);
+static void                build_memory_map_from_scan(scan_result_t *results, architecture_type_t arch, printf_func_t printf_func);
 static bool                copy_rom_contents_from_bus(scan_result_t *results, printf_func_t printf_func);
+static void                coalesce_regions(architecture_type_t arch);
 
 //--------------------------------------------------------------------+
 // Helper Functions
@@ -344,6 +345,56 @@ static architecture_type_t recognize_architecture(scan_result_t *results) {
     return ARCH_UNKNOWN;
 }
 
+// Analyze address aliasing patterns to detect which address lines are decoded
+static int detect_address_aliasing(scan_result_t *results) {
+    // Check for repeated sequences that indicate non-decoded address lines
+    // Start with largest possible alias (A15) and work down
+
+    // Check if A15 is not decoded (first 128 pages == second 128 pages)
+    bool a15_aliased = true;
+    for (int i = 0; i < 128 && a15_aliased; i++) {
+        if (results[i].type != results[i + 128].type) {
+            a15_aliased = false;
+        }
+    }
+
+    if (a15_aliased) {
+        // Check if A14 is also not decoded (each 64-page block repeats 4 times)
+        bool a14_aliased = true;
+        for (int block = 0; block < 4 && a14_aliased; block++) {
+            int base = block * 64;
+            for (int i = 0; i < 64 && a14_aliased; i++) {
+                if (results[base + i].type != results[i].type) {
+                    a14_aliased = false;
+                }
+            }
+        }
+
+        if (a14_aliased) {
+            // Check if A13 is also not decoded (each 32-page block repeats 8 times)
+            bool a13_aliased = true;
+            for (int block = 0; block < 8 && a13_aliased; block++) {
+                int base = block * 32;
+                for (int i = 0; i < 32 && a13_aliased; i++) {
+                    if (results[base + i].type != results[i].type) {
+                        a13_aliased = false;
+                    }
+                }
+            }
+
+            if (a13_aliased) {
+                return 13;  // A13 and below not decoded
+            } else {
+                return 14;  // A14 and below not decoded
+            }
+        } else {
+            return 15;      // A15 and below not decoded
+        }
+    }
+
+    return 16;  // All address lines decoded
+}
+
 //--------------------------------------------------------------------+
 // Map Building
 //--------------------------------------------------------------------+
@@ -384,7 +435,7 @@ static void apply_system7_rules(void) {
     }
 }
 
-static void build_memory_map_from_scan(scan_result_t *results, architecture_type_t arch) {
+static void build_memory_map_from_scan(scan_result_t *results, architecture_type_t arch, printf_func_t printf_func) {
     // Initialize all to unmapped
     for (int i = 0; i < 256; i++) {
         memory_map[i] = ENTRY_UNMAPPED_BUS;
@@ -395,8 +446,12 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
     uint16_t rom_start = 0xFFFF, rom_end = 0;
     uint16_t cmos_start = 0xFFFF, cmos_end = 0;
 
-    // First pass: determine regions (only in low address space to avoid aliases)
-    for (int page = 0; page < 128; page++) {
+    // First pass: determine regions
+    // For System 11, scan entire address space since A15 is fully decoded
+    // For other systems, only scan low address space to avoid aliases
+    int max_pages = (arch == ARCH_WILLIAMS_SYS11) ? 256 : 128;
+
+    for (int page = 0; page < max_pages; page++) {
         uint16_t addr = page << 8;
 
         switch (results[page].type) {
@@ -438,8 +493,8 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
         mem_config.cmos_size = (cmos_end - cmos_start) + 256;
     }
 
-    // Second pass: build map entries (only low address space)
-    for (int page = 0; page < 128; page++) {
+    // Second pass: build map entries
+    for (int page = 0; page < max_pages; page++) {
         uint16_t addr = page << 8;
 
         switch (results[page].type) {
@@ -462,13 +517,25 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
     if (arch == ARCH_WILLIAMS_SYS7) {
         apply_system7_rules();
     } else if (arch == ARCH_WILLIAMS_SYS11) {
-        // System 11 uses full A15 decode, no special aliasing
-        // Just copy low to high (no aliasing expected)
+        // System 11 uses full A15 decode, no special aliasing needed
+        // All mappings are already set for the full address space
     } else {
-        // Unknown architecture - assume A15 not decoded for safety
-        for (int i = 0; i < 128; i++) {
-            memory_map[i + 128] = memory_map[i];
+        // Unknown architecture - analyze actual address aliasing from scan results
+        int decoded_bits = detect_address_aliasing(results);
+        printf_func("Address decoding: %d bits decoded\r\n", decoded_bits);
+
+        if (decoded_bits < 16) {
+            // Apply mirroring based on detected aliasing
+            int mirror_size = 1 << (16 - decoded_bits);  // Size of repeating block in pages
+            int num_blocks = 256 / mirror_size;
+
+            for (int block = 1; block < num_blocks; block++) {
+                for (int i = 0; i < mirror_size; i++) {
+                    memory_map[block * mirror_size + i] = memory_map[i];
+                }
+            }
         }
+        // If decoded_bits == 16, all address lines are decoded, no mirroring needed
     }
 }
 
@@ -563,8 +630,11 @@ bool memory_scan_and_build_map(printf_func_t printf_func) {
     architecture_type_t arch = recognize_architecture(scan_results);
     printf_func("Architecture: %s\r\n", architecture_name(arch));
 
-    // 5. Build memory map from scan + architecture rules
-    build_memory_map_from_scan(scan_results, arch);
+    // 5. Coalesce regions for better presentation
+    coalesce_regions(arch);
+
+    // 6. Build memory map from scan + architecture rules
+    build_memory_map_from_scan(coalesced_results, arch, printf_func);
 
     // 6. Copy ROM contents from bus to flash
     if (!copy_rom_contents_from_bus(scan_results, printf_func)) {
@@ -650,9 +720,82 @@ sanity_result_t memory_sanity_check(void) {
 }
 
 //--------------------------------------------------------------------+
+// Coalescing Logic
+//--------------------------------------------------------------------+
+
+// Coalesce regions for cleaner memory map presentation
+static void coalesce_regions(architecture_type_t arch) {
+    const uint16_t SYS11_ROM_START = 0x4000;
+
+    // Copy original results to coalesced results initially
+    memcpy(coalesced_results, scan_results, sizeof(scan_results));
+
+    // Coalesce consecutive regions based on architecture
+    uint16_t start = 0;
+    uint8_t  last_effective_type = scan_results[0].type;
+
+    for (int page = 1; page <= 256; page++) {
+        uint8_t  current_type = (page < 256) ? scan_results[page].type : 255;  // 255 = sentinel
+        uint16_t current_addr = page << 8;
+
+        // Determine effective type for coalescing
+        uint8_t current_effective_type = current_type;
+
+        // For System 11, treat EMPTY as ROM in ROM space for coalescing
+        if (arch == ARCH_WILLIAMS_SYS11 && current_addr >= SYS11_ROM_START && current_type == PAGE_EMPTY) {
+            current_effective_type = PAGE_ROM;
+        }
+
+        uint8_t last_addr_check = (page - 1) << 8;
+        uint8_t last_effective_check = last_effective_type;
+
+        // For System 11, treat EMPTY as ROM in ROM space for coalescing
+        if (arch == ARCH_WILLIAMS_SYS11 && last_addr_check >= SYS11_ROM_START && last_effective_type == PAGE_EMPTY) {
+            last_effective_check = PAGE_ROM;
+        }
+
+        if (current_effective_type != last_effective_check || page == 256) {
+            uint16_t end = (page << 8) - 1;
+
+            // For System 11 ROM space regions that were coalesced, determine the correct type
+            if (arch == ARCH_WILLIAMS_SYS11 && last_effective_check == PAGE_ROM && start >= SYS11_ROM_START) {
+                // Check if this region contains any actual ROM data
+                bool has_real_rom = false;
+                for (uint16_t check_page = start >> 8; check_page < (end + 1) >> 8; check_page++) {
+                    if (scan_results[check_page].type == PAGE_ROM) {
+                        has_real_rom = true;
+                        break;
+                    }
+                }
+
+                // Set the coalesced type - if no real ROM, keep as EMPTY
+                uint8_t coalesced_type = has_real_rom ? PAGE_ROM : PAGE_EMPTY;
+
+                // Apply the coalesced type to all pages in this region
+                for (uint16_t addr = start; addr <= end; addr += 256) {
+                    uint16_t page_idx = addr >> 8;
+                    if (page_idx < 256) {
+                        coalesced_results[page_idx].type = coalesced_type;
+                    }
+                }
+            }
+            // For other architectures, just coalesce consecutive regions of the same type
+            // (no special processing needed since we're not changing the types)
+
+            start = page << 8;
+            last_effective_type = current_type;
+        }
+    }
+}
+
+//--------------------------------------------------------------------+
 // Scan Results Access
 //--------------------------------------------------------------------+
 
 const scan_result_t *memory_get_scan_results(void) {
     return scan_results;
+}
+
+const scan_result_t *memory_get_coalesced_scan_results(void) {
+    return coalesced_results;
 }
