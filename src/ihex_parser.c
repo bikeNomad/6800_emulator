@@ -184,7 +184,7 @@ bool ihex_load_data(const char *hex_data, uint32_t length) {
         bool success = memory_finalize_load();
         if (success) {
             // Save the updated mapping to flash
-            memory_save_rom_mapping_to_flash();
+            memory_save_memory_map_to_flash();
 
             // Automatically reset CPU to load reset vector from new ROM
             printf("Resetting CPU to load reset vector...\n");

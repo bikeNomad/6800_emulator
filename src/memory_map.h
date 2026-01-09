@@ -41,14 +41,6 @@ typedef struct {
 #define CMOS_BASE 0x0100    // SYS7
 
 #define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
-
-// Memory map entry flags (local definitions not exported)
-#define ENTRY_UNMAPPED 0b001
-#define ENTRY_WRITABLE 0b010
-#define ENTRY_WRITE_THROUGH 0b100
-
-#define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
-#define HIGH_ALIAS_TABLE_OFFSET 0x80
 #define MEMORY_TABLE_SIZE (0x10000U / ENTRY_PAGE_SIZE)
 
 // Flash storage for memory config and map
@@ -58,6 +50,11 @@ typedef struct {
 #define FLASH_MEMORY_MAP_OFFSET (FLASH_MEMORY_CONFIG_OFFSET + FLASH_MEMORY_CONFIG_PADDED_SIZE)
 #define FLASH_MEMORY_MAP_SIZE (MEMORY_TABLE_SIZE * sizeof(uint32_t))
 
+// Memory map entry flags (local definitions not exported)
+#define ENTRY_UNMAPPED 0b001
+#define ENTRY_WRITABLE 0b010
+#define ENTRY_WRITE_THROUGH 0b100
+
 // Memory map entry definitions
 #define ENTRY_ADDR_MASK ~0xFFU
 #define ENTRY_FLAG_MASK 0b111
@@ -65,25 +62,28 @@ typedef struct {
 #define ENTRY_MAPPED_CMOS 0b110
 #define ENTRY_MAPPED_ROM 0b000
 #define ENTRY_UNMAPPED_BUS 0b011
+#define ADDR_TO_TABLE_INDEX(addr) ((uint8_t)((addr) >> 8))
+#define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
 
 // Memory map array (declared in memory_map.c)
 extern uint32_t memory_map[];
 
-// Core memory map functions
-void memory_initialize_map(void);
+// Fast memory access using shadows or direct bus access
+uint8_t memory_read_fast(uint16_t address);
+void    memory_write_fast(uint16_t address, uint8_t data);
 
-void          setup_ram_mapping(uint16_t address);
-void          setup_cmos_mapping(uint16_t address);
-void          setup_rom_mapping(uint16_t address);
+// Core memory map functions
+bool          memory_is_address_mapped(uint16_t address);
+bool          memory_load_memory_map_from_flash(void);
+memory_type_t memory_get_mapping_type(uint16_t address);
 memory_type_t memory_get_type(uint16_t address);
+uint8_t      *memory_get_shadow_address(uint16_t address);
+void          memory_clear_rom_mapping(void);
 void          memory_initialize_map(void);
-uint8_t       memory_read_fast(uint16_t address);
-void          memory_write_fast(uint16_t address, uint8_t data);
 void          memory_print_summary(printf_func_t printf_func);
 void          memory_save_memory_map_to_flash(void);
-bool          memory_load_memory_map_from_flash(void);
-void          memory_clear_rom_mapping(void);
-memory_type_t memory_get_mapping_type(uint16_t address);
-void          memory_set_rom_mapping(uint16_t address, bool mapped);
 void          memory_save_rom_mapping_to_flash(void);
-bool          memory_is_address_mapped(uint16_t address);
+void          memory_set_rom_mapping(uint16_t address, bool mapped);
+void          setup_cmos_mapping(uint16_t address);
+void          setup_ram_mapping(uint16_t address);
+void          setup_rom_mapping(uint16_t address);

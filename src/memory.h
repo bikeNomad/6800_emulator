@@ -47,8 +47,6 @@ extern uint8_t         rom_shadow[MAX_ROM_SIZE]
 // Compile-time alignment verification
 _Static_assert(__alignof__(rom_shadow) == 256, "rom_shadow not 256-byte aligned");
 
-extern uint32_t memory_map[];
-
 extern uint8_t ram_shadow[MAX_RAM_SIZE]
     __attribute__((aligned(256)));  // Fast RAM copy of target RAM for execution
                                     //
@@ -109,13 +107,5 @@ static inline uint8_t memory_read_rom_shadow(uint16_t address) {
 
 // Turn off all LEDs (for NED_SYS7 board)
 void led_all_off(void);
-
-#define ADDR_TO_TABLE_INDEX(addr) ((uint8_t)((addr) >> 8))
-#define ENTRY_ADDR_MASK ~0xFFU
-#define ENTRY_FLAG_MASK 0b111
-#define ENTRY_MAPPED_RAM 0b010
-#define ENTRY_MAPPED_CMOS 0b110
-#define ENTRY_MAPPED_ROM 0b000
-#define ENTRY_UNMAPPED_BUS 0b011
 
 #endif  // MEMORY_H

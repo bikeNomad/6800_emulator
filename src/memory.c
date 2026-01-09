@@ -76,15 +76,6 @@ So the bottom 3 bits are encoded like this:
 0b110   mapped CMOS RAM (read from RAM shadow, write to both shadow and bus)
 */
 
-// Memory map entry flags (local definitions not exported)
-#define ENTRY_UNMAPPED 0b001
-#define ENTRY_WRITABLE 0b010
-#define ENTRY_WRITE_THROUGH 0b100
-
-#define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
-#define HIGH_ALIAS_TABLE_OFFSET 0x80
-#define MEMORY_TABLE_SIZE (0x10000U / ENTRY_PAGE_SIZE)
-
 memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
