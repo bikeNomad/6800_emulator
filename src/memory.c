@@ -171,13 +171,11 @@ void memory_init(void) {
     memset(rom_shadow, 0xFF, sizeof(rom_shadow));
     memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
 
-    // Default configuration (A15 not decoded)
+    // Default configuration to SYS7 (A15 not decoded)
     mem_config.rom_base = 0x4000;
-    mem_config.rom_size = 0x4000;  // 16KB (4000-7FFF, aliased at C000-FFFF)
+    mem_config.rom_size = 0x4000;    // 16KB (4000-7FFF, aliased at C000-FFFF)
     mem_config.ram_base = 0x0000;
-    mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
-    mem_config.flash_offset = FLASH_TARGET_OFFSET;
-    mem_config.flash_size = mem_config.rom_size;
+    mem_config.ram_size = 0x1400;    // 5KB (0000-13FF)
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
     mem_config.alias_offset = 0x80;  // Default: high alias at +0x80
@@ -244,7 +242,6 @@ void memory_configure_rom(uint16_t base, uint16_t size) {
 
     mem_config.rom_base = base;
     mem_config.rom_size = size;
-    mem_config.flash_size = size;
     mem_config.configured = true;
 
     memory_initialize_map();
@@ -354,19 +351,19 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
 
 // Finalize EPROM load (write buffer to flash)
 bool memory_finalize_load(void) {
-    printf("Writing %u bytes to flash at offset 0x%08lX...\n", (unsigned int)mem_config.flash_size,
-           (unsigned long)mem_config.flash_offset);
+    printf("Writing %u bytes to flash at offset 0x%08lX...\n", (unsigned int)mem_config.rom_size,
+           (unsigned long)FLASH_TARGET_OFFSET);
 
     // Disable interrupts during flash write
     uint32_t ints = save_and_disable_interrupts();
 
     // Erase flash sector(s)
     uint32_t erase_size =
-        (mem_config.flash_size + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
-    flash_range_erase(mem_config.flash_offset, erase_size);
+        (mem_config.rom_size + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
+    flash_range_erase(FLASH_TARGET_OFFSET, erase_size);
 
     // Program flash
-    flash_range_program(mem_config.flash_offset, rom_load_buffer, mem_config.flash_size);
+    flash_range_program(FLASH_TARGET_OFFSET, rom_load_buffer, mem_config.rom_size);
 
     // Flush cache after flash programming
     flash_flush_cache();
@@ -377,8 +374,8 @@ bool memory_finalize_load(void) {
     printf("Flash programming complete\n");
 
     // Verify
-    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
-    if (memcmp(flash_ptr, rom_load_buffer, mem_config.flash_size) != 0) {
+    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+    if (memcmp(flash_ptr, rom_load_buffer, mem_config.rom_size) != 0) {
         printf("Flash verification FAILED\n");
         return false;
     }
@@ -387,21 +384,21 @@ bool memory_finalize_load(void) {
 
     // Copy ROM to RAM shadow for fast execution
     printf("Copying ROM to RAM shadow for fast access...\n");
-    memcpy(rom_shadow, rom_load_buffer, mem_config.flash_size);
-    printf("ROM shadow copy complete (%u bytes)\n", (unsigned int)mem_config.flash_size);
+    memcpy(rom_shadow, rom_load_buffer, mem_config.rom_size);
+    printf("ROM shadow copy complete (%u bytes)\n", (unsigned int)mem_config.rom_size);
 
     return true;
 }
 
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void) {
-    const uint8_t *flash_base = (const uint8_t *)(XIP_BASE + mem_config.flash_offset);
+    const uint8_t *flash_base = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
     uint16_t       bytes_loaded = 0;
 
     // Simply load ALL ROM data from flash contiguously - the flash contains
     // all pages from rom_base to rom_base+rom_size stored contiguously
-    memcpy(rom_shadow, flash_base, mem_config.flash_size);
-    bytes_loaded = mem_config.flash_size;
+    memcpy(rom_shadow, flash_base, mem_config.rom_size);
+    bytes_loaded = mem_config.rom_size;
 
     printf("ROM restored from flash (%u bytes)\n", bytes_loaded);
 
@@ -453,7 +450,7 @@ void memory_print_summary(printf_func_t printf_func) {
     printf_func("  CMOS: $%04X-$%04X (%d bytes)\r\n", mem_config.cmos_base,
                 mem_config.cmos_base + mem_config.cmos_size - 1, mem_config.cmos_size);
     printf_func("  Flash offset: 0x%08lX, size: %u bytes\r\n",
-                (unsigned long)mem_config.flash_offset, (unsigned int)mem_config.flash_size);
+                (unsigned long)FLASH_TARGET_OFFSET, (unsigned int)mem_config.rom_size);
     printf_func("  Configuration: %s\r\n", mem_config.configured ? "configured" : "default");
 
     // Count mapped vs unmapped pages
@@ -508,9 +505,10 @@ void memory_save_memory_map_to_flash(void) {
 
     // Create aligned buffers
     static uint8_t config_buffer[256] __attribute__((aligned(4)));
-    static uint8_t map_buffer[1024] __attribute__((aligned(4)));
+    static uint8_t map_buffer[sizeof(memory_map)] __attribute__((aligned(4)));
 
     // Copy data to aligned buffers and zero-pad
+    static_assert(sizeof(mem_config) <= sizeof(config_buffer));
     memset(config_buffer, 0, sizeof(config_buffer));
     memcpy(config_buffer, &mem_config, FLASH_MEMORY_CONFIG_SIZE);
 
@@ -630,7 +628,6 @@ void memory_load_memory_map_from_flash(void) {
             if (map_valid) {
                 memcpy(&mem_config, &loaded_config, FLASH_MEMORY_CONFIG_SIZE);
                 // Always use the correct flash offset
-                mem_config.flash_offset = FLASH_TARGET_OFFSET;
                 memcpy(memory_map, loaded_map, FLASH_MEMORY_MAP_SIZE);
                 printf("Memory config and map loaded from flash (%u + %u bytes)\n",
                        FLASH_MEMORY_CONFIG_SIZE, FLASH_MEMORY_MAP_SIZE);

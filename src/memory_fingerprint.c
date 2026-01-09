@@ -7,8 +7,6 @@
 #include "clock.h"
 #include "emulator.h"
 #include "memory.h"
-#include <stdio.h>
-#include <string.h>
 
 // Test pattern for RAM/CMOS detection
 static const uint8_t TEST_DATA[] = "This is a test of the bus";
@@ -63,7 +61,7 @@ static const char *page_type_to_string(page_type_t type) {
     case PAGE_RAM:
         return "RAM";
     case PAGE_CMOS:
-        return "CMOS";
+        return "CMOS (4-bit)";
     case PAGE_PIA:
         return "PIA";
     case PAGE_UNMAPPED:
@@ -76,7 +74,7 @@ static const char *page_type_to_string(page_type_t type) {
 static const char *architecture_name(architecture_type_t arch) {
     switch (arch) {
     case ARCH_WILLIAMS_SYS7:
-        return "Williams System 7";
+        return "Williams System 3-7";
     case ARCH_WILLIAMS_SYS11:
         return "Williams System 11";
     case ARCH_UNKNOWN:
@@ -420,13 +418,12 @@ static void setup_rom_mapping(uint16_t address) {
     memory_map[table_index] = table_entry;
 }
 
+// Williams System 3-7 does not decode A15, and duplicates the zero page of RAM at $1000
 static void apply_system7_rules(void) {
     // Add $0000-$00FF → $1000-$10FF RAM mirror
     uint32_t page0_entry = memory_map[0x00];
     if ((page0_entry & ENTRY_FLAG_MASK) == ENTRY_MAPPED_RAM) {
         memory_map[0x10] = page0_entry;
-        // Also mirror in high alias
-        memory_map[0x10 + 0x80] = page0_entry;
     }
 
     // A15 not decoded: mirror low pages to high
@@ -490,7 +487,6 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
         if (arch == ARCH_WILLIAMS_SYS11 && rom_end >= 0xFF00) {
             mem_config.rom_size = 0x10000 - rom_start;
         }
-        mem_config.flash_size = mem_config.rom_size;
     }
     if (cmos_start != 0xFFFF) {
         mem_config.cmos_base = cmos_start;
@@ -512,8 +508,8 @@ static void build_memory_map_from_scan(scan_result_t *results, architecture_type
             setup_rom_mapping(addr);
             break;
         case PAGE_EMPTY:
-            // For System 11, map EMPTY pages in ROM range as ROM
-            if (arch == ARCH_WILLIAMS_SYS11 && addr >= rom_start && addr <= rom_end) {
+            // map EMPTY pages in ROM range as ROM
+            if (addr >= rom_start && addr <= rom_end) {
                 setup_rom_mapping(addr);
             }
             break;

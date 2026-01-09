@@ -1,7 +1,6 @@
 /**
  * MC6800 Memory Subsystem
  * Manages 64KB address space mapping to ROM (flash) and RAM
- * CRITICAL: All accesses go through physical bus for watchdog
  */
 
 #ifndef MEMORY_H
@@ -20,8 +19,8 @@
 #define MAX_RAM_SIZE (8 * 1024)           // 8KB max RAM (supports up to 0x1FFF)
 
 // CMOS RAM
-#define CMOS_SIZE 256
-#define CMOS_BASE 0x0100
+#define CMOS_SIZE 256       // SYS7
+#define CMOS_BASE 0x0100    // SYS7
 
 // Memory region types
 typedef enum {
@@ -35,8 +34,6 @@ typedef enum {
 
 // Memory configuration
 typedef struct {
-    uint32_t flash_offset;  // Offset in RP2350 flash for ROM shadow copy
-    uint32_t flash_size;    // Size of ROM image
     uint16_t rom_base;      // Base address in MC6800 space (e.g., $E000)
     uint16_t rom_size;      // Size of ROM region
     uint16_t ram_base;      // Base address of RAM (e.g., $0000)
