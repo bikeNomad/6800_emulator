@@ -1,6 +1,17 @@
 /**
  * MC6800 Memory Subsystem
  * Manages 64KB address space mapping to ROM (flash) and RAM
+ *
+ * At startup, ROM contents are read from QSPI flash to rom_shadow and
+ *   ram_shadow is copied from the target system
+ *
+ * Assumptions:
+ *   - No memory region is smaller than 256 bytes
+ *   - ROM is in one contiguous range from mem_config.rom_base to mem_config.rom_base+mem_config.rom_size
+ *   - RAM is in one contiguous range from mem_config.ram_base to mem_config.rom_base+mem_config.ram_size
+ *   - CMOS (if it exists) lives somewhere within the RAM range
+ *   - There may be aliasing due to incomplete address line decoding; in this case aliased memory map
+ *     entries are copies of the base entries
  */
 
 #ifndef MEMORY_H
@@ -51,6 +62,13 @@ extern uint8_t         rom_shadow[MAX_ROM_SIZE]
 // Compile-time alignment verification
 _Static_assert(__alignof__(rom_shadow) == 256, "rom_shadow not 256-byte aligned");
 
+extern uint32_t memory_map[];
+
+extern uint8_t ram_shadow[MAX_RAM_SIZE]
+    __attribute__((aligned(256)));  // Fast RAM copy of target RAM for execution
+                                    //
+_Static_assert(__alignof__(ram_shadow) == 256, "ram_shadow not 256-byte aligned");
+
 // Initialize memory subsystem
 void memory_init(void);
 
@@ -95,8 +113,8 @@ const uint8_t *memory_get_cmos_shadow(void);
 // Print a summary of the various memory ranges defined in the memory_map
 void memory_print_summary(printf_func_t printf_func);
 
-// Read CMOS data from bus into shadow copy
-void memory_read_cmos_from_bus(void);
+// Read RAM data from bus into shadow copy
+void memory_read_ram_from_bus(void);
 
 // Memory map persistence functions
 void memory_save_memory_map_to_flash(void);
@@ -141,11 +159,7 @@ typedef struct {
 const scan_result_t *memory_get_scan_results(void);
 const scan_result_t *memory_get_coalesced_scan_results(void);
 
-// Internal symbols needed by memory_fingerprint.c
-extern uint32_t memory_map[];
-extern uint8_t  ram_shadow[];
-
-#define ADDR_TO_TABLE_INDEX(addr) ((addr) >> 8)
+#define ADDR_TO_TABLE_INDEX(addr) ((uint8_t)((addr) >> 8))
 #define ENTRY_ADDR_MASK ~0xFFU
 #define ENTRY_FLAG_MASK 0b111
 #define ENTRY_MAPPED_RAM 0b010

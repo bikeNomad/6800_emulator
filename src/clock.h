@@ -3,8 +3,7 @@
  * Uses PIO to generate precise 0.894886 MHz E clock
  */
 
-#ifndef CLOCK_H
-#define CLOCK_H
+#pragma once
 
 #include "board_config.h"
 #include "clock.pio.h"
@@ -140,5 +139,3 @@ static inline void clock_reset_counters(void) {
     instruction_count_initialize();
 #endif
 }
-
-#endif  // CLOCK_H

@@ -77,3 +77,18 @@ static inline void jlink_reset_strategy_12_marker(void) {
         : "r0", "memory"       // Clobber list: tell GCC we used r0 and memory
     );
 }
+
+// Returns true if command was sent and OK'd
+bool send_command_to_emulator(sm_event_t event);
+
+static inline bool pause_emulator(void) {
+    return send_command_to_emulator(EV_PAUSE_EMULATOR);
+}
+
+static inline bool resume_emulator(void) {
+    return send_command_to_emulator(EV_RESUME_EMULATOR);
+}
+
+// Helper functions for bus operations with E clock management and pausing emulator
+void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_t *buffer);
+void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer, uint16_t length);

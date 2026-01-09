@@ -265,7 +265,7 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
 
     memory_initialize_map();
 
-    memory_read_cmos_from_bus();
+    memory_read_ram_from_bus();
 
     printf("RAM configured: $%04X-$%04X (%d bytes)\n", base, base + size - 1, size);
 }
@@ -401,18 +401,6 @@ void memory_init_rom_from_flash(void) {
     bytes_loaded = mem_config.rom_size;
 
     printf("ROM restored from flash (%u bytes)\n", bytes_loaded);
-
-    // Debug: Check what's at $FFF8 in rom_shadow
-    uint16_t vec_offset = 0xFFF8 - mem_config.rom_base;
-    printf("Debug: rom_shadow[$%04X] (offset %u) = ", 0xFFF8, vec_offset);
-    for (int i = 0; i < 8; i++) {
-        printf("%02X ", rom_shadow[vec_offset + i]);
-    }
-    printf("\n");
-
-    // Debug: Check memory map for page $FF
-    memory_type_t type = memory_get_mapping_type(0xFF00);
-    printf("Debug: Page $FF memory type: %d (0=unmapped,1=ROM,2=RAM,3=CMOS)\n", type);
 }
 
 // Load Intel HEX data into CMOS shadow copy
@@ -437,7 +425,7 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void) {
-    return &ram_shadow[CMOS_BASE];
+    return &ram_shadow[mem_config.cmos_base];
 }
 
 // Print a summary of the various memory ranges defined in the memory_map
@@ -647,28 +635,15 @@ void memory_load_memory_map_from_flash(void) {
 
 // Clear all ROM mapping (set ROM pages to unmapped in memory map)
 void memory_clear_rom_mapping(void) {
-    // Check if this is System 11 (has mappings in high address space)
-    bool is_system11 = false;
-    for (int i = 128; i < 256; i++) {
-        if (memory_map[i] != ENTRY_UNMAPPED_BUS) {
-            is_system11 = true;
-            break;
-        }
-    }
-
     // Set all ROM pages to unmapped
     for (uint32_t address = mem_config.rom_base;
          address < (uint32_t)mem_config.rom_base + mem_config.rom_size;
          address += ENTRY_PAGE_SIZE) {
-        uint16_t addr = (uint16_t)address;
-        uint8_t  table_index = ADDR_TO_TABLE_INDEX(addr);
+        uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
 
-        // Set to unmapped (route to bus)
-        memory_map[table_index] = ENTRY_UNMAPPED_BUS;
-
-        // For non-System 11, also clear the high alias
-        if (!is_system11) {
-            memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;
+        if (memory_map[table_index] == ENTRY_MAPPED_ROM) {
+            // Set to unmapped (route to bus)
+            memory_map[table_index] = ENTRY_UNMAPPED_BUS;
         }
     }
 
@@ -682,14 +657,9 @@ void memory_clear_rom_load_buffer(void) {
     memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
 }
 
-void memory_read_cmos_from_bus(void) {
-    eclock_start();
-    uint16_t address = mem_config.cmos_base;
-    for (uint16_t i = 0; i < mem_config.cmos_size; i++) {
-        uint8_t value = bus_read_cycle(address);
-        ram_shadow[address++] = value;
-    }
-    eclock_stop();
+// For each RAM block, load ram_shadow from bus
+void memory_read_ram_from_bus(void) {
+    // TODO
 }
 
 // Memory mapping query functions for external access
