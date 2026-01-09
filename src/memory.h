@@ -49,7 +49,7 @@ _Static_assert(__alignof__(rom_shadow) == 256, "rom_shadow not 256-byte aligned"
 
 extern uint8_t ram_shadow[MAX_RAM_SIZE]
     __attribute__((aligned(256)));  // Fast RAM copy of target RAM for execution
-                                    //
+
 _Static_assert(__alignof__(ram_shadow) == 256, "ram_shadow not 256-byte aligned");
 
 // Initialize memory subsystem

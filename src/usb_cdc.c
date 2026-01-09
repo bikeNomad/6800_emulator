@@ -746,103 +746,30 @@ static void cmd_map_show(void) {
     // Display memory mapping state with contiguous ranges
     usb_cdc_send("Memory Map:\r\n");
 
-    // Determine if this is System 11 (full A15 decode) or other system
-    // For System 11, the memory map has entries for the full 64KB address space
-    // For other systems, only the low 32KB is mapped with aliases
-    bool is_system11 = false;
-    for (int i = 128; i < 256; i++) {  // Check high address space pages
-        if (memory_map[i] != ENTRY_UNMAPPED_BUS) {
-            is_system11 = true;
-            break;
-        }
-    }
+    uint32_t current_addr = 0x0000;
+    uint32_t end_addr = 0xFFFF;
 
-    if (is_system11) {
-        // System 11: Display full 64KB address space
-        usb_cdc_send("Full address space (A15 fully decoded):\r\n");
-        uint32_t current_addr = 0x0000;
-        uint32_t end_addr = 0xFFFF;
+    while (current_addr <= end_addr) {
+        bool          mapped = false;
+        memory_type_t type = get_memory_info_at_address((uint16_t)current_addr, &mapped);
+        const char   *info = format_memory_info(type, mapped);
 
-        while (current_addr <= end_addr) {
-            bool          mapped = false;
-            memory_type_t type = get_memory_info_at_address((uint16_t)current_addr, &mapped);
-            const char   *info = format_memory_info(type, mapped);
+        // Find the end of this contiguous range
+        uint32_t range_end = current_addr;
+        while (range_end + 1 <= end_addr) {
+            bool          next_mapped = false;
+            memory_type_t next_type = get_memory_info_at_address((uint16_t)(range_end + 1), &next_mapped);
+            const char   *next_info = format_memory_info(next_type, next_mapped);
 
-            // Find the end of this contiguous range
-            uint32_t range_end = current_addr;
-            while (range_end + 1 <= end_addr) {
-                bool          next_mapped = false;
-                memory_type_t next_type = get_memory_info_at_address((uint16_t)(range_end + 1), &next_mapped);
-                const char   *next_info = format_memory_info(next_type, next_mapped);
-
-                if (strcmp(info, next_info) == 0) {
-                    range_end++;
-                } else {
-                    break;
-                }
+            if (strcmp(info, next_info) == 0) {
+                range_end++;
+            } else {
+                break;
             }
-
-            usb_cdc_printf("  $%04X-$%04X: %s\r\n", (uint16_t)current_addr, (uint16_t)range_end, info);
-            current_addr = range_end + 1;
-        }
-    } else {
-        // Other systems: Display low/high address spaces with aliases
-        // Process low address space (A15 = 0)
-        usb_cdc_send("Low address space (A15 = 0):\r\n");
-        uint16_t current_addr = 0x0000;
-        uint16_t end_addr = 0x8000;  // Up to but not including high alias
-
-        while (current_addr < end_addr) {
-            bool          mapped = false;
-            memory_type_t type = get_memory_info_at_address(current_addr, &mapped);
-            const char   *info = format_memory_info(type, mapped);
-
-            // Find the end of this contiguous range
-            uint16_t range_end = current_addr;
-            while (range_end + 1 < end_addr) {
-                bool          next_mapped = false;
-                memory_type_t next_type = get_memory_info_at_address(range_end + 1, &next_mapped);
-                const char   *next_info = format_memory_info(next_type, next_mapped);
-
-                if (strcmp(info, next_info) == 0) {
-                    range_end++;
-                } else {
-                    break;
-                }
-            }
-
-            usb_cdc_printf("  $%04X-$%04X: %s\r\n", current_addr, range_end, info);
-            current_addr = range_end + 1;
         }
 
-        // Process high address space (A15 = 1) as aliases
-        usb_cdc_send("\nHigh address space (A15 = 1, aliases):\r\n");
-        current_addr = 0x8000;
-        end_addr = 0xFFFF;
-
-        while (current_addr < end_addr) {
-            bool          mapped = false;
-            memory_type_t type = get_memory_info_at_address(current_addr, &mapped);
-            const char   *info = format_memory_info(type, mapped);
-
-            // Find the end of this contiguous range
-            uint16_t range_end = current_addr;
-            while (range_end + 1 < end_addr) {
-                bool          next_mapped = false;
-                memory_type_t next_type = get_memory_info_at_address(range_end + 1, &next_mapped);
-                const char   *next_info = format_memory_info(next_type, next_mapped);
-
-                if (strcmp(info, next_info) == 0) {
-                    range_end++;
-                } else {
-                    break;
-                }
-            }
-
-            usb_cdc_printf("  $%04X-$%04X: %s (alias of $%04X-$%04X)\r\n", current_addr, range_end,
-                           info, current_addr & 0x7FFF, range_end & 0x7FFF);
-            current_addr = range_end + 1;
-        }
+        usb_cdc_printf("  $%04X-$%04X: %s\r\n", (uint16_t)current_addr, (uint16_t)range_end, info);
+        current_addr = range_end + 1;
     }
 }
 

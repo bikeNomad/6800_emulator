@@ -16,20 +16,21 @@ typedef enum {
     MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
 } memory_type_t;
 
+/** Function pointer type for printf-style output functions */
 typedef int (*printf_func_t)(const char *format, ...);
 
 // Memory configuration
 typedef struct {
     uint16_t rom_base;   // Base address in MC6800 space (e.g., $E000)
-    uint16_t rom_size;   // Size of ROM region
-    uint16_t ram_base;   // Base address of RAM (e.g., $0000)
-    uint16_t ram_size;   // Size of RAM (e.g., 512 bytes)
-    uint16_t cmos_base;  // Base address of CMOS RAM (0x0100)
-    uint16_t cmos_size;  // Size of CMOS RAM (256 bytes)
+    uint16_t rom_size;   // Size of ROM region in bytes
+    uint16_t ram_base;   // Base address of RAM in MC6800 space (e.g., $0000)
+    uint16_t ram_size;   // Size of RAM region in bytes (e.g., 512 bytes)
+    uint16_t cmos_base;  // Base address of CMOS RAM in MC6800 space (0x0100)
+    uint16_t cmos_size;  // Size of CMOS RAM region in bytes (256 bytes)
 } memory_config_t;
 
-// Address translation for missing A15 decode
-#define ADDR_MASK_A15 0x7FFF // Mask off A15
+/** Address translation for missing A15 decode - masks off A15 bit */
+#define ADDR_MASK_A15 0x7FFF
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (2 * 1024 * 1024) // 2MB offset (adjust based on program size)
@@ -44,10 +45,15 @@ typedef struct {
 #define MEMORY_TABLE_SIZE (0x10000U / ENTRY_PAGE_SIZE)
 
 // Flash storage for memory config and map
+/** Flash offset for memory configuration storage */
 #define FLASH_MEMORY_CONFIG_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
+/** Size of memory config structure in flash */
 #define FLASH_MEMORY_CONFIG_SIZE sizeof(memory_config_t)
-#define FLASH_MEMORY_CONFIG_PADDED_SIZE 256  // Config must be padded to 256 bytes for flash_range_program
+/** Padded size of config in flash (must be 256 bytes for flash_range_program) */
+#define FLASH_MEMORY_CONFIG_PADDED_SIZE 256
+/** Flash offset for memory map storage */
 #define FLASH_MEMORY_MAP_OFFSET (FLASH_MEMORY_CONFIG_OFFSET + FLASH_MEMORY_CONFIG_PADDED_SIZE)
+/** Size of memory map in flash */
 #define FLASH_MEMORY_MAP_SIZE (MEMORY_TABLE_SIZE * sizeof(uint32_t))
 
 // Memory map entry flags (local definitions not exported)
@@ -55,35 +61,57 @@ typedef struct {
 #define ENTRY_WRITABLE 0b010
 #define ENTRY_WRITE_THROUGH 0b100
 
-// Memory map entry definitions
+/** Memory map entry definitions */
+/** Mask for extracting address from map entry (upper 24 bits) */
 #define ENTRY_ADDR_MASK ~0xFFU
+/** Mask for extracting flags from map entry (lower 8 bits) */
 #define ENTRY_FLAG_MASK 0b111
+/** Map entry flag combination for RAM mapping */
 #define ENTRY_MAPPED_RAM 0b010
+/** Map entry flag combination for CMOS mapping */
 #define ENTRY_MAPPED_CMOS 0b110
+/** Map entry flag combination for ROM mapping */
 #define ENTRY_MAPPED_ROM 0b000
+/** Map entry flag combination for unmapped bus access */
 #define ENTRY_UNMAPPED_BUS 0b011
+/** Convert address to memory table index (page number) */
 #define ADDR_TO_TABLE_INDEX(addr) ((uint8_t)((addr) >> 8))
+/** Convert address to offset within memory page */
 #define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
 
-// Memory map array (declared in memory_map.c)
+/** Memory map array - maps 256-byte pages to physical addresses and flags */
 extern uint32_t memory_map[];
 
 // Fast memory access using shadows or direct bus access
 uint8_t memory_read_fast(uint16_t address);
 void    memory_write_fast(uint16_t address, uint8_t data);
 
-// Core memory map functions
-bool          memory_is_address_mapped(uint16_t address);
-bool          memory_load_memory_map_from_flash(void);
+/** Core memory map functions */
+/** Check if an address is mapped in the memory map */
+bool memory_is_address_mapped(uint16_t address);
+/** Load memory map from flash storage */
+bool memory_load_memory_map_from_flash(void);
+/** Get the mapping type for an address */
 memory_type_t memory_get_mapping_type(uint16_t address);
+/** Get the memory type for an address (alias for memory_get_mapping_type) */
 memory_type_t memory_get_type(uint16_t address);
-uint8_t      *memory_get_shadow_address(uint16_t address);
-void          memory_clear_rom_mapping(void);
-void          memory_initialize_map(void);
-void          memory_print_summary(printf_func_t printf_func);
-void          memory_save_memory_map_to_flash(void);
-void          memory_save_rom_mapping_to_flash(void);
-void          memory_set_rom_mapping(uint16_t address, bool mapped);
-void          setup_cmos_mapping(uint16_t address);
-void          setup_ram_mapping(uint16_t address);
-void          setup_rom_mapping(uint16_t address);
+/** Get shadow RAM address for fast access to mapped memory */
+uint8_t *memory_get_shadow_address(uint16_t address);
+/** Clear all ROM mappings from memory map */
+void memory_clear_rom_mapping(void);
+/** Initialize memory map with default mappings */
+void memory_initialize_map(void);
+/** Print memory map summary using provided printf function */
+void memory_print_summary(printf_func_t printf_func);
+/** Save current memory map to flash storage */
+void memory_save_memory_map_to_flash(void);
+/** Save ROM mapping portion to flash storage */
+void memory_save_rom_mapping_to_flash(void);
+/** Set ROM mapping for a specific address */
+void memory_set_rom_mapping(uint16_t address, bool mapped);
+/** Set up CMOS RAM mapping for an address range */
+void setup_cmos_mapping(uint16_t address);
+/** Set up RAM mapping for an address range */
+void setup_ram_mapping(uint16_t address);
+/** Set up ROM mapping for an address range */
+void setup_rom_mapping(uint16_t address);
