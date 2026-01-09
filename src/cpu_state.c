@@ -10,6 +10,8 @@
 #include "hardware/sync.h"
 #include "interrupts.h"
 #include "memory.h"
+#include "memory_fingerprint.h"
+#include "memory_map.h"
 #include <stdio.h>
 
 // Global CPU state

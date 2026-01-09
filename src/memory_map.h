@@ -3,8 +3,7 @@
  * Handles the memory mapping table and related functions
  */
 
-#ifndef MEMORY_MAP_H
-#define MEMORY_MAP_H
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,30 +16,16 @@ typedef enum {
     MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
 } memory_type_t;
 
-typedef enum {
-    SANITY_OK,
-    SANITY_NO_SAVED_MAP,
-    SANITY_RAM_MISMATCH,
-    SANITY_ROM_UNEXPECTED
-} sanity_result_t;
-
-typedef struct {
-    uint8_t  type;  // page_type_t from memory_fingerprint.c
-    uint16_t address;
-} scan_result_t;
-
 typedef int (*printf_func_t)(const char *format, ...);
 
 // Memory configuration
 typedef struct {
-    uint16_t rom_base;      // Base address in MC6800 space (e.g., $E000)
-    uint16_t rom_size;      // Size of ROM region
-    uint16_t ram_base;      // Base address of RAM (e.g., $0000)
-    uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
-    uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
-    uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
-    uint8_t  alias_offset;  // High address alias offset (default: 0x80)
-    bool     configured;    // Configuration complete
+    uint16_t rom_base;   // Base address in MC6800 space (e.g., $E000)
+    uint16_t rom_size;   // Size of ROM region
+    uint16_t ram_base;   // Base address of RAM (e.g., $0000)
+    uint16_t ram_size;   // Size of RAM (e.g., 512 bytes)
+    uint16_t cmos_base;  // Base address of CMOS RAM (0x0100)
+    uint16_t cmos_size;  // Size of CMOS RAM (256 bytes)
 } memory_config_t;
 
 // Address translation for missing A15 decode
@@ -87,26 +72,18 @@ extern uint32_t memory_map[];
 // Core memory map functions
 void memory_initialize_map(void);
 
-// Memory map building functions (from fingerprinting)
-typedef enum {
-    ARCH_UNKNOWN,
-    ARCH_WILLIAMS_SYS7,
-    ARCH_WILLIAMS_SYS11
-} architecture_type_t;
-
-void setup_ram_mapping(uint16_t address);
-void setup_cmos_mapping(uint16_t address);
-void setup_rom_mapping(uint16_t address);
-void apply_system7_rules(void);
-void build_memory_map_from_scan(scan_result_t *results, architecture_type_t arch, printf_func_t printf_func);
-int  detect_address_aliasing(scan_result_t *results);
-
-// Memory fingerprinting and auto-configuration
-bool            memory_scan_and_build_map(printf_func_t printf_func);
-sanity_result_t memory_sanity_check(void);
-
-// Scan results access
-const scan_result_t *memory_get_scan_results(void);
-const scan_result_t *memory_get_coalesced_scan_results(void);
-
-#endif  // MEMORY_MAP_H
+void          setup_ram_mapping(uint16_t address);
+void          setup_cmos_mapping(uint16_t address);
+void          setup_rom_mapping(uint16_t address);
+memory_type_t memory_get_type(uint16_t address);
+void          memory_initialize_map(void);
+uint8_t       memory_read_fast(uint16_t address);
+void          memory_write_fast(uint16_t address, uint8_t data);
+void          memory_print_summary(printf_func_t printf_func);
+void          memory_save_memory_map_to_flash(void);
+bool          memory_load_memory_map_from_flash(void);
+void          memory_clear_rom_mapping(void);
+memory_type_t memory_get_mapping_type(uint16_t address);
+void          memory_set_rom_mapping(uint16_t address, bool mapped);
+void          memory_save_rom_mapping_to_flash(void);
+bool          memory_is_address_mapped(uint16_t address);

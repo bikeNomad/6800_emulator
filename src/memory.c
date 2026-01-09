@@ -12,6 +12,7 @@
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
 #include "interrupts.h"
+#include "memory_map.h"
 #include "pico.h"
 #include "pico/time.h"
 #include <stdio.h>
@@ -92,9 +93,6 @@ uint8_t rom_shadow[MAX_ROM_SIZE]
     __attribute__((aligned(ENTRY_PAGE_SIZE)));                               // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];                                // Buffer for loading before flash write
 
-// Startup status (for displaying warnings via USB CDC after boot)
-static sanity_result_t startup_status = SANITY_OK;
-
 // Memory map persistence - no bitmap needed anymore
 
 // Flash storage for memory config and map
@@ -113,52 +111,29 @@ void memory_init(void) {
 
     // Default configuration to SYS7 (A15 not decoded)
     mem_config.rom_base = 0x4000;
-    mem_config.rom_size = 0x4000;    // 16KB (4000-7FFF, aliased at C000-FFFF)
+    mem_config.rom_size = 0x4000;  // 16KB (4000-7FFF, aliased at C000-FFFF)
     mem_config.ram_base = 0x0000;
-    mem_config.ram_size = 0x1400;    // 5KB (0000-13FF)
+    mem_config.ram_size = 0x1400;  // 5KB (0000-13FF)
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
-    mem_config.alias_offset = 0x80;  // Default: high alias at +0x80
-    mem_config.configured = true;    // Use defaults
 
-    // Try to load complete memory map from flash
-    memory_load_memory_map_from_flash();
-
-    // Check if we have a valid saved map
-    bool has_valid_map = false;
-    for (int i = 0; i < 256; i++) {
-        if (memory_map[i] != ENTRY_UNMAPPED_BUS) {
-            has_valid_map = true;
-            break;
-        }
-    }
+    // Try to load complete memory map and memory config from flash
+    bool has_valid_map = memory_load_memory_map_from_flash();
 
     if (!has_valid_map) {
         printf("No valid memory map found. Using defaults.\n");
         printf("Run 'scan_memory' command to auto-configure.\n");
-        startup_status = SANITY_NO_SAVED_MAP;
         memory_initialize_map();
     } else {
         printf("Loaded memory map from flash\n");
-        // Don't run sanity check at boot - it requires E clock and bus operations
-        // User can run 'verify_memory' command later
-        startup_status = SANITY_OK;
+        // Restore ROM from flash if present
+        memory_init_rom_from_flash();
+        memory_read_ram_from_bus();
     }
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n", mem_config.rom_base,
            mem_config.rom_base + mem_config.rom_size - 1, mem_config.ram_base,
            mem_config.ram_base + mem_config.ram_size - 1);
-    printf("  ROM aliasing: A15 not decoded, $%04X-$%04X aliases at $%04X-$%04X\n",
-           mem_config.rom_base, mem_config.rom_base + mem_config.rom_size - 1,
-           mem_config.rom_base | 0x8000, (mem_config.rom_base | 0x8000) + mem_config.rom_size - 1);
-    printf("  Vectors at $FFF8-$FFFF access physical $7FF8-$7FFF\n");
-    printf("  RAM mirroring: $0000-$00FF mirrored at $1000-$10FF\n");
-    printf("  CMOS RAM: $%04X-$%04X\n", mem_config.cmos_base,
-           mem_config.cmos_base + mem_config.cmos_size - 1);
-    printf("  Initially all ROM regions are unmapped (will be mapped as data is loaded)\n");
-
-    // Restore ROM from flash if present
-    memory_init_rom_from_flash();
 }
 
 // Get ROM configuration
@@ -182,7 +157,6 @@ void memory_configure_rom(uint16_t base, uint16_t size) {
 
     mem_config.rom_base = base;
     mem_config.rom_size = size;
-    mem_config.configured = true;
 
     memory_initialize_map();
 
@@ -198,7 +172,6 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
 
     mem_config.ram_base = base;
     mem_config.ram_size = size;
-    mem_config.configured = true;
 
     // Clear RAM shadow
     memset(ram_shadow, 0, size);
@@ -316,13 +289,6 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void) {
     return &ram_shadow[mem_config.cmos_base];
-}
-
-/**
- * Get startup status for displaying warnings via USB CDC
- */
-sanity_result_t memory_get_startup_status(void) {
-    return startup_status;
 }
 
 // Clear ROM load buffer (for copy_roms command)
