@@ -97,6 +97,8 @@ memory_type_t memory_get_mapping_type(uint16_t address);
 memory_type_t memory_get_type(uint16_t address);
 /** Get shadow RAM address for fast access to mapped memory */
 uint8_t *memory_get_shadow_address(uint16_t address);
+/** Get unaliased target physical address corresponding to address */
+uint16_t memory_get_unaliased_address(uint16_t address);
 /** Clear all ROM mappings from memory map */
 void memory_clear_rom_mapping(void);
 /** Initialize memory map with default mappings */

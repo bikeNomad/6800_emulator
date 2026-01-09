@@ -174,33 +174,37 @@ void memory_configure_ram(uint16_t base, uint16_t size) {
     printf("RAM configured: $%04X-$%04X (%d bytes)\n", base, base + size - 1, size);
 }
 
-// Load Intel HEX data into ROM load buffer
+// Load Intel HEX data into ROM load buffer or into RAM shadow
+// Return true if ROM was loaded, false if out of bounds or RAM
 bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length) {
-    // Check if address is in CMOS range - route to CMOS loader
-    if (address >= mem_config.cmos_base && address < mem_config.cmos_base + mem_config.cmos_size) {
-        return memory_load_cmos_data(address, data, length);
+    uint16_t      start_addr = memory_get_unaliased_address(address);
+    uint16_t      end_addr = start_addr + length - 1;
+    memory_type_t start_type = memory_get_type(start_addr);
+    memory_type_t end_type = memory_get_type(end_addr);
+
+    if (start_type == MEM_TYPE_ROM && end_type == MEM_TYPE_ROM) {
+        uint16_t rom_offset = start_addr - mem_config.rom_base;
+        while (length > 0) {
+            rom_load_buffer[rom_offset] = *data;
+            data++;
+            length--;
+            rom_offset++;
+        }
+        return true;
     }
 
-    // Memory map now handles address aliasing, so use logical address directly
-    uint16_t physical_addr = address;
-
-    // Check if address is in ROM range
-    if (physical_addr < mem_config.rom_base ||
-        physical_addr >= mem_config.rom_base + mem_config.rom_size) {
-        printf("HEX address $%04X outside ROM/CMOS range\n", address);
+    if ((start_type == MEM_TYPE_RAM || start_type == MEM_TYPE_CMOS) && (end_type == MEM_TYPE_RAM || end_type == MEM_TYPE_CMOS)) {
+        uint16_t ram_offset = start_addr - mem_config.ram_base;
+        while (length > 0) {
+            ram_shadow[ram_offset] = *data;
+            data++;
+            length--;
+            ram_offset++;
+        }
         return false;
     }
 
-    uint16_t rom_offset = physical_addr - mem_config.rom_base;
-    if (rom_offset + length > mem_config.rom_size) {
-        printf("HEX data exceeds ROM size\n");
-        return false;
-    }
-
-    // Copy to ROM load buffer
-    memcpy(&rom_load_buffer[rom_offset], data, length);
-
-    return true;
+    return false;
 }
 
 // Finalize EPROM load (write buffer to flash)
@@ -279,7 +283,7 @@ bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t lengt
 
 // Get CMOS data for diagnostics (direct access to shadow copy)
 const uint8_t *memory_get_cmos_shadow(void) {
-    return &ram_shadow[mem_config.cmos_base];
+    return &ram_shadow[mem_config.cmos_base - mem_config.ram_base];
 }
 
 // Clear ROM load buffer (for copy_roms command)

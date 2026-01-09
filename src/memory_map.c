@@ -34,6 +34,21 @@ memory_type_t memory_get_type(uint16_t address) {
     }
 }
 
+uint16_t memory_get_unaliased_address(uint16_t address) {
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
+    uint32_t table_entry = memory_map[table_index];
+    uint8_t  offset = ADDR_TO_TABLE_OFFSET(address);
+    uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
+    uint8_t  flags = table_entry & ENTRY_FLAG_MASK;
+    if (flags == ENTRY_MAPPED_RAM || flags == ENTRY_MAPPED_CMOS) {  // RAM?
+        return mem_config.ram_base + (base_address + offset - (uint32_t)&ram_shadow[0]);
+    } else if (flags == ENTRY_MAPPED_ROM) {                         // ROM?
+        return mem_config.rom_base + (base_address + offset - (uint32_t)&rom_shadow[0]);
+    } else {
+        return address;
+    }
+}
+
 uint8_t *memory_get_shadow_address(uint16_t address) {
     uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
     uint32_t table_entry = memory_map[table_index];
