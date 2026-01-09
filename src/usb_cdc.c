@@ -285,6 +285,29 @@ static void cmd_bus_info(void) {
 }
 
 static void cmd_status(void) {
+    // Display startup warnings if any
+    sanity_result_t startup_status = memory_get_startup_status();
+    if (startup_status != SANITY_OK) {
+        usb_cdc_printf("=== STARTUP WARNING ===\r\n");
+        switch (startup_status) {
+        case SANITY_NO_SAVED_MAP:
+            usb_cdc_printf("No saved memory map found. Using defaults.\r\n");
+            usb_cdc_printf("Run 'scan_memory' command to auto-configure.\r\n");
+            break;
+        case SANITY_RAM_MISMATCH:
+            usb_cdc_printf("WARNING: RAM mismatch detected!\r\n");
+            usb_cdc_printf("Run 'scan_memory' to update configuration.\r\n");
+            break;
+        case SANITY_ROM_UNEXPECTED:
+            usb_cdc_printf("WARNING: Unexpected ROM/RAM detected.\r\n");
+            usb_cdc_printf("Run 'scan_memory' to update configuration.\r\n");
+            break;
+        default:
+            break;
+        }
+        usb_cdc_printf("=======================\r\n\r\n");
+    }
+
     usb_cdc_printf("Emulator State: %s\r\n", sm_current_state_name());
     // Get CPU status
     usb_cdc_printf("CPU Status:\r\n");

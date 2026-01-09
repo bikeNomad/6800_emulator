@@ -134,6 +134,7 @@ typedef enum {
     SANITY_ROM_UNEXPECTED
 } sanity_result_t;
 sanity_result_t memory_sanity_check(void);
+sanity_result_t memory_get_startup_status(void);  // Get status from boot for display
 
 // Scan result access
 typedef struct {

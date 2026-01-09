@@ -95,6 +95,9 @@ uint8_t rom_shadow[MAX_ROM_SIZE]
     __attribute__((aligned(ENTRY_PAGE_SIZE)));                               // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];                                // Buffer for loading before flash write
 
+// Startup status (for displaying warnings via USB CDC after boot)
+static sanity_result_t startup_status = SANITY_OK;
+
 // Memory map persistence - no bitmap needed anymore
 
 // Flash storage for complete memory map (1024 bytes)
@@ -192,13 +195,14 @@ void memory_init(void) {
     if (!has_valid_map) {
         printf("No valid memory map found. Using defaults.\n");
         printf("Run 'scan_memory' command to auto-configure.\n");
+        startup_status = SANITY_NO_SAVED_MAP;
         memory_initialize_map();
     } else {
         printf("Loaded memory map from flash\n");
 
-        // Perform sanity check
-        sanity_result_t check = memory_sanity_check();
-        switch (check) {
+        // Perform sanity check and store result
+        startup_status = memory_sanity_check();
+        switch (startup_status) {
         case SANITY_OK:
             printf("Memory configuration verified\n");
             break;
@@ -625,4 +629,11 @@ bool memory_is_address_mapped(uint16_t address) {
     uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
     uint32_t table_entry = memory_map[table_index];
     return !(table_entry & ENTRY_UNMAPPED);
+}
+
+/**
+ * Get startup status for displaying warnings via USB CDC
+ */
+sanity_result_t memory_get_startup_status(void) {
+    return startup_status;
 }
