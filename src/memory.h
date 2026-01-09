@@ -43,6 +43,7 @@ typedef struct {
     uint16_t ram_size;      // Size of RAM (e.g., 512 bytes)
     uint16_t cmos_base;     // Base address of CMOS RAM (0x0100)
     uint16_t cmos_size;     // Size of CMOS RAM (256 bytes)
+    uint8_t  alias_offset;  // High address alias offset (default: 0x80)
     bool     configured;    // Configuration complete
 } memory_config_t;
 
@@ -100,21 +101,24 @@ void memory_print_summary(printf_func_t printf_func);
 // Read CMOS data from bus into shadow copy
 void memory_read_cmos_from_bus(void);
 
+// Memory map persistence functions
+void memory_save_memory_map_to_flash(void);
+void memory_load_memory_map_from_flash(void);
+
 // ROM mapping management functions
-void memory_set_rom_mapping(uint16_t address, bool mapped);
-void memory_update_rom_mapping_from_bitmap(void);
-void memory_save_rom_mapping_to_flash(void);
-void memory_load_rom_mapping_from_flash(void);
 void memory_clear_rom_mapping(void);
+
+// Legacy wrapper functions for backward compatibility
+void memory_set_rom_mapping(uint16_t address, bool mapped);
+void memory_save_rom_mapping_to_flash(void);
 
 // Memory mapping query functions for external access
 memory_type_t memory_get_mapping_type(uint16_t address);
 bool          memory_is_address_mapped(uint16_t address);
 
 static inline uint8_t memory_read_rom_shadow(uint16_t address) {
-    // Translate address for missing A15 decode
-    uint16_t physical_addr = address & ADDR_MASK_A15;
-    uint16_t rom_offset = physical_addr - mem_config.rom_base;
+    // Memory map handles address aliasing, so use logical address directly
+    uint16_t rom_offset = address - mem_config.rom_base;
     return rom_shadow[rom_offset];
 }
 

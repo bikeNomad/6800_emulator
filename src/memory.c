@@ -106,12 +106,11 @@ uint8_t        rom_shadow[MAX_ROM_SIZE]
     __attribute__((aligned(ENTRY_PAGE_SIZE)));  // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];   // Buffer for loading before flash write
 
-// ROM mapping bitmap - tracks which 256-byte pages have valid ROM data
-// 256 pages maximum, 1 bit per page = 32 bytes
-static uint8_t rom_mapping_bitmap[32] = { 0 };
+// Memory map persistence - no bitmap needed anymore
 
-// Flash storage for ROM mapping bitmap (32 bytes)
-#define FLASH_MAPPING_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
+// Flash storage for complete memory map (1024 bytes)
+#define FLASH_MEMORY_MAP_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
+#define FLASH_MEMORY_MAP_SIZE (MEMORY_TABLE_SIZE * sizeof(uint32_t))
 
 memory_type_t memory_get_type(uint16_t address) {
     uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
@@ -141,18 +140,17 @@ void memory_initialize_map(void) {
     for (uint16_t address = mem_config.ram_base;
          address < mem_config.ram_base + mem_config.ram_size;
          address += ENTRY_PAGE_SIZE) {
-        uint16_t phys_addr = address & ADDR_MASK_A15;  // low alias
-        uint8_t  table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+        uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
         uint32_t shadow_addr =
-            (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
+            (uint32_t)(uintptr_t)&ram_shadow[0] + (address - mem_config.ram_base);
         uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_RAM;  // mapped RAM
         memory_map[table_index] = table_entry;
-        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;          // high alias
+        memory_map[(table_index + mem_config.alias_offset)] = table_entry;          // high alias
         // System 7 RAM mirroring: $1000-$10FF mirrors $0000-$00FF
-        if (phys_addr < 0x0100) {
-            uint8_t mirror_table_index = ADDR_TO_TABLE_INDEX(phys_addr + 0x1000);
+        if (address < 0x0100) {
+            uint8_t mirror_table_index = ADDR_TO_TABLE_INDEX(address + 0x1000);
             memory_map[mirror_table_index] = table_entry;
-            memory_map[mirror_table_index + HIGH_ALIAS_TABLE_OFFSET] = table_entry;
+            memory_map[mirror_table_index + mem_config.alias_offset] = table_entry;
         }
     }
 
@@ -160,17 +158,15 @@ void memory_initialize_map(void) {
     for (uint16_t address = mem_config.cmos_base;
          address < mem_config.cmos_base + mem_config.cmos_size;
          address += ENTRY_PAGE_SIZE) {
-        uint16_t phys_addr = address & ADDR_MASK_A15;  // low alias
-        uint8_t  table_index = ADDR_TO_TABLE_INDEX(phys_addr);
+        uint8_t  table_index = ADDR_TO_TABLE_INDEX(address);
         uint32_t shadow_addr =
-            (uint32_t)(uintptr_t)&ram_shadow[0] + (phys_addr - mem_config.ram_base);
+            (uint32_t)(uintptr_t)&ram_shadow[0] + (address - mem_config.ram_base);
         uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_CMOS;  // mapped CMOS
         memory_map[table_index] = table_entry;
-        memory_map[(table_index + HIGH_ALIAS_TABLE_OFFSET)] = table_entry;
+        memory_map[(table_index + mem_config.alias_offset)] = table_entry;
     }
 
-    // ROM entries will be mapped based on persistent bitmap via
-    // memory_update_rom_mapping_from_bitmap() This is called after loading the bitmap from flash
+    // ROM entries are now mapped based on the persistent memory_map loaded from flash
 }
 
 // Initialize memory subsystem
@@ -189,16 +185,17 @@ void memory_init(void) {
     mem_config.flash_size = mem_config.rom_size;
     mem_config.cmos_base = CMOS_BASE;
     mem_config.cmos_size = CMOS_SIZE;
-    mem_config.configured = true;  // Use defaults
+    mem_config.alias_offset = 0x80;  // Default: high alias at +0x80
+    mem_config.configured = true;    // Use defaults
 
-    // Load persistent ROM mapping state from flash
-    memory_load_rom_mapping_from_flash();
+    // Try to load complete memory map from flash
+    memory_load_memory_map_from_flash();
 
-    // Initialize memory map - START WITH ALL ROM REGIONS UNMAPPED
+    // Initialize memory map with defaults if no saved map exists
     memory_initialize_map();
 
-    // Update ROM mapping based on persistent bitmap
-    memory_update_rom_mapping_from_bitmap();
+    // If we loaded a memory map from flash, use it; otherwise use the newly initialized one
+    // (memory_load_memory_map_from_flash() only loads if data exists)
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n", mem_config.rom_base,
            mem_config.rom_base + mem_config.rom_size - 1, mem_config.ram_base,
@@ -323,15 +320,13 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
         return memory_load_cmos_data(address, data, length);
     }
 
-    // Translate address for missing A15 decode
-    // (e.g., $D800 -> $5800, $FFF8 -> $7FF8)
-    uint16_t physical_addr = address & ADDR_MASK_A15;
+    // Memory map now handles address aliasing, so use logical address directly
+    uint16_t physical_addr = address;
 
     // Check if address is in ROM range
     if (physical_addr < mem_config.rom_base ||
         physical_addr >= mem_config.rom_base + mem_config.rom_size) {
-        printf("HEX address $%04X (physical $%04X) outside ROM/CMOS range\n", address,
-               physical_addr);
+        printf("HEX address $%04X outside ROM/CMOS range\n", address);
         return false;
     }
 
@@ -479,97 +474,26 @@ void memory_print_summary(printf_func_t printf_func) {
                 MEMORY_TABLE_SIZE * ENTRY_PAGE_SIZE);
 }
 
-// Helper function to convert address to bitmap index
-static inline uint8_t address_to_bitmap_index(uint16_t address) {
-    // Translate address for missing A15 decode
-    uint16_t physical_addr = address & ADDR_MASK_A15;
-    // Calculate which 256-byte page this address falls in
-    uint16_t page_offset = physical_addr - mem_config.rom_base;
-    uint8_t  page_index = page_offset / ENTRY_PAGE_SIZE;
-    return page_index;
+// Save complete memory map to flash
+void memory_save_memory_map_to_flash(void) {
+    // Calculate erase size (round up to sector boundary)
+    uint32_t erase_size = (FLASH_MEMORY_MAP_SIZE + FLASH_SECTOR_SIZE - 1) & ~(FLASH_SECTOR_SIZE - 1);
+
+    // Erase flash sector(s)
+    flash_range_erase(FLASH_MEMORY_MAP_OFFSET, erase_size);
+
+    // Program memory map to flash
+    flash_range_program(FLASH_MEMORY_MAP_OFFSET, (uint8_t *)memory_map, FLASH_MEMORY_MAP_SIZE);
+    printf("Memory map saved to flash (%u bytes)\n", FLASH_MEMORY_MAP_SIZE);
 }
 
-// Helper function to set/clear bit in bitmap
-static inline void set_bitmap_bit(uint8_t *bitmap, uint8_t index, bool value) {
-    uint8_t byte_index = index / 8;
-    uint8_t bit_index = index % 8;
-    if (value) {
-        bitmap[byte_index] |= (1 << bit_index);
-    } else {
-        bitmap[byte_index] &= ~(1 << bit_index);
-    }
-}
+// Load complete memory map from flash
+void memory_load_memory_map_from_flash(void) {
+    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + FLASH_MEMORY_MAP_OFFSET);
 
-// Helper function to get bit from bitmap
-static inline bool get_bitmap_bit(const uint8_t *bitmap, uint8_t index) {
-    uint8_t byte_index = index / 8;
-    uint8_t bit_index = index % 8;
-    return (bitmap[byte_index] & (1 << bit_index)) != 0;
-}
-
-// Set ROM mapping for specific address (256-byte page)
-void memory_set_rom_mapping(uint16_t address, bool mapped) {
-    uint8_t page_index = address_to_bitmap_index(address);
-
-    if (page_index >= (mem_config.rom_size / ENTRY_PAGE_SIZE)) {
-        printf("Address $%04X outside ROM range for mapping (index %u)\n", address, page_index);
-        return;
-    }
-
-    // Update bitmap
-    set_bitmap_bit(rom_mapping_bitmap, page_index, mapped);
-
-    // Update memory map
-    uint16_t physical_addr = address & ADDR_MASK_A15;
-    uint8_t  table_index = ADDR_TO_TABLE_INDEX(physical_addr);
-
-    if (mapped) {
-        // Map this page as ROM
-        uint32_t shadow_addr =
-            (uint32_t)(uintptr_t)&rom_shadow[0] + (physical_addr - mem_config.rom_base);
-        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_ROM;
-        memory_map[table_index] = table_entry;
-        memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = table_entry;
-
-        printf("Mapped ROM page at $%04X (page %u)\n", physical_addr & ~0xFF, page_index);
-    } else {
-        // Unmap this page (route to bus)
-        memory_map[table_index] = ENTRY_UNMAPPED_BUS;
-        memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;
-    }
-}
-
-// Update ROM mapping from bitmap (called during initialization)
-void memory_update_rom_mapping_from_bitmap(void) {
-    uint16_t total_pages = mem_config.rom_size / ENTRY_PAGE_SIZE;
-
-    for (uint16_t page_index = 0; page_index < total_pages; page_index++) {
-        uint16_t address = mem_config.rom_base + (page_index * ENTRY_PAGE_SIZE);
-        bool     should_be_mapped = get_bitmap_bit(rom_mapping_bitmap, page_index);
-
-        if (should_be_mapped) {
-            memory_set_rom_mapping(address, true);
-        } else {
-            memory_set_rom_mapping(address, false);
-        }
-    }
-}
-
-// Save ROM mapping bitmap to flash
-void memory_save_rom_mapping_to_flash(void) {
-    // Erase and write mapping bitmap to flash
-    flash_range_erase(FLASH_MAPPING_OFFSET, 256);  // Erase 256 bytes (one sector)
-    flash_range_program(FLASH_MAPPING_OFFSET, rom_mapping_bitmap, sizeof(rom_mapping_bitmap));
-    printf("ROM mapping bitmap saved to flash\n");
-}
-
-// Load ROM mapping bitmap from flash
-void memory_load_rom_mapping_from_flash(void) {
-    const uint8_t *flash_ptr = (const uint8_t *)(XIP_BASE + FLASH_MAPPING_OFFSET);
-
-    // Check if mapping data exists (not all 0xFF)
+    // Check if memory map data exists (not all 0xFF)
     bool has_data = false;
-    for (uint32_t i = 0; i < sizeof(rom_mapping_bitmap); i++) {
+    for (uint32_t i = 0; i < FLASH_MEMORY_MAP_SIZE; i++) {
         if (flash_ptr[i] != 0xFF) {
             has_data = true;
             break;
@@ -577,19 +501,30 @@ void memory_load_rom_mapping_from_flash(void) {
     }
 
     if (has_data) {
-        memcpy(rom_mapping_bitmap, flash_ptr, sizeof(rom_mapping_bitmap));
-        printf("ROM mapping bitmap loaded from flash\n");
+        memcpy(memory_map, flash_ptr, FLASH_MEMORY_MAP_SIZE);
+        printf("Memory map loaded from flash (%u bytes)\n", FLASH_MEMORY_MAP_SIZE);
     } else {
-        memset(rom_mapping_bitmap, 0, sizeof(rom_mapping_bitmap));
-        printf("No ROM mapping data found in flash, starting with all pages unmapped\n");
+        printf("No memory map data found in flash, using default initialization\n");
     }
 }
 
-// Clear all ROM mapping (set all pages to unmapped)
+// Clear all ROM mapping (set ROM pages to unmapped in memory map)
 void memory_clear_rom_mapping(void) {
-    memset(rom_mapping_bitmap, 0, sizeof(rom_mapping_bitmap));
-    memory_update_rom_mapping_from_bitmap();
-    memory_save_rom_mapping_to_flash();
+    // Set all ROM pages to unmapped
+    for (uint16_t address = mem_config.rom_base;
+         address < mem_config.rom_base + mem_config.rom_size;
+         address += ENTRY_PAGE_SIZE) {
+        // Use hardcoded A15 mask for backward compatibility
+        uint16_t physical_addr = address & ADDR_MASK_A15;
+        uint8_t  table_index = ADDR_TO_TABLE_INDEX(physical_addr);
+
+        // Set to unmapped (route to bus)
+        memory_map[table_index] = ENTRY_UNMAPPED_BUS;
+        memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;  // Use hardcoded offset
+    }
+
+    // Save updated memory map to flash
+    memory_save_memory_map_to_flash();
     printf("All ROM pages unmapped\n");
 }
 
@@ -631,6 +566,36 @@ memory_type_t memory_get_mapping_type(uint16_t address) {
     } else {
         return MEM_TYPE_ROM;
     }
+}
+
+// Legacy wrapper functions for backward compatibility
+
+// Set ROM mapping for specific address (256-byte page) - legacy wrapper
+void memory_set_rom_mapping(uint16_t address, bool mapped) {
+    // Use hardcoded A15 mask for backward compatibility (legacy behavior)
+    uint16_t physical_addr = address & ADDR_MASK_A15;
+    uint8_t  table_index = ADDR_TO_TABLE_INDEX(physical_addr);
+
+    if (mapped) {
+        // Map this page as ROM
+        uint32_t shadow_addr =
+            (uint32_t)(uintptr_t)&rom_shadow[0] + (physical_addr - mem_config.rom_base);
+        uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_ROM;
+        memory_map[table_index] = table_entry;
+        memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = table_entry;  // Use hardcoded offset
+
+        printf("Mapped ROM page at $%04X (page %u)\n", physical_addr & ~0xFF,
+               (physical_addr - mem_config.rom_base) / ENTRY_PAGE_SIZE);
+    } else {
+        // Unmap this page (route to bus)
+        memory_map[table_index] = ENTRY_UNMAPPED_BUS;
+        memory_map[table_index + HIGH_ALIAS_TABLE_OFFSET] = ENTRY_UNMAPPED_BUS;  // Use hardcoded offset
+    }
+}
+
+// Save ROM mapping to flash - legacy wrapper (now saves full memory map)
+void memory_save_rom_mapping_to_flash(void) {
+    memory_save_memory_map_to_flash();
 }
 
 /**
