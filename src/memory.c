@@ -199,25 +199,9 @@ void memory_init(void) {
         memory_initialize_map();
     } else {
         printf("Loaded memory map from flash\n");
-
-        // Perform sanity check and store result
-        startup_status = memory_sanity_check();
-        switch (startup_status) {
-        case SANITY_OK:
-            printf("Memory configuration verified\n");
-            break;
-        case SANITY_RAM_MISMATCH:
-            printf("WARNING: RAM mismatch detected!\n");
-            printf("Run 'scan_memory' to update configuration.\n");
-            break;
-        case SANITY_ROM_UNEXPECTED:
-            printf("INFO: Unexpected ROM/RAM detected.\n");
-            printf("Run 'scan_memory' to update configuration.\n");
-            break;
-        case SANITY_NO_SAVED_MAP:
-            // Already handled above
-            break;
-        }
+        // Don't run sanity check at boot - it requires E clock and bus operations
+        // User can run 'verify_memory' command later
+        startup_status = SANITY_OK;
     }
 
     printf("Memory initialized: ROM=$%04X-$%04X RAM=$%04X-$%04X\n", mem_config.rom_base,
