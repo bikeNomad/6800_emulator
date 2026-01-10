@@ -922,12 +922,12 @@ static void cmd_scan_memory(void) {
     // Print scan results (use coalesced results for System 11)
     usb_cdc_send("\r\nScan Results:\r\n");
 
-    const scan_result_t *results = memory_get_coalesced_scan_results();
-    uint16_t             start = 0;
-    uint8_t              last_type = results[0].type;
+    const page_type_t *results = memory_get_coalesced_scan_results();
+    uint16_t           start = 0;
+    uint8_t            last_type = results[0];
 
     for (int page = 1; page <= 256; page++) {
-        uint8_t current_type = (page < 256) ? results[page].type : 255;  // 255 = sentinel
+        uint8_t current_type = (page < 256) ? results[page] : 255;  // 255 = sentinel
 
         if (current_type != last_type || page == 256) {
             uint16_t    end = (page << 8) - 1;

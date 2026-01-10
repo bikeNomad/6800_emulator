@@ -76,6 +76,7 @@ typedef struct {
 #define ENTRY_UNMAPPED_BUS 0b011
 /** Convert address to memory table index (page number) */
 #define ADDR_TO_TABLE_INDEX(addr) ((uint8_t)((addr) >> 8))
+#define TABLE_INDEX_TO_ADDR(index) ((uint8_t)index << 8)
 /** Convert address to offset within memory page */
 #define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
 
