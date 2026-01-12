@@ -56,13 +56,13 @@ E rises ──┐
           └──► Sample data ──► DATA IS STABLE
 ```
 
-The implementation uses **three dedicated PIO state machines** on `pio0`:
+The implementation uses **three dedicated PIO state machines** on `pio0` and `pio1`:
 
-| State Machine | Function           | Program              | Pin Control           |
-|---------------|--------------------|----------------------|-----------------------|
-| SM0           | E clock generation | `eclock_program`     | GPIO 24 (E)           |
-| SM1           | Read cycles        | `bus_read_cycle`     | GPIO 25-26 (VMA, R/W) |
-| SM2           | Write cycles       | `bus_write_cycle`    | GPIO 25-26 (VMA, R/W) |
+| State Machine | Function           | Program           | Pin Control           |
+| ------------- | ------------------ | ----------------- | --------------------- |
+| pio0.SM0      | E clock generation | `eclock_program`  | GPIO 24 (E)           |
+| pio0.SM1      | Read cycles        | `bus_read_cycle`  | GPIO 25-26 (VMA, R/W) |
+| pio1.SM       | Write cycles       | `bus_write_cycle` | GPIO 25-26 (VMA, R/W) |
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐

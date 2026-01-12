@@ -1,0 +1,42 @@
+[
+  {
+    "name": "tags",
+    "type": "tags",
+    "options": null
+  },
+  {
+    "name": "Status",
+    "type": "list",
+    "options": [
+      "Draft",
+      "In Progress",
+      "Under Review",
+      "Published"
+    ]
+  },
+  {
+    "name": "Word Count",
+    "type": "number",
+    "options": null
+  },
+  {
+    "name": "Due Date",
+    "type": "date",
+    "options": null
+  },
+  {
+    "name": "Last Edited",
+    "type": "datetime",
+    "options": null
+  },
+  {
+    "name": "Published",
+    "type": "checkbox",
+    "options": null
+  },
+  {
+    "name": "Author",
+    "type": "string",
+    "options": null
+  }
+]
