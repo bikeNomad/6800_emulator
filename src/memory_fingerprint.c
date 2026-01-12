@@ -20,9 +20,13 @@ static const uint8_t TEST_DATA[] = "This is a test of the bus";
 #define CRB_OFFSET  3
 #define SELECT_PR_BIT 0x04  // Bit in CRx to access PRx instead of DDRx
 
-// Scan results storage
-static page_type_t scan_results[256];       // One per 256-byte page
-static page_type_t coalesced_results[256];  // Coalesced results for System 11
+// Scan results storage - combined struct
+typedef struct {
+    page_type_t scan;                // Raw scan result
+    page_type_t coalesced;           // Coalesced result for System 11
+} page_results_t;
+
+static page_results_t results[256];  // One per 256-byte page
 // Startup status (for displaying warnings via USB CDC after boot)
 static sanity_result_t startup_status = SANITY_OK;
 
@@ -51,8 +55,12 @@ static const char *page_type_to_string(page_type_t type) {
 
 static const char *architecture_name(architecture_type_t arch) {
     switch (arch) {
+    case ARCH_EARLY_BALLY:
+        return "Early Bally or Stern";
+    case ARCH_WILLIAMS_SYS3_6:
+        return "Williams System 3-6";
     case ARCH_WILLIAMS_SYS7:
-        return "Williams System 3-7";
+        return "Williams System 7";
     case ARCH_WILLIAMS_SYS11:
         return "Williams System 11";
     case ARCH_UNKNOWN:
@@ -291,56 +299,58 @@ page_type_t fingerprint_page(uint16_t address) {
 // Architecture Recognition
 //--------------------------------------------------------------------+
 
-architecture_type_t recognize_architecture(page_type_t *results) {
+architecture_type_t recognize_architecture(void) {
     int decoded_bits = count_decoded_address_bits(results);
 
-    // Count CMOS at specific addresses (System 7 signature)
+    // Count CMOS at specific addresses (System 3-7 signature)
     int cmos_count = 0;
-    if (results[0x01] == PAGE_CMOS)
+    if (results[0x01].scan == PAGE_CMOS)
         cmos_count++;
-    if (results[0x05] == PAGE_CMOS)
+    if (results[0x05].scan == PAGE_CMOS)
         cmos_count++;
-    if (results[0x09] == PAGE_CMOS)
+    if (results[0x09].scan == PAGE_CMOS)
         cmos_count++;
-    if (results[0x0D] == PAGE_CMOS)
+    if (results[0x0D].scan == PAGE_CMOS)
         cmos_count++;
 
+    // Count contiguous RAM pages at start (System 11 signature)
+    int ram_count = 0;
+    for (int i = 0; i <= 0x07; i++) {
+        if (results[i].scan == PAGE_RAM)
+            ram_count++;
+    }
+
+    // Count PIA pages in expected places (System 3-7, 9/11)
+    const uint8_t expected_pia_pages[] = { 0x21, 0x24, 0x28, 0x2c, 0x30, 0x34 };
+    uint8_t       pia_count = 0;
+    for (uint i = 0; i < sizeof(expected_pia_pages); i++) {
+        if (results[i].scan == PAGE_PIA) {
+            pia_count++;
+        }
+    }
+
     // System 7: CMOS pattern + RAM at page 0
-    if (cmos_count >= 3 && results[0x00] == PAGE_RAM && decoded_bits == 15) {
+    if (cmos_count >= 3 && results[0x00].scan == PAGE_RAM && decoded_bits == 15) {
         return ARCH_WILLIAMS_SYS7;
+    }
+
+    // System 9: A15 not decoded, only 4 PIAs
+    // ROM at $C000-$FFFF or $E000-$FFFF
+    // Check for aliasing and PIA count (ROMs could be missing)
+    if (pia_count == 4 && decoded_bits == 15) {
+        return ARCH_WILLIAMS_SYS9;
+    }
+
+    // System 11: Contiguous RAM at start, no CMOS pattern, A15 decoded
+    if (ram_count >= 6 && cmos_count == 0) {
+        if (pia_count == sizeof(expected_pia_pages)) {
+            return ARCH_WILLIAMS_SYS11;
+        }
     }
 
     if (decoded_bits < 16) {
         return ARCH_UNKNOWN;  // TODO: early Bally/Stern
     }
-
-    // Count contiguous RAM pages at start (System 11 signature)
-    int ram_pages = 0;
-    for (int i = 0; i <= 0x07; i++) {
-        if (results[i] == PAGE_RAM)
-            ram_pages++;
-    }
-
-    // Count PIA pages in expected places (System 9/11)
-    const uint8_t expected_pia_pages[] = { 0x21, 0x24, 0x28, 0x2c, 0x30, 0x34 };
-    uint8_t       pia_count = 0;
-    for (uint i = 0; i < sizeof(expected_pia_pages); i++) {
-        if (results[i] == PAGE_PIA) {
-            pia_count++;
-        }
-    }
-
-    // System 9: A15 not decoded, only 4 PIAs
-    // ROM at $C000-$FFFF or $E000-$FFFF
-    // Check for aliasing and PIA count
-    if (pia_count == 4 && results[0xFF])
-
-        // System 11: Contiguous RAM at start, no CMOS pattern, A15 decoded
-        if (ram_pages >= 6 && cmos_count == 0) {
-            if (pia_count == sizeof(expected_pia_pages)) {
-                return ARCH_WILLIAMS_SYS11;
-            }
-        }
 
     return ARCH_UNKNOWN;
 }
@@ -361,18 +371,22 @@ bool memory_scan_and_build_map(printf_func_t printf_func) {
     printf_func("Scanning 256 pages...\r\n");
     for (uint16_t page = 0; page < 256; page++) {
         uint16_t addr = TABLE_INDEX_TO_ADDR(page);
-        scan_results[page] = fingerprint_page(addr);
+        results[page].scan = fingerprint_page(addr);
     }
     printf_func("Scan complete\r\n");
 
     // Recognize architecture
-    architecture_type_t arch = recognize_architecture(scan_results);
+    architecture_type_t arch = recognize_architecture();
     printf_func("Architecture: %s\r\n", architecture_name(arch));
 
     // Coalesce regions for better presentation
     coalesce_regions(arch);
 
     // Build memory map from scan + architecture rules
+    page_type_t coalesced_results[256];
+    for (int i = 0; i < 256; i++) {
+        coalesced_results[i] = results[i].coalesced;
+    }
     build_memory_map_from_scan(coalesced_results, arch, printf_func);
 
     // Copy ROM contents from bus to flash (use coalesced results)
@@ -510,8 +524,16 @@ bool last_ram_address(page_type_t *results, uint16_t *ram_end) {
 
 // Coalesce regions for cleaner memory map presentation
 void coalesce_regions(architecture_type_t arch) {
-    // Copy original results to coalesced results initially
-    memcpy(coalesced_results, scan_results, sizeof(scan_results));
+    // Copy scan results to coalesced results initially
+    for (int i = 0; i < 256; i++) {
+        results[i].coalesced = results[i].scan;
+    }
+
+    // Create temporary array for helper functions
+    page_type_t scan_results[256];
+    for (int i = 0; i < 256; i++) {
+        scan_results[i] = results[i].scan;
+    }
 
     uint16_t rom_start, rom_end;
     if (!first_rom_address(scan_results, &rom_start) || !last_rom_address(scan_results, &rom_end)) {
@@ -522,7 +544,7 @@ void coalesce_regions(architecture_type_t arch) {
     // Mark all the pages between rom_start and rom_end as ROM
     for (uint16_t addr = rom_start; addr <= rom_end; addr += ENTRY_PAGE_SIZE) {
         uint16_t page = ADDR_TO_TABLE_INDEX(addr);
-        coalesced_results[page] = PAGE_ROM;
+        results[page].coalesced = PAGE_ROM;
     }
 }
 //--------------------------------------------------------------------+
@@ -530,15 +552,25 @@ void coalesce_regions(architecture_type_t arch) {
 //--------------------------------------------------------------------+
 
 const page_type_t *memory_get_scan_results(void) {
+    // Create static array to return scan results
+    static page_type_t scan_results[256];
+    for (int i = 0; i < 256; i++) {
+        scan_results[i] = results[i].scan;
+    }
     return scan_results;
 }
 
 const page_type_t *memory_get_coalesced_scan_results(void) {
+    // Create static array to return coalesced results
+    static page_type_t coalesced_results[256];
+    for (int i = 0; i < 256; i++) {
+        coalesced_results[i] = results[i].coalesced;
+    }
     return coalesced_results;
 }
 
 // Helper function needed by build_memory_map_from_scan
-int count_decoded_address_bits(page_type_t *results) {
+int count_decoded_address_bits(page_results_t *results) {
     // Check for repeated sequences that indicate non-decoded address lines
     int decoded_bits = 15;
     int stride = 128;
@@ -548,7 +580,7 @@ int count_decoded_address_bits(page_type_t *results) {
         for (int i = 0; i < stride; i++) {
             for (int j = 0; j < pages; j++) {
                 int page_start = j * stride;
-                if (results[i + page_start] != results[i + page_start + stride]) {
+                if (results[i + page_start].scan != results[i + page_start + stride].scan) {
                     return decoded_bits + 1;
                 }
             }

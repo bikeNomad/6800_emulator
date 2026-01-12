@@ -13,11 +13,12 @@
 
 // Supported Williams system architectures
 typedef enum {
-    ARCH_UNKNOWN,         // Architecture not recognized
-    ARCH_EARLY_BALLY,
-    ARCH_WILLIAMS_SYS7,   // Williams System 7
-    ARCH_WILLIAMS_SYS9,   // Williams System 9
-    ARCH_WILLIAMS_SYS11,  // Williams System 11
+    ARCH_UNKNOWN,          // Architecture not recognized
+    ARCH_EARLY_BALLY,      // Bally AS-2518-17 or AS-2518-35 or Stern MPU-100 or MPU-200
+    ARCH_WILLIAMS_SYS3_6,  // Williams System 3 or 6
+    ARCH_WILLIAMS_SYS7,    // Williams System 7
+    ARCH_WILLIAMS_SYS9,    // Williams System 9
+    ARCH_WILLIAMS_SYS11,   // Williams System 11
     ARCH_WILLIAMS_WPC
 } architecture_type_t;
 
@@ -42,7 +43,7 @@ typedef enum {
 
 // Memory fingerprinting and auto-configuration
 
-architecture_type_t recognize_architecture(page_type_t *results);           // Determine system architecture from scan results
+architecture_type_t recognize_architecture(void);                           // Determine system architecture from scan results
 bool                copy_rom_contents_from_bus(page_type_t        *results,
                                                architecture_type_t arch,
                                                printf_func_t       printf_func);  // Copy ROM data from bus to memory
