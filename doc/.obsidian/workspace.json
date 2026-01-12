@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "PIO-Bus-Cycles.md",
+                "file": "States_and_Events.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "PIO-Bus-Cycles"
+              "title": "States_and_Events"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "PIO-Bus-Cycles.md",
+                "file": "States_and_Events.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for PIO-Bus-Cycles"
+              "title": "Backlinks for States_and_Events"
             }
           },
           {
@@ -184,10 +184,18 @@
   },
   "active": "43b9752b1361c594",
   "lastOpenFiles": [
+    "State_Diagram.png",
+    "States_and_Events.md",
+    "emulator_state_machine.puml",
+    "Web-Interface.md",
+    "Getting-Started.md",
+    "README.md",
+    "banking_plan.md",
+    "PSRAM-Implementation-Plan.md",
+    "PIO-Bus-Cycles.md",
     "Memory-Map.md",
     "MC6809-Implementation-Plan.md",
     "Hardware-Connection.md",
-    "PIO-Bus-Cycles.md",
     "SPI-Bus-Debug.md"
   ]
 }

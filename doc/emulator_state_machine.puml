@@ -1,0 +1,67 @@
+@startuml Emulator State Machine
+
+[*] --> Initializing
+
+state Initializing
+Initializing: entry/fingerprint system
+Initializing: entry/read RAM from bus
+Initializing: entry/initialize CPU
+
+state Resetting
+Resetting: entry/reset CPU
+Resetting: entry/stop E clock
+
+state Running
+Running: entry/start E clock
+Running: do/bus sync, execute instruction
+
+state Halted
+Halted: entry/stop E clock
+
+state Paused
+
+state Loading
+Loading: entry/stop E clock
+
+state WaitingForInterrupt
+
+Initializing --> Resetting : EVT_INIT
+
+Resetting --> Running : EVT_POLL\n(!interrupt == INT_RESET)
+Resetting --> Halted : EV_CMD_HALT
+Resetting --> Running : EV_CMD_RUN
+Resetting --> Resetting : EVT_POLL\n(interrupt == INT_RESET)
+
+Running --> Resetting : EVT_POLL\n(interrupt == INT_RESET)
+Running --> Halted : EVT_POLL\n(breakpoint hit)
+Running --> WaitingForInterrupt : EVT_POLL\n(cpu.wai_state)
+Running --> Halted : EVT_POLL\n(cpu.halted)
+Running --> Paused : EV_PAUSE_EMULATOR
+Running --> Halted : EV_CMD_HALT
+Running --> Resetting : EV_CMD_RESET
+Running --> Loading : EV_CMD_LOAD
+
+Halted --> Running : EV_CMD_RUN
+Halted --> Resetting : EV_CMD_RESET
+Halted --> Loading : EV_CMD_LOAD
+
+Paused --> Running : EV_RESUME_EMULATOR\n(from s_running)
+Paused --> Halted : EV_RESUME_EMULATOR\n(from s_halted)
+Paused --> Resetting : EV_RESUME_EMULATOR\n(from s_resetting)
+Paused --> Loading : EV_RESUME_EMULATOR\n(from s_loading)
+Paused --> WaitingForInterrupt : EV_RESUME_EMULATOR\n(from s_waiting_for_interrupt)
+
+Loading --> Resetting : EV_CMD_RESET
+
+WaitingForInterrupt --> Resetting : EVT_POLL\n(interrupt == INT_RESET)
+WaitingForInterrupt --> Running : EVT_POLL\n(interrupt != INT_NONE)
+
+note right of Initializing : Power-on initialization
+note right of Resetting : Reset handling and waiting
+note right of Running : Normal instruction execution
+note right of Halted : Stopped (breakpoint/manual halt)
+note right of Paused : USB command synchronization
+note right of Loading : ROM loading operations
+note right of WaitingForInterrupt : WAI instruction waiting
+
+@enduml
