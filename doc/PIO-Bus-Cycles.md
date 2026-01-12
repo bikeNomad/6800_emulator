@@ -58,40 +58,16 @@ E rises ──┐
 
 The implementation uses **three dedicated PIO state machines** on `pio0` and `pio1`:
 
-| State Machine | Function           | Program           | Pin Control           |
-| ------------- | ------------------ | ----------------- | --------------------- |
-| pio0.SM0      | E clock generation | `eclock_program`  | GPIO 24 (E)           |
-| pio0.SM1      | Read cycles        | `bus_read_cycle`  | GPIO 25-26 (VMA, R/W) |
-| pio1.SM       | Write cycles       | `bus_write_cycle` | GPIO 25-26 (VMA, R/W) |
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                            pio0                                  │
-│                                                                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────────┐ │
-│  │     SM0      │  │     SM1      │  │          SM2            │ │
-│  │              │  │              │  │                         │ │
-│  │  E Clock     │  │  Read Cycles │  │  Write Cycles           │ │
-│  │  Generator   │  │              │  │                         │ │
-│  │              │  │              │  │                         │ │
-│  │  894.886 kHz │  │  PIO-trigger │  │  FIFO-triggered         │ │
-│  │  50% duty    │  │  (RX FIFO)   │  │  (TX FIFO)              │ │
-│  │              │  │              │  │                         │ │
-│  └──────────────┘  └──────────────┘  └─────────────────────────┘ │
-│               │               │               │                 │
-│               └───┬───┬───────┘               │                 │
-│                   │   │                       │                 │
-│               GPIO 24 │                       │                 │
-│               (E)     │                       │                 │
-│                       │                       │                 │
-│                   GPIO 25-26 (VMA, R/W)       │                 │
-│                                               │                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+| State Machine | Function | Program | Pin Control |
+| --- | --- | --- | --- |
+| `pio0.SM0` | E clock generation | `eclock` | GPIO 24 (E) |
+| `pio0.SM1` | Sync cycles | `sync` | GPIO 30 (TEST) |
+| `pio1.SM0` | Read/Write cycles | `bus_cycle` | GPIO 25-26 (VMA, R/W) |
 
 ### Three-State-Machine Architecture
 
 **Key Benefits:**
+
 - **No state machine switching**: Each SM runs its dedicated program permanently
 - **FIFO-triggered writes**: Write operations triggered by pushing data to TX FIFO
 - **Always ready**: Read SM waits for enable trigger, Write SM waits for TX FIFO data
@@ -100,6 +76,7 @@ The implementation uses **three dedicated PIO state machines** on `pio0` and `pi
 **Operation Flow:**
 
 **Read Operations:**
+
 1. Software sets up address bus and data direction
 2. Software enables SM1 (read state machine)
 3. SM1 waits for E low, executes read cycle, pushes data to RX FIFO
@@ -107,6 +84,7 @@ The implementation uses **three dedicated PIO state machines** on `pio0` and `pi
 5. SM1 returns to waiting state
 
 **Write Operations:**
+
 1. Software sets up address bus and data bus
 2. Software pushes data byte to SM2's TX FIFO
 3. SM2 detects data, executes write cycle automatically
@@ -116,22 +94,22 @@ The implementation uses **three dedicated PIO state machines** on `pio0` and `pi
 
 ### GPIO Assignments (NED_SYS7)
 
-| GPIO | Signal | PIO Function             | Direction     |
-|------|--------|--------------------------|---------------|
-| 0-7  | D0-D7  | IN pins (data bus)       | Bidirectional |
-| 24   | E      | WAIT source (SM0 output) | Output        |
-| 25   | VMA    | SIDE-SET bit 0           | Output        |
-| 26   | R/W    | SIDE-SET bit 1           | Output        |
+| GPIO | Signal | PIO Function | Direction |
+| --- | --- | --- | --- |
+| 0-7 | D0-D7 | IN pins (data bus) | Bidirectional |
+| 24 | E | WAIT source (SM0 output) | Output |
+| 25 | VMA | SIDE-SET bit 0 | Output |
+| 26 | R/W | SIDE-SET bit 1 | Output |
 
 ### SIDE-SET Encoding
 
 With 2-bit SIDE-SET controlling GPIO 25-26:
 
-| Side Value | VMA | R/W | Mode           |
-|------------|-----|-----|----------------|
-| `0b11` (3) | 1   | 1   | **Read mode**  |
-| `0b01` (1) | 1   | 0   | **Write mode** |
-| `0b10` (2) | 0   | 1   | **Idle state** |
+| Side Value | VMA | R/W | Mode |
+| --- | --- | --- | --- |
+| `0b11` (3) | 1 | 1 | **Read mode** |
+| `0b01` (1) | 1 | 0 | **Write mode** |
+| `0b10` (2) | 0 | 1 | **Idle state** |
 
 ## PIO Programs
 
@@ -200,6 +178,7 @@ public write_cycle:
 The E clock period (1.117µs @ 894.886kHz) provides more than sufficient time for the peripheral to latch data.
 
 **Benefits of the optimized write cycle:**
+
 - **Faster write operations**: No unnecessary 300ns delay
 - **Proper timing**: Data bus driven only when E is low, ensuring stable data before E rises
 - **FIFO-triggered**: Write operations triggered by pushing data to TX FIFO
@@ -211,15 +190,15 @@ The E clock period (1.117µs @ 894.886kHz) provides more than sufficient time fo
 
 ### Clock Configuration
 
-| Parameter          | Value    | Notes                 |
-|--------------------|----------|-----------------------|
-| System Clock       | Configurable | Set by SYS_CLOCK_MHZ |
-| PIO Clock          | System Clock | No divider          |
-| PIO Cycle Time     | 1/System Clock | Variable         |
-| Read Data Setup    | Calculated | Based on SYS_CLOCK_MHZ |
-| Write Hold Time    | Calculated | Based on SYS_CLOCK_MHZ |
-| Read Delay         | ~300 ns  | Target for MC6821 PIA |
-| Write Delay        | ~300 ns  | Target for MC6821 PIA |
+| Parameter | Value | Notes |
+| --- | --- | --- |
+| System Clock | Configurable | Set by SYS_CLOCK_MHZ |
+| PIO Clock | System Clock | No divider |
+| PIO Cycle Time | 1/System Clock | Variable |
+| Read Data Setup | Calculated | Based on SYS_CLOCK_MHZ |
+| Write Hold Time | Calculated | Based on SYS_CLOCK_MHZ |
+| Read Delay | \~300 ns | Target for MC6821 PIA |
+| Write Delay | \~300 ns | Target for MC6821 PIA |
 
 ### Dynamic Timing Calculation
 
@@ -234,20 +213,20 @@ uint64_t cycles = ((uint64_t)300 * sys_clock_hz) / 1000000000;
 **Example timing at different clock speeds:**
 
 | System Clock | Cycle Time | Required Cycles | Actual Delay |
-|--------------|------------|-----------------|--------------|
-| 125 MHz      | 8.000 ns   | 38 cycles       | 304.0 ns     |
-| 200 MHz      | 5.000 ns   | 60 cycles       | 300.0 ns     |
-| 266 MHz      | 3.759 ns   | 81 cycles       | 304.5 ns     |
-| 300 MHz      | 3.333 ns   | 90 cycles       | 300.0 ns     |
+| --- | --- | --- | --- |
+| 125 MHz | 8.000 ns | 38 cycles | 304.0 ns |
+| 200 MHz | 5.000 ns | 60 cycles | 300.0 ns |
+| 266 MHz | 3.759 ns | 81 cycles | 304.5 ns |
+| 300 MHz | 3.333 ns | 90 cycles | 300.0 ns |
 
 ### Peripheral Timing Requirements
 
-| Peripheral | Parameter                    | Spec     | This Implementation |
-|------------|------------------------------|----------|---------------------|
-| MC6821 PIA | Data delay time (tDDR) max   | 290 ns   | 304.5 ns (read)     |
-| MC6800     | Data setup time (tDSR) min   | 100 ns   | 304.5 ns (read)     |
-| MC6821 PIA | Data hold time (tDH) min     | 0 ns     | 304.5 ns (write)    |
-| Safety     | Margin over MC6821 spec      | -        | 14.5 ns (read/write)|
+| Peripheral | Parameter | Spec | This Implementation |
+| --- | --- | --- | --- |
+| MC6821 PIA | Data delay time (tDDR) max | 290 ns | 304.5 ns (read) |
+| MC6800 | Data setup time (tDSR) min | 100 ns | 304.5 ns (read) |
+| MC6821 PIA | Data hold time (tDH) min | 0 ns | 304.5 ns (write) |
+| Safety | Margin over MC6821 spec | - | 14.5 ns (read/write) |
 
 ### Bus Cycle Timing Diagram
 
@@ -381,13 +360,13 @@ The implementation uses a **hybrid approach** where software and PIO share respo
 
 ## Comparison: Polling vs PIO
 
-| Aspect           | Polling                    | PIO                      |
-|------------------|----------------------------|--------------------------|
-| Data setup time  | 0-80ns (variable)          | 300.7ns (fixed)          |
-| Jitter           | High (software dependent)  | Zero (hardware timed)    |
-| CPU overhead     | Polling loops              | Minimal (FIFO read)      |
-| Stability        | Race condition possible    | Guaranteed stable        |
-| Debugging        | Harder (timing dependent)  | Easier (deterministic)   |
+| Aspect | Polling | PIO |
+| --- | --- | --- |
+| Data setup time | 0-80ns (variable) | 300.7ns (fixed) |
+| Jitter | High (software dependent) | Zero (hardware timed) |
+| CPU overhead | Polling loops | Minimal (FIFO read) |
+| Stability | Race condition possible | Guaranteed stable |
+| Debugging | Harder (timing dependent) | Easier (deterministic) |
 
 ## Debugging
 
@@ -395,18 +374,18 @@ The implementation uses a **hybrid approach** where software and PIO share respo
 
 For timing verification:
 
-| Channel | Signal           | Expected                               |
-|---------|------------------|----------------------------------------|
-| CH1     | E clock (GPIO 24)| 894.886 kHz, 50% duty                  |
-| CH2     | VMA (GPIO 25)    | Assert on E low, deassert on next E low|
-| CH3     | R/W (GPIO 26)    | High for read, low for write           |
-| CH4     | D0 (GPIO 0)      | Data valid 300ns after E rises         |
+| Channel | Signal | Expected |
+| --- | --- | --- |
+| CH1 | E clock (GPIO 24) | 894.886 kHz, 50% duty |
+| CH2 | VMA (GPIO 25) | Assert on E low, deassert on next E low |
+| CH3 | R/W (GPIO 26) | High for read, low for write |
+| CH4 | D0 (GPIO 0) | Data valid 300ns after E rises |
 
 ### Measurement Points
 
-1. **E rising edge to data sample**: Should be ~300ns
-2. **VMA assertion to E rising**: Should be ~560ns (E low period)
-3. **Complete cycle time**: Should be ~1.117µs (E period)
+1. **E rising edge to data sample**: Should be \~300ns
+2. **VMA assertion to E rising**: Should be \~560ns (E low period)
+3. **Complete cycle time**: Should be \~1.117µs (E period)
 
 ### Tuning Data Setup/Hold Delays
 
@@ -434,12 +413,12 @@ read_delay:         ; (or write_delay:)
 
 ## Files
 
-| File                   | Description                             |
-|------------------------|-----------------------------------------|
-| `src/bus_cycle.pio`    | PIO assembly programs                   |
-| `src/bus.c`            | C implementation (`bus_*_pio` functions)|
-| `src/bus.h`            | Header with function declarations       |
-| `build/bus_cycle.pio.h`| Generated header (CMake)                |
+| File | Description |
+| --- | --- |
+| `src/bus_cycle.pio` | PIO assembly programs |
+| `src/bus.c` | C implementation (`bus_*_pio` functions) |
+| `src/bus.h` | Header with function declarations |
+| `build/bus_cycle.pio.h` | Generated header (CMake) |
 
 ## References
 

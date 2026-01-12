@@ -10,6 +10,7 @@
  *   - ROM is in one contiguous range from mem_config.rom_base to mem_config.rom_base+mem_config.rom_size
  *   - RAM is in one contiguous range from mem_config.ram_base to mem_config.rom_base+mem_config.ram_size
  *   - CMOS (if it exists) lives somewhere within the RAM range
+ *      - NOT TRUE FOR EARLY BALLY!
  *   - There may be aliasing due to incomplete address line decoding; in this case aliased memory map
  *     entries are copies of the base entries
  */
