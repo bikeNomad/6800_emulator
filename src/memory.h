@@ -14,8 +14,7 @@
  *     entries are copies of the base entries
  */
 
-#ifndef MEMORY_H
-#define MEMORY_H
+#pragma once
 
 #include "emulator.h"
 #include "memory_map.h"
@@ -107,5 +106,3 @@ static inline uint8_t memory_read_rom_shadow(uint16_t address) {
 
 // Turn off all LEDs (for NED_SYS7 board)
 void led_all_off(void);
-
-#endif  // MEMORY_H

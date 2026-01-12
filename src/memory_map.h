@@ -8,25 +8,25 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Forward declarations for types defined in memory.h
-typedef enum {
-    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
-    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
-    MEM_TYPE_RAM,       // RAM - read/write from shadow
-    MEM_TYPE_CMOS       // CMOS RAM - read/write from bus for now
-} memory_type_t;
-
 /** Function pointer type for printf-style output functions */
 typedef int (*printf_func_t)(const char *format, ...);
 
+typedef enum memory_type_t {
+    MEM_TYPE_UNMAPPED,  // Unmapped (peripheral) address - routes to physical bus
+    MEM_TYPE_ROM,       // ROM (EPROM) - read only from flash
+    MEM_TYPE_RAM,       // RAM - read/write from shadow
+    MEM_TYPE_CMOS       // CMOS RAM - read from shadow, write to shadow and bus
+} memory_type_t;
+
 // Memory configuration
-typedef struct {
-    uint16_t rom_base;   // Base address in MC6800 space (e.g., $E000)
-    uint16_t rom_size;   // Size of ROM region in bytes
-    uint16_t ram_base;   // Base address of RAM in MC6800 space (e.g., $0000)
-    uint16_t ram_size;   // Size of RAM region in bytes (e.g., 512 bytes)
-    uint16_t cmos_base;  // Base address of CMOS RAM in MC6800 space (0x0100)
-    uint16_t cmos_size;  // Size of CMOS RAM region in bytes (256 bytes)
+typedef struct memory_config_t {
+    uint16_t rom_base;      // Base address in MC6800 space (e.g., $E000)
+    uint16_t rom_size;      // Size of ROM region in bytes
+    uint16_t ram_base;      // Base address of RAM in MC6800 space (e.g., $0000)
+    uint16_t ram_size;      // Size of RAM region in bytes (e.g., 512 bytes)
+    uint16_t cmos_base;     // Base address of CMOS RAM in MC6800 space (0x0100)
+    uint16_t cmos_size;     // Size of CMOS RAM region in bytes (256 bytes)
+    uint8_t  architecture;  // System architecture (architecture_type_t from memory_fingerprint.h)
 } memory_config_t;
 
 /** Address translation for missing A15 decode - masks off A15 bit */

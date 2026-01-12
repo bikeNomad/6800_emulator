@@ -921,46 +921,7 @@ static void cmd_scan_memory(void) {
 
     // Print scan results (use coalesced results for System 11)
     usb_cdc_send("\r\nScan Results:\r\n");
-
-    const page_type_t *results = memory_get_coalesced_scan_results();
-    uint16_t           start = 0;
-    uint8_t            last_type = results[0];
-
-    for (int page = 1; page <= 256; page++) {
-        uint8_t current_type = (page < 256) ? results[page] : 255;  // 255 = sentinel
-
-        if (current_type != last_type || page == 256) {
-            uint16_t    end = (page << 8) - 1;
-            const char *type_str;
-            switch (last_type) {
-            case 0:
-                type_str = "EMPTY";
-                break;
-            case 1:
-                type_str = "ROM";
-                break;
-            case 2:
-                type_str = "RAM";
-                break;
-            case 3:
-                type_str = "CMOS";
-                break;
-            case 4:
-                type_str = "PIA";
-                break;
-            case 5:
-                type_str = "UNMAPPED";
-                break;
-            default:
-                type_str = "UNKNOWN";
-                break;
-            }
-            usb_cdc_printf("  $%04X-$%04X: %s\r\n", start, end, type_str);
-
-            start = page << 8;
-            last_type = current_type;
-        }
-    }
+    print_scan_results(usb_cdc_printf);
 
     // Show configuration
     usb_cdc_printf("\r\nMemory Configuration:\r\n");
