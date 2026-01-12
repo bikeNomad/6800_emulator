@@ -24,4 +24,4 @@ void debug_spi_enable(bool enable);
 // Get debug output status
 bool debug_spi_is_enabled(void);
 
-#endif  // DEBUG_SPI_H
+#endif // DEBUG_SPI_H

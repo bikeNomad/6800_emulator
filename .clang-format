@@ -1,289 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Note: The list of ForEachMacros can be obtained using:
+#
+#    git grep -h '^#define [^[:space:]]*FOR_EACH[^[:space:]]*(' include/ \
+#    | sed "s,^#define \([^[:space:]]*FOR_EACH[^[:space:]]*\)(.*$,  - '\1'," \
+#    | sort | uniq
+#
+# References:
+#   - https://clang.llvm.org/docs/ClangFormatStyleOptions.html
+
 ---
-AccessModifierOffset: -4
-AlignAfterOpenBracket: Align
-AlignArrayOfStructures: None
-AlignConsecutiveAssignments:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCompound: false
-  AlignFunctionDeclarations: false
-  AlignFunctionPointers: false
-  Enabled: false
-  PadOperators: true
-AlignConsecutiveBitFields:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCompound: false
-  AlignFunctionDeclarations: false
-  AlignFunctionPointers: false
-  Enabled: false
-  PadOperators: false
-AlignConsecutiveDeclarations: Consecutive
-AlignConsecutiveMacros:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCompound: false
-  AlignFunctionDeclarations: false
-  AlignFunctionPointers: false
-  Enabled: false
-  PadOperators: false
-AlignConsecutiveShortCaseStatements:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCaseArrows: false
-  AlignCaseColons: false
-  Enabled: false
-AlignConsecutiveTableGenBreakingDAGArgColons:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCompound: false
-  AlignFunctionDeclarations: false
-  AlignFunctionPointers: false
-  Enabled: false
-  PadOperators: false
-AlignConsecutiveTableGenCondOperatorColons:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCompound: false
-  AlignFunctionDeclarations: false
-  AlignFunctionPointers: false
-  Enabled: false
-  PadOperators: false
-AlignConsecutiveTableGenDefinitionColons:
-  AcrossComments: false
-  AcrossEmptyLines: false
-  AlignCompound: false
-  AlignFunctionDeclarations: false
-  AlignFunctionPointers: false
-  Enabled: false
-  PadOperators: false
-AlignEscapedNewlines: Right
-AlignOperands: DontAlign
-AlignTrailingComments:
-  Kind: Always
-  OverEmptyLines: 2
-AllowAllArgumentsOnNextLine: true
-AllowAllParametersOfDeclarationOnNextLine: false
-AllowBreakBeforeNoexceptSpecifier: Never
-AllowShortBlocksOnASingleLine: Empty
-AllowShortCaseExpressionOnASingleLine: true
+BasedOnStyle: LLVM
+AlignConsecutiveMacros: AcrossComments
+AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortCompoundRequirementOnASingleLine: true
-AllowShortEnumsOnASingleLine: true
-AllowShortFunctionsOnASingleLine: Inline
-AllowShortIfStatementsOnASingleLine: Never
-AllowShortLambdasOnASingleLine: All
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
-AllowShortNamespacesOnASingleLine: false
-AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakBeforeMultilineStrings: false
 AttributeMacros:
-- __capability
-BinPackArguments: true
-BinPackLongBracedList: false
-BinPackParameters: BinPack
-BitFieldColonSpacing: Both
-BraceWrapping:
-  AfterCaseLabel: true
-  AfterClass: false
-  AfterControlStatement: Never
-  AfterEnum: false
-  AfterExternBlock: false
-  AfterFunction: true
-  AfterNamespace: false
-  AfterObjCDeclaration: false
-  AfterStruct: false
-  AfterUnion: false
-  BeforeCatch: false
-  BeforeElse: false
-  BeforeLambdaBody: false
-  BeforeWhile: false
-  IndentBraces: false
-  SplitEmptyFunction: true
-  SplitEmptyNamespace: true
-  SplitEmptyRecord: true
-BracedInitializerIndentWidth: -1
-BreakAdjacentStringLiterals: true
-BreakAfterAttributes: Leave
-BreakAfterJavaFieldAnnotations: false
-BreakAfterReturnType: None
-BreakArrays: true
-BreakBeforeBinaryOperators: None
-BreakBeforeBraces: Attach
-BreakBeforeConceptDeclarations: Always
-BreakBeforeInlineASMColon: OnlyMultiline
-BreakBeforeTemplateCloser: false
-BreakBeforeTernaryOperators: true
-BreakBinaryOperations: Never
-BreakConstructorInitializers: BeforeComma
-BreakFunctionDefinitionParameters: false
-BreakInheritanceList: BeforeColon
-BreakStringLiterals: true
-BreakTemplateDeclarations: MultiLine
-ColumnLimit: 0
-CommentPragmas: '^ IWYU pragma:'
-CompactNamespaces: false
-ConstructorInitializerIndentWidth: 0
-ContinuationIndentWidth: 4
-Cpp11BracedListStyle: false
-DerivePointerAlignment: false
-DisableFormat: false
-EmptyLineAfterAccessModifier: Never
-EmptyLineBeforeAccessModifier: LogicalBlock
-EnumTrailingComma: Leave
-ExperimentalAutoDetectBinPacking: true
-FixNamespaceComments: false
+  - __aligned
+  - __deprecated
+  - __packed
+  - __printf_like
+  - __syscall
+  - __syscall_always_inline
+  - __subsystem
+BitFieldColonSpacing: After
+BreakBeforeBraces: Linux
+ColumnLimit: 100
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
 ForEachMacros:
-- foreach
-- Q_FOREACH
-- BOOST_FOREACH
+  - 'FOR_EACH'
+  - 'FOR_EACH_FIXED_ARG'
+  - 'FOR_EACH_IDX'
+  - 'FOR_EACH_IDX_FIXED_ARG'
+  - 'FOR_EACH_NONEMPTY_TERM'
+  - 'RB_FOR_EACH'
+  - 'RB_FOR_EACH_CONTAINER'
+  - 'SYS_DLIST_FOR_EACH_CONTAINER'
+  - 'SYS_DLIST_FOR_EACH_CONTAINER_SAFE'
+  - 'SYS_DLIST_FOR_EACH_NODE'
+  - 'SYS_DLIST_FOR_EACH_NODE_SAFE'
+  - 'SYS_SFLIST_FOR_EACH_CONTAINER'
+  - 'SYS_SFLIST_FOR_EACH_CONTAINER_SAFE'
+  - 'SYS_SFLIST_FOR_EACH_NODE'
+  - 'SYS_SFLIST_FOR_EACH_NODE_SAFE'
+  - 'SYS_SLIST_FOR_EACH_CONTAINER'
+  - 'SYS_SLIST_FOR_EACH_CONTAINER_SAFE'
+  - 'SYS_SLIST_FOR_EACH_NODE'
+  - 'SYS_SLIST_FOR_EACH_NODE_SAFE'
+  - '_WAIT_Q_FOR_EACH'
+  - 'Z_FOR_EACH'
+  - 'Z_FOR_EACH_ENGINE'
+  - 'Z_FOR_EACH_EXEC'
+  - 'Z_FOR_EACH_FIXED_ARG'
+  - 'Z_FOR_EACH_FIXED_ARG_EXEC'
+  - 'Z_FOR_EACH_IDX'
+  - 'Z_FOR_EACH_IDX_EXEC'
+  - 'Z_FOR_EACH_IDX_FIXED_ARG'
+  - 'Z_FOR_EACH_IDX_FIXED_ARG_EXEC'
+  - 'Z_GENLIST_FOR_EACH_CONTAINER'
+  - 'Z_GENLIST_FOR_EACH_CONTAINER_SAFE'
+  - 'Z_GENLIST_FOR_EACH_NODE'
+  - 'Z_GENLIST_FOR_EACH_NODE_SAFE'
+  - 'STRUCT_SECTION_FOREACH'
+  - 'TYPE_SECTION_FOREACH'
+  - 'K_SPINLOCK'
 IfMacros:
-- KJ_IF_MAYBE
-IncludeBlocks: Merge
+  - 'CHECKIF'
+# Disabled for now, see bug https://github.com/zephyrproject-rtos/zephyr/issues/48520
+#IncludeBlocks: Regroup
 IncludeCategories:
-- CaseSensitive: false
-  Priority: 2
-  Regex: ^"(llvm|llvm-c|clang|clang-c)/
-  SortPriority: 0
-- CaseSensitive: false
-  Priority: 3
-  Regex: ^(<|"(gtest|gmock|isl|json)/)
-  SortPriority: 0
-- CaseSensitive: false
-  Priority: 1
-  Regex: .*
-  SortPriority: 0
-IncludeIsMainRegex: (Test)?$
-IncludeIsMainSourceRegex: ''
-IndentAccessModifiers: false
-IndentCaseBlocks: false
+  - Regex: '^".*\.h"$'
+    Priority: 0
+  - Regex: '^<(assert|complex|ctype|errno|fenv|float|inttypes|limits|locale|math|setjmp|signal|stdarg|stdbool|stddef|stdint|stdio|stdlib|string|tgmath|time|wchar|wctype)\.h>$'
+    Priority: 1
+  - Regex: '^\<zephyr/.*\.h\>$'
+    Priority: 2
+  - Regex: '.*'
+    Priority: 3
 IndentCaseLabels: false
-IndentExportBlock: true
-IndentExternBlock: NoIndent
-IndentGotoLabels: true
-IndentPPDirectives: None
-IndentRequiresClause: true
-IndentWidth: 4
-IndentWrappedFunctionNames: false
-InsertBraces: false
-InsertNewlineAtEOF: false
-InsertTrailingCommas: None
-IntegerLiteralSeparator:
-  Binary: 0
-  BinaryMinDigits: 0
-  Decimal: 0
-  DecimalMinDigits: 0
-  Hex: 0
-  HexMinDigits: 0
-JavaScriptQuotes: Leave
-JavaScriptWrapImports: true
-KeepEmptyLines:
-  AtEndOfFile: false
-  AtStartOfBlock: true
-  AtStartOfFile: true
-KeepFormFeed: false
-LambdaBodyIndentation: Signature
-Language: Cpp
-LineEnding: DeriveLF
-MacroBlockBegin: ''
-MacroBlockEnd: ''
-MainIncludeChar: Quote
-MaxEmptyLinesToKeep: 1
-NamespaceIndentation: Inner
-ObjCBinPackProtocolList: Auto
-ObjCBlockIndentWidth: 4
-ObjCBreakBeforeNestedBlockParam: true
-ObjCSpaceAfterProperty: true
-ObjCSpaceBeforeProtocolList: true
-OneLineFormatOffRegex: ''
-PPIndentWidth: -1
-PackConstructorInitializers: BinPack
-PenaltyBreakAssignment: 4
-PenaltyBreakBeforeFirstCallParameter: 19
-PenaltyBreakBeforeMemberAccess: 150
-PenaltyBreakComment: 300
-PenaltyBreakFirstLessLess: 120
-PenaltyBreakOpenParenthesis: 0
-PenaltyBreakScopeResolution: 500
-PenaltyBreakString: 955
-PenaltyBreakTemplateDeclaration: 10
-PenaltyExcessCharacter: 805006
-PenaltyIndentedWhitespace: 0
-PenaltyReturnTypeOnItsOwnLine: 110
-PointerAlignment: Right
-QualifierAlignment: Leave
-ReferenceAlignment: Pointer
-ReflowComments: Always
-RemoveBracesLLVM: false
-RemoveEmptyLinesInUnwrappedLines: false
-RemoveParentheses: Leave
-RemoveSemicolon: false
-RequiresClausePosition: OwnLine
-RequiresExpressionIndentation: OuterScope
-SeparateDefinitionBlocks: Leave
-ShortNamespaceLines: 1
-SkipMacroDefinitionBody: true
-SortIncludes:
-  Enabled: true
-  IgnoreCase: false
-SortJavaStaticImport: Before
-SortUsingDeclarations: LexicographicNumeric
-SpaceAfterCStyleCast: false
-SpaceAfterLogicalNot: false
-SpaceAfterOperatorKeyword: true
-SpaceAfterTemplateKeyword: true
-SpaceAroundPointerQualifiers: Default
-SpaceBeforeAssignmentOperators: true
-SpaceBeforeCaseColon: false
-SpaceBeforeCpp11BracedList: false
-SpaceBeforeCtorInitializerColon: true
-SpaceBeforeInheritanceColon: true
-SpaceBeforeJsonColon: false
-SpaceBeforeParens: ControlStatements
-SpaceBeforeParensOptions:
-  AfterControlStatements: true
-  AfterForeachMacros: true
-  AfterFunctionDeclarationName: false
-  AfterFunctionDefinitionName: false
-  AfterIfMacros: true
-  AfterNot: false
-  AfterOverloadedOperator: false
-  AfterPlacementOperator: true
-  AfterRequiresInClause: false
-  AfterRequiresInExpression: false
-  BeforeNonEmptyParentheses: false
-SpaceBeforeRangeBasedForLoopColon: false
-SpaceBeforeSquareBrackets: false
-SpaceInEmptyBlock: true
-SpacesBeforeTrailingComments: 2
-SpacesInAngles: Never
-SpacesInContainerLiterals: true
-SpacesInLineCommentPrefix:
-  Maximum: -1
-  Minimum: 1
-SpacesInParens: Never
-SpacesInParensOptions:
-  ExceptDoubleParentheses: false
-  InCStyleCasts: false
-  InConditionalStatements: false
-  InEmptyParentheses: false
-  Other: false
-SpacesInSquareBrackets: false
-Standard: Latest
-StatementAttributeLikeMacros:
-- Q_EMIT
-StatementMacros:
-- Q_UNUSED
-- QT_REQUIRE_VERSION
-TabWidth: 8
-TableGenBreakInsideDAGArg: DontBreak
-UseTab: Never
-VerilogBreakBetweenInstancePorts: false
+IndentWidth: 8
+InsertBraces: true
+SpaceBeforeParens: ControlStatementsExceptControlMacros
+SortIncludes: Never
+UseTab: ForContinuationAndIndentation
 WhitespaceSensitiveMacros:
-- BOOST_PP_STRINGIZE
-- CF_SWIFT_NAME
-- NS_SWIFT_NAME
-- PP_STRINGIZE
-- STRINGIZE
-WrapNamespaceBodyWithEmptyLines: Leave
-...
+  - STRINGIFY
+  - Z_STRINGIFY

@@ -17,16 +17,19 @@
 void bus_init(void);
 
 // Read interrupt request lines (active low)
-static inline bool bus_read_irq(void) {
-    return !gpio_get(GPIO_IRQ);  // Active low, so invert
+static inline bool bus_read_irq(void)
+{
+	return !gpio_get(GPIO_IRQ); // Active low, so invert
 }
 
-static inline bool bus_read_nmi(void) {
-    return !gpio_get(GPIO_NMI);  // Active low, so invert
+static inline bool bus_read_nmi(void)
+{
+	return !gpio_get(GPIO_NMI); // Active low, so invert
 }
 
-static inline bool bus_read_reset(void) {
-    return !gpio_get(GPIO_RESET);  // Active low, so invert
+static inline bool bus_read_reset(void)
+{
+	return !gpio_get(GPIO_RESET); // Active low, so invert
 }
 
 // ============================================================================
@@ -49,14 +52,16 @@ void bus_write_cycle_pio(uint16_t address, uint8_t data);
 
 // Perform one read bus cycle (address -> data)
 // Synchronized to E clock
-static inline uint8_t bus_read_cycle(uint16_t address) {
-    bus_sync();
-    return bus_read_cycle_pio(address);
+static inline uint8_t bus_read_cycle(uint16_t address)
+{
+	bus_sync();
+	return bus_read_cycle_pio(address);
 }
 
 // Perform one write bus cycle (address + data -> bus)
 // Synchronized to E clock
-static inline void bus_write_cycle(uint16_t address, uint8_t data) {
-    bus_sync();
-    bus_write_cycle_pio(address, data);
+static inline void bus_write_cycle(uint16_t address, uint8_t data)
+{
+	bus_sync();
+	bus_write_cycle_pio(address, data);
 }

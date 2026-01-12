@@ -33,10 +33,10 @@ extern "C" {
 #define CFG_TUD_ENDPOINT0_SIZE 64
 
 // Device classes
-#define CFG_TUD_CDC 1 // Enable 1 CDC port
-#define CFG_TUD_MSC 0 // No mass storage
-#define CFG_TUD_HID 0 // No HID
-#define CFG_TUD_MIDI 0
+#define CFG_TUD_CDC    1 // Enable 1 CDC port
+#define CFG_TUD_MSC    0 // No mass storage
+#define CFG_TUD_HID    0 // No HID
+#define CFG_TUD_MIDI   0
 #define CFG_TUD_VENDOR 0
 
 // CDC buffer sizes

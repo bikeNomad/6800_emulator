@@ -7,12 +7,14 @@
  *
  * Assumptions:
  *   - No memory region is smaller than 256 bytes
- *   - ROM is in one contiguous range from mem_config.rom_base to mem_config.rom_base+mem_config.rom_size
- *   - RAM is in one contiguous range from mem_config.ram_base to mem_config.rom_base+mem_config.ram_size
+ *   - ROM is in one contiguous range from mem_config.rom_base to
+ * mem_config.rom_base+mem_config.rom_size
+ *   - RAM is in one contiguous range from mem_config.ram_base to
+ * mem_config.rom_base+mem_config.ram_size
  *   - CMOS (if it exists) lives somewhere within the RAM range
  *      - NOT TRUE FOR EARLY BALLY!
- *   - There may be aliasing due to incomplete address line decoding; in this case aliased memory map
- *     entries are copies of the base entries
+ *   - There may be aliasing due to incomplete address line decoding; in this case aliased memory
+ * map entries are copies of the base entries
  */
 
 #pragma once
@@ -27,12 +29,12 @@
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (2 * 1024 * 1024) // 2MB offset (adjust based on program size)
-#define MAX_ROM_SIZE (48 * 1024)          // 48KB max ROM (increased for System 11)
-#define MAX_RAM_SIZE (8 * 1024)           // 8KB max RAM (supports up to 0x1FFF)
+#define MAX_ROM_SIZE        (48 * 1024)       // 48KB max ROM (increased for System 11)
+#define MAX_RAM_SIZE        (8 * 1024)        // 8KB max RAM (supports up to 0x1FFF)
 
 // CMOS RAM
-#define CMOS_SIZE 256       // SYS7
-#define CMOS_BASE 0x0100    // SYS7
+#define CMOS_SIZE 256    // SYS7
+#define CMOS_BASE 0x0100 // SYS7
 
 // Memory region types are now defined in memory_map.h
 
@@ -41,14 +43,14 @@
 // Memory configuration is now defined in memory_map.h
 
 extern memory_config_t mem_config;
-extern uint8_t         rom_shadow[MAX_ROM_SIZE]
-    __attribute__((aligned(256)));  // Fast RAM copy of ROM for execution
+extern uint8_t rom_shadow[MAX_ROM_SIZE]
+	__attribute__((aligned(256))); // Fast RAM copy of ROM for execution
 
 // Compile-time alignment verification
 _Static_assert(__alignof__(rom_shadow) == 256, "rom_shadow not 256-byte aligned");
 
 extern uint8_t ram_shadow[MAX_RAM_SIZE]
-    __attribute__((aligned(256)));  // Fast RAM copy of target RAM for execution
+	__attribute__((aligned(256))); // Fast RAM copy of target RAM for execution
 
 _Static_assert(__alignof__(ram_shadow) == 256, "ram_shadow not 256-byte aligned");
 
@@ -99,10 +101,11 @@ const uint8_t *memory_get_cmos_shadow(void);
 // Print a summary of the various memory ranges defined in the memory_map
 void memory_print_summary(printf_func_t printf_func);
 
-static inline uint8_t memory_read_rom_shadow(uint16_t address) {
-    // Memory map handles address aliasing, so use logical address directly
-    uint16_t rom_offset = address - mem_config.rom_base;
-    return rom_shadow[rom_offset];
+static inline uint8_t memory_read_rom_shadow(uint16_t address)
+{
+	// Memory map handles address aliasing, so use logical address directly
+	uint16_t rom_offset = address - mem_config.rom_base;
+	return rom_shadow[rom_offset];
 }
 
 // Turn off all LEDs (for NED_SYS7 board)
