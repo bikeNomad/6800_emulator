@@ -39,6 +39,7 @@
 // Memory region types are now defined in memory_map.h
 
 #define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
+#define NUM_PAGES       (0x10000U / ENTRY_PAGE_SIZE)
 
 // Memory configuration is now defined in memory_map.h
 

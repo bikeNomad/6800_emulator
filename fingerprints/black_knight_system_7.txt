@@ -17,6 +17,7 @@
 3400-3fff: PIA (3f8e)
 4000-57ff: EMPTY
 5800-7fff: ROM (4084)
+-------- mirrored 
 8000-80ff: RAM
 8100-81ff: CMOS
 8200-84ff: RAM
