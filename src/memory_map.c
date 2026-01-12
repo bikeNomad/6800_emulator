@@ -15,8 +15,23 @@
 #include <stdio.h>
 #include <string.h>
 
+/* Memory map
+The memory_map is a table of 256 entries (each representing a 256-byte page of
+6800 address space). Each entry is a 32-bit word, set up like this:
+bit[31:8] top 24 bits of shadow base address (assumes 256-byte alignment of shadow areas)
+bit[2] flag for write-through (CMOS)
+bit[1] 1: writable/RAM, 0: ROM
+bit[0] flag for mapped/unmapped (0: mapped, 1: unmapped)
+
+So the bottom 3 bits are encoded like this:
+0b000   mapped ROM (read from ROM shadow)
+0b001   unmapped (read/write bus)
+0b010   mapped RAM (read/write from/to RAM shadow)
+0b110   mapped CMOS RAM (read from RAM shadow, write to both shadow and bus)
+*/
+
 // Memory map array
-uint32_t memory_map[MEMORY_TABLE_SIZE];
+uint32_t memory_map[NUM_PAGES];
 
 memory_type_t memory_get_type(uint16_t address)
 {
@@ -68,7 +83,7 @@ uint8_t *memory_get_shadow_address(uint16_t address)
 void memory_initialize_map(void)
 {
 	// Set all entries to unmapped initially
-	for (uint16_t i = 0; i < MEMORY_TABLE_SIZE; i++) {
+	for (uint16_t i = 0; i < NUM_PAGES; i++) {
 		memory_map[i] = ENTRY_UNMAPPED_BUS;
 	}
 
@@ -141,7 +156,7 @@ void memory_print_summary(printf_func_t printf_func)
 	uint16_t cmos_pages = 0;
 	uint16_t unmapped_pages = 0;
 
-	for (uint16_t i = 0; i < MEMORY_TABLE_SIZE; i++) {
+	for (uint16_t i = 0; i < NUM_PAGES; i++) {
 		memory_type_t type = memory_get_type(i * ENTRY_PAGE_SIZE);
 		if (type == MEM_TYPE_UNMAPPED) {
 			unmapped_pages++;
@@ -160,8 +175,8 @@ void memory_print_summary(printf_func_t printf_func)
 	printf_func(
 		"  Memory map: %u mapped pages (%u ROM, %u RAM, %u CMOS), %u unmapped pages\r\n",
 		mapped_pages, rom_pages, ram_pages, cmos_pages, unmapped_pages);
-	printf_func("  Total address space: %u pages (%u bytes)\r\n", MEMORY_TABLE_SIZE,
-		    MEMORY_TABLE_SIZE * ENTRY_PAGE_SIZE);
+	printf_func("  Total address space: %u pages (%u bytes)\r\n", NUM_PAGES,
+		    NUM_PAGES * ENTRY_PAGE_SIZE);
 }
 
 // Save memory config and map to flash
@@ -352,7 +367,7 @@ memory_type_t memory_get_mapping_type(uint16_t address)
 // Set ROM mapping for specific address (256-byte page) - legacy wrapper
 void memory_set_rom_mapping(uint16_t address, bool mapped)
 {
-	uint16_t physical_addr = address & ADDR_MASK_A15;
+	uint16_t physical_addr = address & ADDR_MASK_A15; // TODO FIX THIS
 	uint8_t table_index = ADDR_TO_TABLE_INDEX(physical_addr);
 
 	if (mapped) {

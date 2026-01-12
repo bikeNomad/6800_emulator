@@ -66,21 +66,6 @@ void led_all_off(void)
 #endif
 }
 
-/* Memory map
-The memory_map is a table of 256 entries (each representing a 256-byte page of
-6800 address space). Each entry is a 32-bit word, set up like this:
-bit[31:8] top 24 bits of shadow base address (assumes 256-byte alignment of shadow areas)
-bit[2] flag for write-through (CMOS)
-bit[1] 1: writable/RAM, 0: ROM
-bit[0] flag for mapped/unmapped (0: mapped, 1: unmapped)
-
-So the bottom 3 bits are encoded like this:
-0b000   mapped ROM (read from ROM shadow)
-0b001   unmapped (read/write bus)
-0b010   mapped RAM (read/write from/to RAM shadow)
-0b110   mapped CMOS RAM (read from RAM shadow, write to both shadow and bus)
-*/
-
 memory_config_t mem_config;
 
 // Shadow copies for diagnostics and initialization
@@ -89,16 +74,6 @@ uint8_t ram_shadow[MAX_RAM_SIZE]
 uint8_t rom_shadow[MAX_ROM_SIZE]
 	__attribute__((aligned(ENTRY_PAGE_SIZE))); // Fast RAM copy of ROM for execution
 static uint8_t rom_load_buffer[MAX_ROM_SIZE];      // Buffer for loading before flash write
-
-// Memory map persistence - no bitmap needed anymore
-
-// Flash storage for memory config and map
-#define FLASH_MEMORY_CONFIG_OFFSET (FLASH_TARGET_OFFSET + MAX_ROM_SIZE)
-#define FLASH_MEMORY_CONFIG_SIZE   sizeof(memory_config_t)
-#define FLASH_MEMORY_CONFIG_PADDED_SIZE                                                            \
-	256 // Config must be padded to 256 bytes for flash_range_program
-#define FLASH_MEMORY_MAP_OFFSET (FLASH_MEMORY_CONFIG_OFFSET + FLASH_MEMORY_CONFIG_PADDED_SIZE)
-#define FLASH_MEMORY_MAP_SIZE   (MEMORY_TABLE_SIZE * sizeof(uint32_t))
 
 // Initialize memory subsystem
 void memory_init(void)

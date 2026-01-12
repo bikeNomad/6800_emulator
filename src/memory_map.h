@@ -18,31 +18,11 @@ typedef enum memory_type_t {
 	MEM_TYPE_CMOS      // CMOS RAM - read from shadow, write to shadow and bus
 } memory_type_t;
 
-// Memory configuration
-typedef struct memory_config_t {
-	uint16_t rom_base;    // Base address in MC6800 space (e.g., $E000)
-	uint16_t rom_size;    // Size of ROM region in bytes
-	uint16_t ram_base;    // Base address of RAM in MC6800 space (e.g., $0000)
-	uint16_t ram_size;    // Size of RAM region in bytes (e.g., 512 bytes)
-	uint16_t cmos_base;   // Base address of CMOS RAM in MC6800 space (0x0100)
-	uint16_t cmos_size;   // Size of CMOS RAM region in bytes (256 bytes)
-	uint8_t architecture; // System architecture (architecture_type_t from memory_fingerprint.h)
-} memory_config_t;
-
 /** Address translation for missing A15 decode - masks off A15 bit */
 #define ADDR_MASK_A15 0x7FFF
 
-// Flash storage for ROM (at the end of program flash)
-#define FLASH_TARGET_OFFSET (2 * 1024 * 1024) // 2MB offset (adjust based on program size)
-#define MAX_ROM_SIZE        (48 * 1024)       // 48KB max ROM (increased for System 11)
-#define MAX_RAM_SIZE        (8 * 1024)        // 8KB max RAM (supports up to 0x1FFF)
-
-// CMOS RAM
-#define CMOS_SIZE 256    // SYS7
-#define CMOS_BASE 0x0100 // SYS7
-
-#define ENTRY_PAGE_SIZE   256 // 256-byte pages in memory map
-#define MEMORY_TABLE_SIZE (0x10000U / ENTRY_PAGE_SIZE)
+#define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
+#define NUM_PAGES       (0x10000U / ENTRY_PAGE_SIZE)
 
 // Flash storage for memory config and map
 /** Flash offset for memory configuration storage */
@@ -54,7 +34,7 @@ typedef struct memory_config_t {
 /** Flash offset for memory map storage */
 #define FLASH_MEMORY_MAP_OFFSET         (FLASH_MEMORY_CONFIG_OFFSET + FLASH_MEMORY_CONFIG_PADDED_SIZE)
 /** Size of memory map in flash */
-#define FLASH_MEMORY_MAP_SIZE           (MEMORY_TABLE_SIZE * sizeof(uint32_t))
+#define FLASH_MEMORY_MAP_SIZE           (NUM_PAGES * sizeof(uint32_t))
 
 // Memory map entry flags (local definitions not exported)
 #define ENTRY_UNMAPPED      0b001
@@ -63,17 +43,18 @@ typedef struct memory_config_t {
 
 /** Memory map entry definitions */
 /** Mask for extracting address from map entry (upper 24 bits) */
-#define ENTRY_ADDR_MASK            ~0xFFU
+#define ENTRY_ADDR_MASK    ~0xFFU
 /** Mask for extracting flags from map entry (lower 8 bits) */
-#define ENTRY_FLAG_MASK            0b111
+#define ENTRY_FLAG_MASK    0b111
 /** Map entry flag combination for RAM mapping */
-#define ENTRY_MAPPED_RAM           0b010
+#define ENTRY_MAPPED_RAM   0b010
 /** Map entry flag combination for CMOS mapping */
-#define ENTRY_MAPPED_CMOS          0b110
+#define ENTRY_MAPPED_CMOS  0b110
 /** Map entry flag combination for ROM mapping */
-#define ENTRY_MAPPED_ROM           0b000
+#define ENTRY_MAPPED_ROM   0b000
 /** Map entry flag combination for unmapped bus access */
-#define ENTRY_UNMAPPED_BUS         0b011
+#define ENTRY_UNMAPPED_BUS 0b011
+
 /** Convert address to memory table index (page number) */
 #define ADDR_TO_TABLE_INDEX(addr)  ((uint8_t)((addr) >> 8))
 #define TABLE_INDEX_TO_ADDR(index) ((uint8_t)index << 8)

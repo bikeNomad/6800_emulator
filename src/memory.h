@@ -24,8 +24,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Address translation for missing A15 decode
-#define ADDR_MASK_A15 0x7FFF // Mask off A15
+// Memory configuration
+typedef struct memory_config_t {
+	uint16_t rom_base;    // Base address in MC6800 space (e.g., $E000)
+	uint16_t rom_size;    // Size of ROM region in bytes
+	uint16_t ram_base;    // Base address of RAM in MC6800 space (e.g., $0000)
+	uint16_t ram_size;    // Size of RAM region in bytes (e.g., 512 bytes)
+	uint16_t cmos_base;   // Base address of CMOS RAM in MC6800 space (0x0100)
+	uint16_t cmos_size;   // Size of CMOS RAM region in bytes (256 bytes)
+	uint8_t architecture; // System architecture (architecture_type_t from memory_fingerprint.h)
+	uint8_t decoded_bits; // number of address bits decoded
+} memory_config_t;
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (2 * 1024 * 1024) // 2MB offset (adjust based on program size)
@@ -35,11 +44,6 @@
 // CMOS RAM
 #define CMOS_SIZE 256    // SYS7
 #define CMOS_BASE 0x0100 // SYS7
-
-// Memory region types are now defined in memory_map.h
-
-#define ENTRY_PAGE_SIZE 256 // 256-byte pages in memory map
-#define NUM_PAGES       (0x10000U / ENTRY_PAGE_SIZE)
 
 // Memory configuration is now defined in memory_map.h
 
