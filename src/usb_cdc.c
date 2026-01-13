@@ -146,22 +146,6 @@ static void cmd_config_ram(void)
 	resume_emulator();
 }
 
-static void cmd_cmos_dump(void)
-{
-	// Display CMOS RAM contents
-	const uint8_t *cmos = memory_get_cmos_shadow();
-	usb_cdc_send("CMOS RAM ($0100-$01FF):\r\n");
-	for (uint16_t i = 0; i < 256; i++) {
-		if (i % 16 == 0) {
-			usb_cdc_printf("%04X: ", 0x0100 + i);
-		}
-		usb_cdc_printf("%02X ", cmos[i]);
-		if (i % 16 == 15) {
-			usb_cdc_send("\r\n");
-		}
-	}
-}
-
 static void cmd_run(void)
 {
 	// Start CPU execution
@@ -769,8 +753,6 @@ static const char *format_memory_info(memory_type_t type, bool mapped)
 		return "ROM";
 	case MEM_TYPE_RAM:
 		return "RAM";
-	case MEM_TYPE_CMOS:
-		return "CMOS";
 	case MEM_TYPE_UNMAPPED:
 		return "UNMAPPED";
 	default:
@@ -979,11 +961,6 @@ static void cmd_scan_memory(void)
 		       mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
 	usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
 		       mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
-	if (mem_config.cmos_size > 0) {
-		usb_cdc_printf("  CMOS: $%04X-$%04X (%d bytes)\r\n", mem_config.cmos_base,
-			       mem_config.cmos_base + mem_config.cmos_size - 1,
-			       mem_config.cmos_size);
-	}
 
 	usb_cdc_send("\r\nMemory map and ROM contents have been saved to flash.\r\n");
 	usb_cdc_send("Configuration will be used automatically on next boot.\r\n");
@@ -1026,19 +1003,18 @@ static void cmd_help(void)
 	// Send as single string to avoid buffer overflow
 	usb_cdc_send(
 		"MC6800 Emulator Commands:\r\n"
-		"  load                      - Load Intel HEX (auto-detects "
-		"ROM/CMOS)\r\n"
+		"  load                      - Load Intel HEX\r\n"
+		"  end                       - End Intel HEX\r\n"
 		"  config                    - Show memory configuration\r\n"
 		"  config rom <b> <s>        - Configure ROM region\r\n"
 		"  config ram <b> <s>        - Configure RAM region\r\n"
-		"  cmos dump                 - Display CMOS RAM contents\r\n"
 		"  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
 		"  read <addr> <len>         - Read memory\r\n"
 		"  write <addr> <data>       - Write memory\r\n"
 		"  status                    - Display CPU status\r\n"
 		"  run                       - Start CPU execution\r\n"
-		"  halt                      - Stop CPU execution (auto-saves CMOS)\r\n"
-		"  reset                     - Reset CPU (auto-saves CMOS)\r\n"
+		"  halt                      - Stop CPU execution\r\n"
+		"  reset                     - Reset CPU\r\n"
 #if COUNT_INSTRUCTIONS
 		"  count print               - Print instruction execution counts\r\n"
 		"  count reset               - Reset instruction execution counts\r\n"
@@ -1094,7 +1070,6 @@ static const command_entry_t command_table[] = {
 	// Two-word commands (require exact match of first two tokens)
 	{"config rom", cmd_config_rom, true}, // needs <base> <size>
 	{"config ram", cmd_config_ram, true}, // needs <base> <size>
-	{"cmos dump", cmd_cmos_dump, false},
 	{"debug on", cmd_debug_on, false},
 	{"debug off", cmd_debug_off, false},
 	{"break clear", cmd_break_clear, true}, // needs optional <addr>

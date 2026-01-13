@@ -88,8 +88,6 @@ void memory_init(void)
 	mem_config.rom_size = 0x4000; // 16KB (4000-7FFF, aliased at C000-FFFF)
 	mem_config.ram_base = 0x0000;
 	mem_config.ram_size = 0x1400; // 5KB (0000-13FF)
-	mem_config.cmos_base = CMOS_BASE;
-	mem_config.cmos_size = CMOS_SIZE;
 
 	// Try to load complete memory map and memory config from flash
 	bool has_valid_map = memory_load_memory_map_from_flash();
@@ -181,8 +179,7 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
 		return true;
 	}
 
-	if ((start_type == MEM_TYPE_RAM || start_type == MEM_TYPE_CMOS) &&
-	    (end_type == MEM_TYPE_RAM || end_type == MEM_TYPE_CMOS)) {
+	if ((start_type == MEM_TYPE_RAM) && (end_type == MEM_TYPE_RAM)) {
 		uint16_t ram_offset = start_addr - mem_config.ram_base;
 		while (length > 0) {
 			ram_shadow[ram_offset] = *data;
@@ -250,34 +247,6 @@ void memory_init_rom_from_flash(void)
 	bytes_loaded = mem_config.rom_size;
 
 	printf("ROM restored from flash (%u bytes)\n", bytes_loaded);
-}
-
-// Load Intel HEX data into CMOS shadow copy
-bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t length)
-{
-	// Validate address range
-	if (address < mem_config.cmos_base ||
-	    address >= mem_config.cmos_base + mem_config.cmos_size) {
-		printf("CMOS address $%04X outside CMOS range\n", address);
-		return false;
-	}
-
-	uint16_t cmos_offset = address - mem_config.cmos_base;
-	if (cmos_offset + length > mem_config.cmos_size) {
-		printf("CMOS data exceeds CMOS size\n");
-		return false;
-	}
-
-	// Copy to RAM shadow for immediate use
-	memcpy(&ram_shadow[address], data, length);
-
-	return true;
-}
-
-// Get CMOS data for diagnostics (direct access to shadow copy)
-const uint8_t *memory_get_cmos_shadow(void)
-{
-	return &ram_shadow[mem_config.cmos_base - mem_config.ram_base];
 }
 
 // Clear ROM load buffer (for copy_roms command)

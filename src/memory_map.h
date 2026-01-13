@@ -15,7 +15,7 @@ typedef enum memory_type_t {
 	MEM_TYPE_UNMAPPED, // Unmapped (peripheral) address - routes to physical bus
 	MEM_TYPE_ROM,      // ROM (EPROM) - read only from flash
 	MEM_TYPE_RAM,      // RAM - read/write from shadow
-	MEM_TYPE_CMOS      // CMOS RAM - read from shadow, write to shadow and bus
+	// MEM_TYPE_CMOS      // CMOS RAM - read from shadow, write to shadow and bus
 } memory_type_t;
 
 /** Address translation for missing A15 decode - masks off A15 bit */
@@ -93,8 +93,6 @@ void memory_save_memory_map_to_flash(void);
 void memory_save_rom_mapping_to_flash(void);
 /** Set ROM mapping for a specific address */
 void memory_set_rom_mapping(uint16_t address, bool mapped);
-/** Set up CMOS RAM mapping for an address range */
-void setup_cmos_mapping(uint16_t address);
 /** Set up RAM mapping for an address range */
 void setup_ram_mapping(uint16_t address);
 /** Set up ROM mapping for an address range */
