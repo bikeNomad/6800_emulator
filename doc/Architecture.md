@@ -85,59 +85,61 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 
 ### Memory Subsystem
 
-```
+Showing Williams System 7 as an example:
+
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    MC6800 Address Space                     │
 │                         (64KB)                              │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌──────────────┐                                          │
-│  │ RAM (Shadow) │  0x0000-0x13FF (5KB)                    │
-│  │  - Volatile  │  • Mirroring: $0000-$00FF ↔ $1000-$10FF │
-│  │  - Fast      │  • System 7 compatibility               │
-│  └──────────────┘                                          │
+│  ┌──────────────┐                                           │
+│  │ RAM (Shadow) │  0x0000-0x13FF (5KB)                      │
+│  │  - Volatile  │  • Mirroring: $0000-$00FF ↔ $1000-$10FF   │
+│  │  - Fast      │  • System 7 compatibility                 │
+│  └──────────────┘                                           │
 │                                                             │
-│  ┌──────────────┐                                          │
-│  │ CMOS (Flash) │  0x0100-0x01FF (256 bytes)              │
-│  │  - Persistent│  • Auto-save on write (30s delay)       │
-│  │  - Settings  │  • Survives power cycles                │
-│  └──────────────┘                                          │
+│  ┌──────────────┐                                           │
+│  │ CMOS (Flash) │  0x0100-0x01FF (256 bytes)                │
+│  │  - Persistent│  • Treated as RAM                         │
+│  │  - Settings  │  • Target CMOS is not modified            │
+│  └──────────────┘                                           │
 │                                                             │
-│  ┌──────────────┐                                          │
-│  │ Unmapped     │  0x1400-0x3FFF                          │
-│  │ (Physical    │  • Routes to physical bus               │
-│  │  Bus)        │  • For PIAs, ACIAs, etc.                │
-│  └──────────────┘                                          │
+│  ┌──────────────┐                                           │
+│  │ Unmapped     │  0x1400-0x3FFF                            │
+│  │ (Physical    │  • Routes to physical bus                 │
+│  │  Bus)        │  • For PIAs, ACIAs, etc.                  │
+│  └──────────────┘                                           │
 │                                                             │
-│  ┌──────────────┐                                          │
-│  │ ROM (Flash)  │  0x4000-0x7FFF (16KB)                   │
-│  │  - Read-only │  • A15 not decoded                      │
-│  │  - Persistent│  • Aliases at $C000-$FFFF               │
-│  │              │  • Vectors at $7FF8-$7FFF               │
-│  │  - Page-based│  • Mapped on-demand from flash         │
-│  └──────────────┘                                          │
+│  ┌──────────────┐                                           │
+│  │ ROM (Flash)  │  0x4000-0x7FFF (16KB)                     │
+│  │  - Read-only │  • A15 not decoded                        │
+│  │  - Persistent│  • Aliases at $C000-$FFFF                 │
+│  │              │  • Vectors at $7FF8-$7FFF                 │
+│  │  - Page-based│  • Mapped on-demand from flash            │  
+│  └──────────────┘                                           │
 │                                                             │
-│  Note: Addresses $8000-$FFFF map to $0000-$7FFF           │
-│        due to missing A15 decode                           │
+│  Note: Addresses $8000-$FFFF map to $0000-$7FFF             │
+│        due to missing A15 decode                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ### Flash Storage Layout
 
-```
-RP2350 Flash (2MB):
+```text
+In RP2350 Flash, at Offset 0x100000 (1MiB):
 ┌──────────────────────────────────────┐
-│  Program Code (< 1MB)                │  0x000000
+│ ROM Image (up to 48KB)               │
+│ • Target system program code         │
+│ • Preserved across power cycles      │
 ├──────────────────────────────────────┤
-│  ROM Image (32KB max)                │  0x100000 (1MB offset)
-│  • MC6800 program code               │
-│  • Loaded via USB                    │
-│  • Persistent across resets          │
+│ Memory Map (1024 bytes)              │
+│ • 256 × 32-bit entries               │
 ├──────────────────────────────────────┤
-│  CMOS RAM (4KB sector)               │  0x108000 (1MB + 32KB)
-│  • 256 bytes used                    │
-│  • Auto-saved on changes             │
-│  • Deferred write (30s idle)         │
+│ Memory Config (256 bytes)            │
+│ • ROM base, size                     │
+│ • RAM base, size                     │
+│ • Architecture info                  │
 └──────────────────────────────────────┘
 ```
 

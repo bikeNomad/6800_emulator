@@ -225,18 +225,19 @@ Memory configuration is stored in RP2350 flash:
 
 ```
 Flash Offset 0x100000:
+
 ┌──────────────────────────────────────┐
-│ Memory Config (256 bytes)            │
-│ • ROM base, size                     │
-│ • RAM base, size                     │
-│ • Architecture info                  │
+│ ROM Image (up to 48KB)               │
+│ • Target system program code         │
+│ • Preserved across power cycles      │
 ├──────────────────────────────────────┤
 │ Memory Map (1024 bytes)              │
 │ • 256 × 32-bit entries               │
 ├──────────────────────────────────────┤
-│ ROM Image (up to 32KB)               │
-│ • Target system program code         │
-│ • Preserved across power cycles      │
+│ Memory Config (256 bytes)            │
+│ • ROM base, size                     │
+│ • RAM base, size                     │
+│ • Architecture info                  │
 └──────────────────────────────────────┘
 ```
 
