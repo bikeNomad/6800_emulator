@@ -22,7 +22,6 @@ The MC6800 Emulator implements a flexible memory system that combines internal s
 │        │                                      │    │
 │  $0100 │  ┌────────────────────────────────┐  │    │
 │        │  │ CMOS RAM (256 bytes)           │  │    │
-│        │  │ • Persistent (in target CMOS)  │  │    │
 │        │  │ • Configuration, high scores   │  │    │
 │  $01FF │  └────────────────────────────────┘  │    │
 │        │                                      │    │
@@ -121,16 +120,19 @@ Williams pinball machines use this addressing quirk. The first 256 bytes of RAM 
 
 Writes to either location update the same physical RAM.
 
-### CMOS RAM (Battery-Backed)
+### RAM (including CMOS)
 
-**Address Range**: `$0100 - $01FF` (256 bytes)
-**Storage**: internal RAM, target CMOS RAM for persistence
-**Access**: Read from internal RAM, Write to internal RAM and to external CMOS
-**Speed**: Read/Write = single cycle
+Target RAM (both SRAM and CMOS) is copied into internal RAM for execution.
+Subsequent read or write accesses use internal RAM.
+
+*NOTE*: This means that target CMOS is not modified by emulator operation.
+
+**Access**: Read/Write from internal RAM
+**Speed**: Single cycle
 
 ### ROM (Flash)
 
-**Address Range**: `$4000 - $7FFF` (16384 bytes)
+**Address Range**: up to `$4000 - $FFFF` (48K bytes)
 **Storage**: RP2350 flash (via XIP - eXecute In Place), copied into SRAM
 **Access**: Read-only
 **Speed**: SRAM (1 MCU cycle)
@@ -139,8 +141,7 @@ Writes to either location update the same physical RAM.
 **Flash Storage**:
 
 - Physical location: Flash offset `0x100000` (1MB)
-- Maximum size: 32KB
-- Current default: 16KB
+- Maximum size: 48KB
 
 **Loading ROM**:
 
@@ -150,23 +151,18 @@ load
 [paste Intel HEX file]
 
 # ROM auto-detected by address range
-# Addresses $4000-$7FFF → ROM
-# Addresses $0100-$01FF → CMOS
+# Addresses $4000-$FFFF → ROM
 ```
 
 **Write Protection**:
 Writes to ROM addresses are ignored but consume one bus cycle for accuracy.
 
 **Page-based Mapping**:
-ROM is mapped on-demand using a 32-byte bitmap. Initially all ROM pages are unmapped (route to physical bus). As data is loaded, pages are mapped to enable fast flash access.
-
-**Why $4000-$7FFF?**:
-The hardware does not decode A15, so:
-
-- Physical ROM: `$4000 - $7FFF`
-- Aliased at: `$C000 - $FFFF`
-- MC6800 code typically uses `$C000` and higher
-- Transparent mapping via software
+ROM is mapped on-demand using a 256-entry mapping table.
+This allow for fast handling of incomplete address decoding.
+Initially all ROM pages are unmapped (route to physical bus).
+After system fingerprinting, ROM pages may be identified and copied to RAM and saved to internal flash for persistence.
+ROM data may also be loaded from target ROMs or from Intel HEX files.
 
 ### Interrupt Vectors
 
@@ -196,13 +192,13 @@ Example: $FFF8 = $51, $FFF9 = $80 → IRQ handler at $5180
 
 ### Unmapped Space (Physical Bus)
 
-**Address Range**: `$1400 - $4FFF` and others not in ROM/RAM
+**Address Range**: Any 256-byte pages not in ROM/RAM
 **Access**: Routes to physical bus
 **Speed**: Hardware-timed to E clock
 **Purpose**: External peripherals
 
 **Behavior**:
-Any address not in ROM or RAM is routed to the physical GPIO bus:
+Any address not mapped as ROM or RAM is routed to the physical GPIO bus:
 
 1. Assert address on GPIO pins
 2. Assert VMA and R/W
@@ -213,8 +209,6 @@ Any address not in ROM or RAM is routed to the physical GPIO bus:
 **Typical Peripherals**:
 
 - **PIAs** (6821): Parallel I/O
-- **ACIAs** (6850): Serial I/O
-- **PTM** (6840): Timer
 - **Custom logic**: Displays, sound, etc.
 
 **Example: PIA at $2100**:
@@ -226,17 +220,17 @@ Address decode:
   → Chip select activates PIA
 ```
 
+#### Early Bally/Stern page 0
+
+Early Bally (AS-2518-17, AS-2518-35) and Stern (MPU-100, MPU-200) boards used only 128 bytes of their 256-byte RAM chip.
+The rest of the first page of memory (0x0000-0x00FF) included two PIAs (at $88 and $90) for hardware I/O.
+The emulator treats the first page of memory on these systems as unmapped, so accesses go directly to the physical bus.
+
 ## Memory Configuration
 
 ### Default Settings
 
-The emulator initializes with NED_SYS7-compatible defaults:
-
-```c
-ROM:  $4000-$7FFF (16KB)
-RAM:  $0000-$13FF (5KB)
-CMOS: $0100-$01FF (256 bytes)
-```
+The emulator may be initialized using the USB `scan_memory` command.
 
 ### Changing Configuration
 
@@ -251,7 +245,7 @@ config
 #   ROM: $4000-$7FFF (16384 bytes, 16KB)
 #   RAM: $0000-$13FF (5120 bytes, 5KB)
 #   RAM mirroring: $0000-$00FF <-> $1000-$10FF
-#   CMOS RAM: $0100-$01FF (persistent in flash)
+#   CMOS RAM: $0100-$01FF
 #   Unmapped addresses route to physical bus
 
 # Change ROM base and size
@@ -266,17 +260,15 @@ config ram 0000 0800   # 2KB RAM at $0000-$07FF
 | Parameter | Minimum | Maximum | Default |
 |-----------|---------|---------|---------|
 | ROM Base | $0000 | $FFFF | $4000 |
-| ROM Size | 1 byte | 32KB | 16KB |
+| ROM Size | 256 bytes | 48KB | 16KB |
 | RAM Base | $0000 | $FFFF | $0000 |
-| RAM Size | 1 byte | 8KB | 5KB |
-| CMOS Base | Fixed | Fixed | $0100 |
-| CMOS Size | Fixed | Fixed | 256 bytes |
+| RAM Size | 256 bytes | 8KB | 5KB |
 
 ## A15 Address Translation
 
 ### Problem
 
-The current hardware does not decode address line A15, meaning:
+Several early game generations do not decode address line A15, meaning:
 
 - A15 is ignored
 - Upper 32KB mirrors lower 32KB
@@ -284,30 +276,8 @@ The current hardware does not decode address line A15, meaning:
 
 ### Software Solution
 
-The emulator masks A15 in memory type detection:
-
-```c
-uint16_t physical_addr = address & 0x7FFF;  // Mask A15
-```
-
-**Implications**:
-
-1. **ROM must be in lower 32KB** ($0000-$7FFF)
-2. **Vectors at $FFF8 access $7FF8** (transparent to software)
-3. **Code can use $C000+ addresses** (they map to $4000+)
-
-### Address Examples
-
-| Logical | Physical | Result |
-|---------|----------|--------|
-| $0000 | $0000 | RAM |
-| $0100 | $0100 | CMOS |
-| $4000 | $4000 | ROM |
-| $7FF8 | $7FF8 | Vector (IRQ) |
-| $8000 | $0000 | RAM (mirrored) |
-| $C000 | $4000 | ROM (aliased) |
-| $FFF8 | $7FF8 | Vector (IRQ, aliased) |
-| $FFFF | $7FFF | ROM (aliased) |
+Each 256-byte page of the 64KiB address space has an entry in a mapping table that identifies the kind of memory (RAM, ROM, unmapped)
+as well as the shadow address of the start of the page (in the RAM or ROM shadows that live in the emulator's internal SRAM).
 
 ## Memory Access Timing
 
@@ -364,28 +334,6 @@ Time:  0ns           558ns          1117ns
    - Increment cycle counter
 
 **Total**: 1 E clock cycle (1.117µs)
-
-### CMOS Write (Deferred)
-
-```
-Write to CMOS:
-  CPU write → RAM shadow (1 cycle)
-            ↓
-            Set dirty flag + timestamp
-            ↓
-  Continue execution (no stall)
-            ↓
-  [30 seconds idle]
-            ↓
-  Flash erase + program (background)
-```
-
-**Performance**:
-
-- No execution stall
-- Write appears instantaneous
-- Flash operation happens later
-- Safe if power lost before save (previous value retained)
 
 ## Special Memory Features
 
@@ -488,15 +436,6 @@ write 0100 DE AD BE EF
 # Verify immediately
 read 0100 4
 # Output: DE AD BE EF
-
-# Force save
-cmos save
-
-# Power cycle emulator
-
-# Verify persistence
-read 0100 4
-# Output: DE AD BE EF (should match)
 ```
 
 ### Mirroring Test
@@ -533,8 +472,8 @@ config
 # RAM dump (first 256 bytes)
 read 0000 100
 
-# CMOS dump (formatted)
-cmos dump
+# CMOS dump (first 256 bytes)
+read 0100 100
 
 # ROM dump (first 256 bytes)
 read 4000 100
@@ -563,13 +502,15 @@ Everything else: Unmapped (physical bus)
 
 ### Williams System 7
 
-```
+```text
 $0000-$13FF: RAM (5KB)
-$0100-$01FF:   └─ CMOS (256 bytes, persistent)
+$0100-$01FF:   └─ CMOS (256 bytes)
 $1000-$10FF:   └─ Mirror ($0000-$00FF)
 $2100-$217F: PIA region (3× 6821 PIAs)
 $4000-$7FFF: ROM (16KB, game code)
 $7FF8-$7FFF:   └─ Vectors
+
+Above repeated at $8000-$FFFF because A15 is not decoded.
 ```
 
 ### Custom Configuration

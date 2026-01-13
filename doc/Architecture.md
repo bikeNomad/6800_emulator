@@ -26,7 +26,7 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 
 ### RP2350 Microcontroller
 
-- **CPU**: Dual Cortex-M33 cores @ 150-300MHz (configurable)
+- **CPU**: Dual Cortex-M33 cores @ 150-300MHz (default 266MHz)
 - **Memory**: 520KB SRAM, 2MB Flash
 - **GPIO**: 48 pins (NED_SYS7 board)
 - **Connectivity**: USB CDC for development, UART for debug
@@ -48,7 +48,7 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 
 ```
 ┌─────────────────────────────────────────────────┐
-│            RP2350 (150MHz)                      │
+│            RP2350 (266MHz default)              │
 │                                                 │
 │  ┌──────────────────┐    ┌──────────────────┐  │
 │  │   Core 0         │    │   Core 1         │  │
@@ -315,12 +315,12 @@ Core 1 runs a dedicated USB CDC task that processes commands without affecting e
 Commands:
   • load          - Load Intel HEX file (ROM or CMOS)
   • config        - Show/set memory configuration
-  • cmos save     - Manually save CMOS to flash
-  • cmos dump     - Display CMOS contents
   • read/write    - Memory access
   • run/halt      - CPU control
-  • reset         - CPU reset + CMOS save
-  • cycletest     - Verify cycle counts
+  • reset         - CPU reset
+  • break         - Set/clear breakpoints
+  • status        - Display CPU state
+  • scan_memory   - Auto-detect memory map
   • bootloader    - Enter RP2350 bootloader
 ```
 
@@ -398,18 +398,22 @@ Reset vector: $5000
 IRQ vector: $5180
 ```
 
-### Cycle Testing
+### Instruction Counting
 
-The `cycletest` command verifies cycle-accurate execution:
+When enabled at compile time, the emulator can count instruction executions:
 
+```cmake
+# CMakeLists.txt
+target_compile_definitions(mc6800_emulator PRIVATE
+    COUNT_INSTRUCTIONS=1
+)
 ```
-$00 NOP      : 2 cycles
-$01 NOP      : 2 cycles
-$86 LDAA#    : 2 cycles
-$96 LDAA     : 3 cycles
-$B6 LDAA     : 4 cycles
-...
-```
+
+Commands available when counting is enabled:
+
+- `count print` - Display execution counts for all instructions
+- `count reset` - Reset all counters
+- `count on/off` - Enable/disable counting
 
 ## Address Translation (A15 Handling)
 

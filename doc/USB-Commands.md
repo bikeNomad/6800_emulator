@@ -67,7 +67,6 @@ tio /dev/tty.usbmodem14201
 | `config` | none | Show memory configuration |
 | `config rom` | base size | Configure ROM region |
 | `config ram` | base size | Configure RAM region |
-| `cmos dump` | none | Display CMOS contents |
 | `checksum` | addr len | Calculate checksum of memory range |
 | `read` | addr len | Read memory |
 | `write` | addr data... | Write memory |
@@ -125,7 +124,6 @@ MC6800 Emulator Commands:
   config                    - Show memory configuration
   config rom <b> <s>        - Configure ROM region
   config ram <b> <s>        - Configure RAM region
-  cmos dump                 - Display CMOS RAM contents
   read <addr> <len>         - Read memory
   write <addr> <data>       - Write memory
   status                    - Display CPU status
@@ -346,45 +344,6 @@ config ram 0000 2000    # 8KB at $0000 (maximum)
 config ram 0000 0400    # 1KB at $0000 (minimal)
 config ram 8000 1000    # 4KB at $8000 (non-standard)
 ```
-
-### cmos dump
-
-Display complete CMOS RAM contents in hexadecimal.
-
-**Syntax**:
-
-```
-cmos dump
-```
-
-**Example**:
-
-```
-> cmos dump
-CMOS RAM ($0100-$01FF):
-0100: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0110: DE AD BE EF 00 00 00 00 00 00 00 00 00 00 00 00
-0120: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0130: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0140: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0150: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0160: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0170: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0180: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-0190: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-01A0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-01B0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-01C0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-01D0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-01E0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-01F0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-```
-
-**Format**:
-
-- 16 bytes per line
-- Address shown at start of each line
-- Values in hexadecimal
 
 ### checksum
 
@@ -1130,8 +1089,8 @@ read 0000 100    # RAM
 read 5000 100    # ROM
 read 01FE 2      # Stack
 
-# Check CMOS
-cmos dump
+# Check CMOS (first 256 bytes)
+read 0100 100
 
 # Resume
 run
@@ -1243,12 +1202,11 @@ cat test.txt > /dev/tty.usbmodem14201
 ### CMOS Backup
 
 ```bash
-# Dump CMOS to file
-> cmos dump > cmos_backup.txt
+# Use read command to dump CMOS to console
+> read 0100 100
 
-# To restore (create HEX):
-# :10010000[data]
-# :00000001FF
+# To backup CMOS data, copy the output manually
+# and recreate as Intel HEX format if needed for restoration
 ```
 
 ### Quick Memory Check

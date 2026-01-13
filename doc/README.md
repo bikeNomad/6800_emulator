@@ -87,6 +87,21 @@ Detailed memory architecture:
 
 **Best for**: Understanding memory layout, debugging memory issues
 
+### 🔍 [Memory Fingerprinting](Memory-Fingerprinting.md)
+
+**Automatic memory detection and configuration**
+
+Advanced auto-configuration system:
+
+- Automatic detection of memory types (RAM, ROM, CMOS, PIA)
+- Architecture recognition (Williams System 7, System 11, etc.)
+- Memory map generation and optimization
+- ROM preservation in flash storage
+- Address aliasing and system-specific rules
+- Troubleshooting memory issues
+
+**Best for**: Auto-configuring new systems, understanding detection algorithms
+
 ### 🌐 [Web Interface](Web-Interface.md)
 
 **Browser-based control panel**
@@ -313,6 +328,7 @@ read 7FF8 8
 | PIO Bus Cycles | 2024-12-18 | 1.0 |
 | Hardware Connection | 2024-12-05 | 1.0 |
 | Memory Map | 2024-12-05 | 1.0 |
+| Memory Fingerprinting | 2024-12-13 | 1.0 |
 | Web Interface | 2024-12-09 | 1.0 |
 | USB Commands | 2024-12-09 | 1.1 |
 

@@ -716,6 +716,7 @@ make
 
 - [Architecture](Architecture.md) - System design and internals
 - [Memory Map](Memory-Map.md) - Complete memory layout
+- [Memory Fingerprinting](Memory-Fingerprinting.md) - Auto-configuration system
 - [Hardware Connection](Hardware-Connection.md) - Physical connections
 - [USB Commands](USB-Commands.md) - Full command reference
 
