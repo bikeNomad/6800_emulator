@@ -501,7 +501,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 		printf_func("Warning: Failed to copy ROM contents\r\n");
 	}
 
-	// Save memory map to flash
+	// Save memory map and config to flash
 	memory_save_memory_map_to_flash();
 
 	memory_read_ram_from_bus();
@@ -511,7 +511,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 		eclock_stop();
 	}
 
-	// 11. Resume emulator
+	// Resume emulator
 	if (was_paused) {
 		resume_emulator();
 	}

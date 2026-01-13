@@ -7,14 +7,15 @@
  *
  * Assumptions:
  *   - No memory region is smaller than 256 bytes
- *   - ROM is in one contiguous range from mem_config.rom_base to
- * mem_config.rom_base+mem_config.rom_size
+ *   - ROM can be represented by one contiguous range from mem_config.rom_base to
+ *     mem_config.rom_base+mem_config.rom_size
+ *   - ROM range is 48kiB at most
  *   - RAM is in one contiguous range from mem_config.ram_base to
- * mem_config.rom_base+mem_config.ram_size
+ *     mem_config.rom_base+mem_config.ram_size
  *   - CMOS (if it exists) lives somewhere within the RAM range
- *      - NOT TRUE FOR EARLY BALLY!
+ *      - NOT TRUE FOR EARLY BALLY; treat this as write-through (unmapped)
  *   - There may be aliasing due to incomplete address line decoding; in this case aliased memory
- * map entries are copies of the base entries
+ *     map entries are copies of the base entries
  */
 
 #pragma once
@@ -25,13 +26,14 @@
 #include <stdint.h>
 
 // Memory configuration
+// Persistent, restored from QSPI flash at startup
 typedef struct memory_config_t {
 	uint16_t rom_base;    // Base address in MC6800 space (e.g., $E000)
 	uint16_t rom_size;    // Size of ROM region in bytes
 	uint16_t ram_base;    // Base address of RAM in MC6800 space (e.g., $0000)
 	uint16_t ram_size;    // Size of RAM region in bytes (e.g., 512 bytes)
 	uint8_t architecture; // System architecture (architecture_type_t from memory_fingerprint.h)
-	uint8_t decoded_bits; // number of address bits decoded
+	uint8_t decoded_bits; // Number of address bits decoded ([13..16])
 } memory_config_t;
 
 // Flash storage for ROM (at the end of program flash)

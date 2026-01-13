@@ -126,9 +126,6 @@ int main()
 	printf("Initializing USB CDC...\r\n");
 	usb_cdc_init();
 
-	printf("Initializing memory subsystem...\r\n");
-	memory_init();
-
 	printf("Initializing bus interface...\r\n");
 	bus_init();
 
@@ -138,6 +135,9 @@ int main()
 
 	printf("Initializing PIO bus cycles...\r\n");
 	bus_cycle_pio_init();
+
+	printf("Initializing memory subsystem...\r\n");
+	memory_init();
 
 	printf("Initializing debug SPI...\r\n");
 	debug_spi_init();

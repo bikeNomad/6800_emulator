@@ -72,6 +72,7 @@ static inline void notify_error(void)
 }
 
 // Entered after power-on
+// NOTE: memory and PIO initialized in main().
 static void s_initializing(FSM *fsm, uint8_t event)
 {
 	GET_NAME(fsm);
@@ -79,8 +80,6 @@ static void s_initializing(FSM *fsm, uint8_t event)
 	cpu_init();
 	printf("initializing interrupts\r\n");
 	interrupts_init();
-	printf("reading RAM to shadow\r\n");
-	memory_read_ram_from_bus();
 
 	switch (event) {
 	case EVT_INIT:

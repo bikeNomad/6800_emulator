@@ -62,7 +62,8 @@ typedef enum memory_type_t {
 #define ADDR_TO_TABLE_OFFSET(addr) ((addr) & 0xFF)
 
 /** Memory map array - maps 256-byte pages to physical addresses and flags */
-extern uint32_t memory_map[];
+// Persistent, restored from QSPI flash at startup
+extern uint32_t memory_map[NUM_PAGES];
 
 // Fast memory access using shadows or direct bus access
 uint8_t memory_read_fast(uint16_t address);

@@ -239,14 +239,12 @@ bool memory_finalize_load(void)
 void memory_init_rom_from_flash(void)
 {
 	const uint8_t *flash_base = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
-	uint16_t bytes_loaded = 0;
 
 	// Simply load ALL ROM data from flash contiguously - the flash contains
 	// all pages from rom_base to rom_base+rom_size stored contiguously
 	memcpy(rom_shadow, flash_base, mem_config.rom_size);
-	bytes_loaded = mem_config.rom_size;
 
-	printf("ROM restored from flash (%u bytes)\n", bytes_loaded);
+	printf("ROM restored from flash (%u bytes)\n", mem_config.rom_size);
 }
 
 // Clear ROM load buffer (for copy_roms command)
@@ -255,8 +253,9 @@ void memory_clear_rom_load_buffer(void)
 	memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
 }
 
-// For each RAM block, load ram_shadow from bus
+// Load ram_shadow from bus
 void memory_read_ram_from_bus(void)
 {
-	// TODO
+	bus_read_block_with_eclock(mem_config.ram_base, mem_config.ram_size, ram_shadow);
+	printf("RAM read from bus (%u bytes)\n", mem_config.ram_size);
 }
