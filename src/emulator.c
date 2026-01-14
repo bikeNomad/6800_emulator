@@ -15,6 +15,17 @@
 		printf("Entering %s\r\n", fsm->current_state_name);                                \
 	} while (0)
 
+#define ACQUIRE_BUS(fsm)                                                                           \
+	do {                                                                                       \
+		if (!pio_bus_acquire(10)) {                                                        \
+			printf("ERROR (%s): Emulator failed to acquire PIO bus in 10ms\r\n",       \
+			       fsm->current_state_name);                                           \
+			fsm_terminate(fsm);                                                        \
+		}                                                                                  \
+	} while (0)
+
+#define RELEASE_BUS() pio_bus_release()
+
 static queue_t sm_event_queue;     // Events => Emulator State Machine
 static queue_t notification_queue; // Notifications => USB CDC console
 static FSM emulator_fsm;
@@ -147,6 +158,7 @@ static void s_running(FSM *fsm, uint8_t event)
 
 	case EVT_ENTER:
 		GET_NAME(fsm);
+		ACQUIRE_BUS(fsm);
 		eclock_start();
 		cpu.stopped_at_breakpoint = false;
 		cpu.running = true;
@@ -154,6 +166,8 @@ static void s_running(FSM *fsm, uint8_t event)
 		break;
 
 	case EVT_EXIT:
+		// Leave E clock running
+		RELEASE_BUS();
 		cpu.running = false;
 		break;
 
@@ -190,6 +204,7 @@ static void s_halted(FSM *fsm, uint8_t event)
 	switch (event) {
 	case EVT_ENTER:
 		GET_NAME(fsm);
+		RELEASE_BUS();
 		eclock_stop(); // E clock OFF
 		cpu.halted = true;
 		break;
@@ -223,6 +238,7 @@ static void s_paused(FSM *fsm, uint8_t event)
 	switch (event) {
 	case EVT_ENTER:
 		GET_NAME(fsm);
+		RELEASE_BUS();
 		break;
 	case EVT_EXIT:
 		break;
@@ -262,8 +278,11 @@ static void s_waiting_for_interrupt(FSM *fsm, uint8_t event)
 	switch (event) {
 	case EVT_ENTER:
 		GET_NAME(fsm);
+		ACQUIRE_BUS(fsm);
+		eclock_start();
 		break;
 	case EVT_EXIT:
+		RELEASE_BUS();
 		break;
 	case EVT_POLL:
 		interrupt_t interrupt = interrupt_check();

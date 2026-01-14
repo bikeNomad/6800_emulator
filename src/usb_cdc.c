@@ -66,11 +66,19 @@ bool send_command_to_emulator(sm_event_t event)
 
 static inline bool pause_emulator(void)
 {
-	return send_command_to_emulator(EV_PAUSE_EMULATOR);
+	if (!send_command_to_emulator(EV_PAUSE_EMULATOR)) {
+		return false;
+	}
+	if (!pio_bus_acquire(10)) {
+		usb_cdc_send("ERROR: Failed to acquire PIO bus in 10ms\r\n");
+		return false;
+	}
+	return true;
 }
 
 static inline bool resume_emulator(void)
 {
+	pio_bus_release();
 	return send_command_to_emulator(EV_RESUME_EMULATOR);
 }
 
