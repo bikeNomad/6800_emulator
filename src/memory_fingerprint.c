@@ -466,10 +466,9 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 // Called from "scan_memory" USB command
 bool memory_scan_and_build_map(printf_func_t printf_func)
 {
-	printf_func("Starting memory scan...\r\n");
+	bool retval = true;
 
-	// Pause emulator (keep E clock running for bus operations)
-	bool was_paused = pause_emulator();
+	printf_func("Starting memory scan...\r\n");
 
 	// Start E clock for bus operations
 	bool eclock_was_running = eclock_is_running();
@@ -499,6 +498,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 	// Copy ROM contents from bus to flash (use coalesced results)
 	if (!copy_rom_contents_from_bus(arch, printf_func)) {
 		printf_func("Warning: Failed to copy ROM contents\r\n");
+		retval = false;
 	}
 
 	// Save memory map and config to flash
@@ -511,13 +511,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 		eclock_stop();
 	}
 
-	// Resume emulator
-	if (was_paused) {
-		resume_emulator();
-	}
-
-	printf_func("Memory scan and configuration complete\r\n");
-	return true;
+	return retval;
 }
 
 sanity_result_t memory_sanity_check(void)

@@ -83,12 +83,6 @@ void memory_init(void)
 	memset(rom_shadow, 0xFF, sizeof(rom_shadow));
 	memset(rom_load_buffer, 0xFF, sizeof(rom_load_buffer));
 
-	// Default configuration to SYS7 (A15 not decoded)
-	mem_config.rom_base = 0x4000;
-	mem_config.rom_size = 0x4000; // 16KB (4000-7FFF, aliased at C000-FFFF)
-	mem_config.ram_base = 0x0000;
-	mem_config.ram_size = 0x1400; // 5KB (0000-13FF)
-
 	// Try to load complete memory map and memory config from flash
 	bool has_valid_map = memory_load_memory_map_from_flash();
 

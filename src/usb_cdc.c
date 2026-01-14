@@ -946,25 +946,32 @@ static void cmd_scan_memory(void)
 	// Scan memory and auto-configure memory map
 	usb_cdc_send("Scanning target system memory...\r\n");
 
-	if (!memory_scan_and_build_map(usb_cdc_printf)) {
+	// Pause emulator (keep E clock running for bus operations)
+	bool was_paused = pause_emulator();
+
+	if (memory_scan_and_build_map(usb_cdc_printf)) {
+		// Print scan results (use coalesced results for System 11)
+		usb_cdc_send("\r\nScan Results:\r\n");
+		print_scan_results(usb_cdc_printf);
+
+		// Show configuration
+		usb_cdc_printf("\r\nMemory Configuration:\r\n");
+		usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes)\r\n", mem_config.rom_base,
+			       mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
+		usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
+			       mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
+
+		usb_cdc_send("\r\nMemory map and ROM contents have been saved to flash.\r\n");
+		usb_cdc_send("Configuration will be used automatically on next boot.\r\n");
+		usb_cdc_send("Target system can now be removed - emulator will run from stored "
+			     "ROM.\r\n");
+	} else {
 		usb_cdc_send("ERROR: Failed to scan memory\r\n");
-		return;
 	}
-
-	// Print scan results (use coalesced results for System 11)
-	usb_cdc_send("\r\nScan Results:\r\n");
-	print_scan_results(usb_cdc_printf);
-
-	// Show configuration
-	usb_cdc_printf("\r\nMemory Configuration:\r\n");
-	usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes)\r\n", mem_config.rom_base,
-		       mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
-	usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
-		       mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
-
-	usb_cdc_send("\r\nMemory map and ROM contents have been saved to flash.\r\n");
-	usb_cdc_send("Configuration will be used automatically on next boot.\r\n");
-	usb_cdc_send("Target system can now be removed - emulator will run from stored ROM.\r\n");
+	// Resume emulator
+	if (was_paused) {
+		resume_emulator();
+	}
 }
 
 static void cmd_verify_memory(void)

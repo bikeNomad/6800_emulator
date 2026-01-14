@@ -81,6 +81,12 @@ uint8_t *memory_get_shadow_address(uint16_t address)
 // (no aliasing)
 void memory_initialize_map(void)
 {
+	// Default configuration to SYS11
+	mem_config.rom_base = 0x4000;
+	mem_config.rom_size = 0xC000; // 48KB (4000-FFFF)
+	mem_config.ram_base = 0x0000;
+	mem_config.ram_size = 0x0800; // 2KB (0000-07FF)
+
 	// Set all entries to unmapped initially
 	for (uint16_t i = 0; i < NUM_PAGES; i++) {
 		memory_map[i] = ENTRY_UNMAPPED_BUS;
