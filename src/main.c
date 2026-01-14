@@ -76,6 +76,9 @@ void qspi_report_speed(void)
 // Core 1: Dedicated USB CDC processing
 void core1_entry()
 {
+	printf("Initializing USB CDC...\r\n");
+	usb_cdc_init();
+
 	printf("Core 1: USB CDC processing started\r\n");
 
 	while (1) {
@@ -96,17 +99,10 @@ int main()
 	sleep_ms(10);
 	set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, true);
 
-	// NOTE: Do NOT call qspi_configure_clock() here!
-	// Modifying QSPI timing while executing from XIP flash causes a crash.
-	// The Pico SDK's set_sys_clock_khz() already handles QSPI timing
-	// appropriately.
-
 	// Report QSPI bus speed configuration (read-only, safe to call)
 	qspi_report_speed();
 
-	// Initialize Pico SDK
-	// NOTE: UART moved to GPIO 24 (TX) and GPIO 25 (RX) to avoid conflict with
-	// data bus
+	// Initialize Pico SDK's UART
 	stdio_init_all();
 
 	// Small delay for USB to enumerate
@@ -123,8 +119,6 @@ int main()
 	printf("========================================\r\n\n");
 
 	// Initialize all subsystems
-	printf("Initializing USB CDC...\r\n");
-	usb_cdc_init();
 
 	printf("Initializing bus interface...\r\n");
 	bus_init();

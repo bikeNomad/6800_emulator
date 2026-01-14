@@ -41,8 +41,38 @@ typedef void (*cmd_handler_fn)(void);
 typedef struct {
 	const char *name;
 	cmd_handler_fn handler;
-	bool needs_args; // True if command needs remaining tokens as arguments
+	bool needs_args;     // True if command needs remaining tokens as arguments
+	bool pause_emulator; // True if we must pause the emulator while running the handler
 } command_entry_t;
+
+bool send_command_to_emulator(sm_event_t event)
+{
+	sm_notification_t notification;
+	if (!post_sm_event(event)) {
+		usb_cdc_send("ERROR: Failed to send command to emulator\r\n");
+		return false; // queue full
+	}
+	uint32_t tries = 0;
+	while (!receive_sm_notification(&notification)) {
+		sleep_ms(1);
+		tries++;
+		if (tries > 100) {
+			usb_cdc_printf("Timeout waiting for notification after event %d\n", event);
+			return false;
+		}
+	}
+	return notification == NOTIF_OK;
+}
+
+static inline bool pause_emulator(void)
+{
+	return send_command_to_emulator(EV_PAUSE_EMULATOR);
+}
+
+static inline bool resume_emulator(void)
+{
+	return send_command_to_emulator(EV_RESUME_EMULATOR);
+}
 
 static uint8_t bus_read_with_eclock(uint16_t address)
 {
@@ -102,9 +132,6 @@ static void cmd_config_show(void)
 
 static void cmd_config_rom(void)
 {
-	if (!pause_emulator()) {
-		return;
-	}
 	// Configure ROM region: config rom <base> <size>
 	// Expects tokens: [config] [rom] <base> <size>
 	if (cmd_token_count < 2) {
@@ -119,15 +146,10 @@ static void cmd_config_rom(void)
 	} else {
 		usb_cdc_send("ERROR: Usage: config rom <base_hex> <size_hex>\r\n");
 	}
-
-	resume_emulator();
 }
 
 static void cmd_config_ram(void)
 {
-	if (!pause_emulator()) {
-		return;
-	}
 	// Configure RAM region: config ram <base> <size>
 	// Expects tokens: [config] [ram] <base> <size>
 	if (cmd_token_count < 2) {
@@ -142,8 +164,6 @@ static void cmd_config_ram(void)
 	} else {
 		usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
 	}
-
-	resume_emulator();
 }
 
 static void cmd_run(void)
@@ -300,10 +320,6 @@ static void cmd_read(void)
 	} else if (addr + len > MAX_ADDRESS + 1) {
 		usb_cdc_send("ERROR: Block exceeds address space\r\n");
 	} else {
-		if (pause_emulator() == false) {
-			return;
-		}
-
 		usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
 
 		for (uint32_t i = 0; i < len; i++) {
@@ -316,8 +332,6 @@ static void cmd_read(void)
 				usb_cdc_send("\r\n");
 			}
 		}
-
-		resume_emulator();
 	}
 }
 
@@ -363,15 +377,9 @@ static void cmd_write(void)
 		return;
 	}
 
-	if (pause_emulator() == false) {
-		return;
-	}
-
 	for (uint32_t i = 0; i < count; i++) {
 		memory_write_fast(addr + i, buffer[i]);
 	}
-
-	resume_emulator();
 
 	usb_cdc_send("OK\r\n");
 }
@@ -448,11 +456,7 @@ static void cmd_reg_pc(void)
 
 	unsigned int value;
 	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		if (pause_emulator() == false) {
-			return;
-		}
 		cpu.pc = (uint16_t)value;
-		resume_emulator();
 		usb_cdc_printf("OK: PC set to $%04X\r\n", cpu.pc);
 	} else {
 		usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -470,11 +474,7 @@ static void cmd_reg_a(void)
 
 	unsigned int value;
 	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		if (pause_emulator() == false) {
-			return;
-		}
 		cpu.a = (uint8_t)value;
-		resume_emulator();
 		usb_cdc_printf("OK: A set to $%02X\r\n", cpu.a);
 	} else {
 		usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -492,11 +492,7 @@ static void cmd_reg_b(void)
 
 	unsigned int value;
 	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		if (pause_emulator() == false) {
-			return;
-		}
 		cpu.b = (uint8_t)value;
-		resume_emulator();
 		usb_cdc_printf("OK: B set to $%02X\r\n", cpu.b);
 	} else {
 		usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -514,11 +510,7 @@ static void cmd_reg_x(void)
 
 	unsigned int value;
 	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		if (pause_emulator() == false) {
-			return;
-		}
 		cpu.x = (uint16_t)value;
-		resume_emulator();
 		usb_cdc_printf("OK: X set to $%04X\r\n", cpu.x);
 	} else {
 		usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -536,11 +528,7 @@ static void cmd_reg_sp(void)
 
 	unsigned int value;
 	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		if (pause_emulator() == false) {
-			return;
-		}
 		cpu.sp = (uint16_t)value;
-		resume_emulator();
 		usb_cdc_printf("OK: SP set to $%04X\r\n", cpu.sp);
 	} else {
 		usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -558,11 +546,7 @@ static void cmd_reg_ccr(void)
 
 	unsigned int value;
 	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		if (pause_emulator() == false) {
-			return;
-		}
 		cpu.ccr = ((uint8_t)value & 0x3F) | CCR_FIXED; // Preserve bits 7-6
-		resume_emulator();
 		usb_cdc_printf("OK: CCR set to $%02X\r\n", cpu.ccr);
 	} else {
 		usb_cdc_send("ERROR: Invalid register value\r\n");
@@ -853,10 +837,6 @@ static void cmd_checksum(void)
 	} else if (addr + len > MAX_ADDRESS + 1) {
 		usb_cdc_send("ERROR: Block exceeds address space\r\n");
 	} else {
-		if (pause_emulator() == false) {
-			return;
-		}
-
 		// Compute checksum (modulo 64k sum of bytes)
 		uint32_t sum = 0;
 		for (uint32_t i = 0; i < len; i++) {
@@ -867,8 +847,6 @@ static void cmd_checksum(void)
 
 		usb_cdc_printf("Checksum of $%04X bytes from $%04X: $%04X\r\n", len, addr,
 			       checksum);
-
-		resume_emulator();
 	}
 }
 
@@ -876,11 +854,6 @@ static void cmd_copy_roms(void)
 {
 	// Copy ROMs: scan ROM address range and copy non-0xFF pages to persistent storage
 	usb_cdc_send("Scanning ROM address range for valid data...\r\n");
-
-	if (!pause_emulator()) {
-		usb_cdc_send("ERROR: Failed to pause emulator\r\n");
-		return;
-	}
 
 	// Clear ROM load buffer and mapping bitmap
 	memory_clear_rom_load_buffer();
@@ -937,17 +910,12 @@ static void cmd_copy_roms(void)
 	} else {
 		usb_cdc_send("ERROR: Failed to finalize ROM load\r\n");
 	}
-
-	resume_emulator();
 }
 
 static void cmd_scan_memory(void)
 {
 	// Scan memory and auto-configure memory map
 	usb_cdc_send("Scanning target system memory...\r\n");
-
-	// Pause emulator (keep E clock running for bus operations)
-	bool was_paused = pause_emulator();
 
 	if (memory_scan_and_build_map(usb_cdc_printf)) {
 		// Print scan results (use coalesced results for System 11)
@@ -968,10 +936,6 @@ static void cmd_scan_memory(void)
 	} else {
 		usb_cdc_send("ERROR: Failed to scan memory\r\n");
 	}
-	// Resume emulator
-	if (was_paused) {
-		resume_emulator();
-	}
 }
 
 static void cmd_verify_memory(void)
@@ -979,14 +943,7 @@ static void cmd_verify_memory(void)
 	// Verify memory configuration against hardware
 	usb_cdc_send("Verifying memory configuration...\r\n");
 
-	if (!pause_emulator()) {
-		usb_cdc_send("ERROR: Failed to pause emulator\r\n");
-		return;
-	}
-
 	sanity_result_t result = memory_sanity_check();
-
-	resume_emulator();
 
 	switch (result) {
 	case SANITY_OK:
@@ -1075,52 +1032,52 @@ static int tokenize_command(char *cmd)
 // Command table - two-word commands checked first, then single-word
 static const command_entry_t command_table[] = {
 	// Two-word commands (require exact match of first two tokens)
-	{"config rom", cmd_config_rom, true}, // needs <base> <size>
-	{"config ram", cmd_config_ram, true}, // needs <base> <size>
-	{"debug on", cmd_debug_on, false},
-	{"debug off", cmd_debug_off, false},
-	{"break clear", cmd_break_clear, true}, // needs optional <addr>
-	{"break list", cmd_break_list, false},
-	{"reg pc", cmd_reg_pc, true},   // needs <value>
-	{"reg a", cmd_reg_a, true},     // needs <value>
-	{"reg b", cmd_reg_b, true},     // needs <value>
-	{"reg x", cmd_reg_x, true},     // needs <value>
-	{"reg sp", cmd_reg_sp, true},   // needs <value>
-	{"reg ccr", cmd_reg_ccr, true}, // needs <value>
+	{"config rom", cmd_config_rom, true, true}, // needs <base> <size>
+	{"config ram", cmd_config_ram, true, true}, // needs <base> <size>
+	{"debug on", cmd_debug_on, false, false},
+	{"debug off", cmd_debug_off, false, false},
+	{"break clear", cmd_break_clear, true, false}, // needs optional <addr>
+	{"break list", cmd_break_list, false, false},
+	{"reg pc", cmd_reg_pc, true, true},   // needs <value>
+	{"reg a", cmd_reg_a, true, true},     // needs <value>
+	{"reg b", cmd_reg_b, true, true},     // needs <value>
+	{"reg x", cmd_reg_x, true, true},     // needs <value>
+	{"reg sp", cmd_reg_sp, true, true},   // needs <value>
+	{"reg ccr", cmd_reg_ccr, true, true}, // needs <value>
 #if COUNT_INSTRUCTIONS
-	{"count print", cmd_print_instruction_counts, false},
-	{"count reset", cmd_reset_instruction_counts, false},
-	{"count on", cmd_count_on, false},
-	{"count off", cmd_count_off, false},
+	{"count print", cmd_print_instruction_counts, false, false},
+	{"count reset", cmd_reset_instruction_counts, false, false},
+	{"count on", cmd_count_on, false, false},
+	{"count off", cmd_count_off, false, false},
 #endif
 
 	// Single-word commands
-	{"load", cmd_load, false},
-	{"end", cmd_end, false},
-	{"config", cmd_config_show, false},
-	{"checksum", cmd_checksum, true}, // needs <addr> <len>
-	{"read", cmd_read, true},         // needs <addr> <len>
-	{"write", cmd_write, true},       // needs <addr> <data...>
-	{"status", cmd_status, false},
-	{"run", cmd_run, false},
-	{"halt", cmd_halt, false},
-	{"reset", cmd_reset, false},
-	{"bootloader", cmd_bootloader, false},
-	{"boot", cmd_bootloader, false},                // Alias for bootloader
-	{"break", cmd_break_set, true},                 // needs <addr>
-	{"bus_read_block", cmd_bus_read_block, true},   // needs <addr> <len>
-	{"bus_write_block", cmd_bus_write_block, true}, // needs <addr> <data...>
-	{"bus_write", cmd_bus_write, true},             // needs <addr> <data>
-	{"bus_read", cmd_bus_read, true},               // needs <addr>
-	{"bus_info", cmd_bus_info, false},
-	{"map show", cmd_map_show, false},
-	{"map clear", cmd_map_clear, false},
-	{"map program", cmd_map_program, true}, // needs <addr>
-	{"copy_roms", cmd_copy_roms, false},
-	{"scan_memory", cmd_scan_memory, false},
-	{"verify_memory", cmd_verify_memory, false},
-	{"help", cmd_help, false},
-	{NULL, NULL, false} // Terminator
+	{"load", cmd_load, false, false},
+	{"end", cmd_end, false, false},
+	{"config", cmd_config_show, false, false},
+	{"checksum", cmd_checksum, true, true}, // needs <addr> <len>
+	{"read", cmd_read, true, true},         // needs <addr> <len>
+	{"write", cmd_write, true, true},       // needs <addr> <data...>
+	{"status", cmd_status, false, false},
+	{"run", cmd_run, false, false},
+	{"halt", cmd_halt, false, false},
+	{"reset", cmd_reset, false, false},
+	{"bootloader", cmd_bootloader, false, false},
+	{"boot", cmd_bootloader, false, false},               // Alias for bootloader
+	{"break", cmd_break_set, true, false},                // needs <addr>
+	{"bus_read_block", cmd_bus_read_block, true, true},   // needs <addr> <len>
+	{"bus_write_block", cmd_bus_write_block, true, true}, // needs <addr> <data...>
+	{"bus_write", cmd_bus_write, true, true},             // needs <addr> <data>
+	{"bus_read", cmd_bus_read, true, true},               // needs <addr>
+	{"bus_info", cmd_bus_info, false, false},
+	{"map show", cmd_map_show, false, false},
+	{"map clear", cmd_map_clear, false, true},
+	{"map program", cmd_map_program, true, true}, // needs <addr>
+	{"copy_roms", cmd_copy_roms, false, true},
+	{"scan_memory", cmd_scan_memory, false, true},
+	{"verify_memory", cmd_verify_memory, false, true},
+	{"help", cmd_help, false, false},
+	{NULL, NULL, false, false} // Terminator
 };
 
 static void dispatch_command(void)
@@ -1166,8 +1123,18 @@ static void dispatch_command(void)
 				cmd_token_count -= tokens_consumed;
 			}
 
+			if (command_table[i].pause_emulator) {
+				if (!pause_emulator()) {
+					return;
+				}
+			}
+
 			// Call the handler
 			command_table[i].handler();
+
+			if (command_table[i].pause_emulator) {
+				resume_emulator();
+			}
 			return;
 		}
 	}

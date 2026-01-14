@@ -79,12 +79,6 @@ bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length
 // Finalize EPROM load (commit to flash)
 bool memory_finalize_load(void);
 
-// Load Intel HEX data into CMOS shadow copy
-bool memory_load_cmos_data(uint16_t address, const uint8_t *data, uint16_t length);
-
-// Save CMOS RAM to flash
-bool memory_save_cmos(void);
-
 // Initialize ROM from flash on startup
 void memory_init_rom_from_flash(void);
 

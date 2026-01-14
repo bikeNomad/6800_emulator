@@ -2,6 +2,7 @@
  * MC6800 Bus Interface Implementation
  */
 
+#include "emulator.h"
 #include "bus.h"
 #include "bus_cycle.pio.h"
 #include "bus_timing.h"
@@ -10,6 +11,10 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include <stdio.h>
+#include "pico/mutex.h"
+
+// Guards ownership of PIO bus and eclock subsystem.
+recursive_mutex_t pio_bus_mutex;
 
 // Address bus GPIO mapping is board-specific (see board_config.h for
 // ADDR_GPIO_MASK)
@@ -160,6 +165,9 @@ static int pio_cycle_offset = 0;
 // Initialize PIO bus cycle state machines
 void bus_cycle_pio_init(void)
 {
+	// Initialize mutex
+	recursive_mutex_init(&pio_bus_mutex);
+
 	// Load PIO program
 	pio_clear_instruction_memory(BUS_PIO);
 	pio_cycle_offset = pio_add_program(BUS_PIO, &bus_cycle_program);
@@ -201,4 +209,47 @@ void __time_critical_func(bus_write_cycle_pio)(uint16_t address, uint8_t data)
 {
 	pio_sm_put_blocking(BUS_PIO, CYCLE_SM, WRITE_PINDIRS);
 	pio_sm_put_blocking(BUS_PIO, CYCLE_SM, address_to_gpio(address) | (uint32_t)data);
+}
+
+// Helper functions for bus operations with E clock management
+void __time_critical_func(bus_read_block_with_eclock)(uint16_t address, uint16_t length,
+						      uint8_t *buffer)
+{
+	// Temporarily start E clock if needed
+	bool was_running = eclock_is_running();
+	if (!was_running) {
+		eclock_start();
+	}
+
+	// Read block of data
+	for (uint16_t i = 0; i < length; i++) {
+		buffer[i] = bus_read_cycle(address + i);
+		busy_wait_us(3);
+	}
+
+	// Stop E clock if we started it
+	if (!was_running) {
+		eclock_stop();
+	}
+}
+
+void __time_critical_func(bus_write_block_with_eclock)(uint16_t address, const uint8_t *buffer,
+						       uint16_t length)
+{
+	// Temporarily start E clock if needed
+	bool was_running = eclock_is_running();
+	if (!was_running) {
+		eclock_start();
+	}
+
+	// Write block of data
+	for (uint16_t i = 0; i < length; i++) {
+		bus_write_cycle(address + i, buffer[i]);
+		busy_wait_us(3);
+	}
+
+	// Stop E clock if we started it
+	if (!was_running) {
+		eclock_stop();
+	}
 }

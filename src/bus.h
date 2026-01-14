@@ -8,12 +8,13 @@
 #include "board_config.h"
 #include "clock.h"
 #include "hardware/gpio.h"
+#include "pico/mutex.h"
 #include <stdbool.h>
 #include <stdint.h>
 
 // GPIO pin assignments are defined in board_config.h
 
-// Initialize bus interface (configure GPIO)
+// Initialize bus interface (configure GPIO, create mutex)
 void bus_init(void);
 
 // Read interrupt request lines (active low)
@@ -37,6 +38,18 @@ static inline bool bus_read_reset(void)
 // ============================================================================
 
 extern bool pio_bus_initialized;
+extern recursive_mutex_t pio_bus_mutex;
+
+// Acquire the bus; return false if not acquired within timout_ms
+static inline bool pio_bus_acquire(uint32_t timeout_ms)
+{
+	return recursive_mutex_enter_timeout_ms(&pio_bus_mutex, timeout_ms);
+}
+
+static inline void pio_bus_release(void)
+{
+	recursive_mutex_exit(&pio_bus_mutex);
+}
 
 // Initialize PIO state machine for bus cycles
 // Must be called after bus_init() and eclock_init()
@@ -65,3 +78,7 @@ static inline void bus_write_cycle(uint16_t address, uint8_t data)
 	bus_sync();
 	bus_write_cycle_pio(address, data);
 }
+
+// Helper functions for bus operations with E clock management
+void bus_read_block_with_eclock(uint16_t address, uint16_t length, uint8_t *buffer);
+void bus_write_block_with_eclock(uint16_t address, const uint8_t *buffer, uint16_t length);
