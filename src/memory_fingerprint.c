@@ -82,7 +82,7 @@ static const char *page_type_to_string(page_type_t type)
 	}
 }
 
-static const char *architecture_name(architecture_type_t arch)
+const char *architecture_name(architecture_type_t arch)
 {
 	switch (arch) {
 	case ARCH_EARLY_BALLY:
@@ -752,6 +752,7 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	// First pass: determine regions
 	// Only process first aliased section of scan
 	mem_config.decoded_bits = decoded_bits;
+	mem_config.architecture = arch;
 	uint max_pages = NUM_PAGES;
 	max_pages >>= (16 - decoded_bits);
 

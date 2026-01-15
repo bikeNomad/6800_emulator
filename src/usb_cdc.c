@@ -936,6 +936,8 @@ static void cmd_scan_memory(void)
 			       mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
 		usb_cdc_printf("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
 			       mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
+		usb_cdc_printf("  Architecture: %s (decoded %d bits)\r\n",
+			       architecture_name(mem_config.architecture), mem_config.decoded_bits);
 
 		usb_cdc_send("\r\nMemory map and ROM contents have been saved to flash.\r\n");
 		usb_cdc_send("Configuration will be used automatically on next boot.\r\n");

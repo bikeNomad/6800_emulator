@@ -36,3 +36,5 @@ bool memory_scan_and_build_map(printf_func_t printf_func); // Scan memory and bu
 sanity_result_t memory_get_startup_status(void);           // Get status from boot for display
 sanity_result_t memory_sanity_check(void);          // Perform sanity check on memory configuration
 void print_scan_results(printf_func_t printf_func); // Print the memory scan results
+const char *
+architecture_name(architecture_type_t arch); // Get the name of the detected architecture
