@@ -391,6 +391,22 @@ bool memory_is_address_mapped(uint16_t address)
 	return !(table_entry & ENTRY_UNMAPPED);
 }
 
+// Return true if any of the pages in the given range are marked as
+// unmapped
+bool memory_range_has_unmapped(uint16_t address, uint16_t len)
+{
+	uint index = ADDR_TO_TABLE_INDEX(address);
+	uint end_index = ADDR_TO_TABLE_INDEX((uint32_t)address + len - 1);
+	while (index <= end_index) {
+		uint32_t table_entry = memory_map[index];
+		if (table_entry & ENTRY_UNMAPPED) {
+			return true;
+		}
+		index++;
+	}
+	return false;
+}
+
 // Memory map building functions
 
 void setup_ram_mapping(uint16_t address)

@@ -326,8 +326,6 @@ static bool detect_pia(uint16_t address)
 	uint8_t ddrb_readback = bus_read_cycle(address + DDRB_OFFSET);
 
 	if (ddra_readback != 0x00 || ddrb_readback != 0x00) {
-		printf("DDRA_readback = %02x, DDRB_readback = %02x\r\n", ddra_readback,
-		       ddrb_readback);
 		is_pia = false;
 	}
 
@@ -341,7 +339,6 @@ static bool detect_pia(uint16_t address)
 		uint8_t crb_now = bus_read_cycle(address + CRB_OFFSET);
 
 		if ((cra_now & SELECT_PR_BIT) == 0 || (crb_now & SELECT_PR_BIT) == 0) {
-			printf("CRA now = %02x, CRB now = %02x\r\n", cra_now, crb_now);
 			is_pia = false;
 		}
 	}
@@ -359,9 +356,6 @@ static bool detect_pia(uint16_t address)
 		uint8_t prb_written = bus_read_cycle(address + PRB_OFFSET);
 
 		if (pra_now != pra_written || prb_now != prb_written) {
-			printf("PRA now = %02x, PRB now = %02x\r\n", pra_now, prb_now);
-			printf("PRA written = %02x, PRB written = %02x\r\n", pra_written,
-			       prb_written);
 			is_pia = false;
 		}
 	}

@@ -72,6 +72,8 @@ void memory_write_fast(uint16_t address, uint8_t data);
 /** Core memory map functions */
 /** Check if an address is mapped in the memory map */
 bool memory_is_address_mapped(uint16_t address);
+/** Return true if any of the pages in the given range are marked as unmapped */
+bool memory_range_has_unmapped(uint16_t address, uint16_t len);
 /** Load memory map from flash storage */
 bool memory_load_memory_map_from_flash(void);
 /** Get the mapping type for an address */

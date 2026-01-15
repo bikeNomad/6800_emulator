@@ -325,6 +325,15 @@ static void cmd_read(void)
 	} else {
 		usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
 
+		bool started_eclock = false;
+		if (memory_range_has_unmapped(addr, len)) {
+			// Temporarily start E clock if needed
+			if (!eclock_is_running()) {
+				eclock_start();
+				started_eclock = true;
+			}
+		}
+
 		for (uint32_t i = 0; i < len; i++) {
 			if (i % 16 == 0) {
 				usb_cdc_printf("%04X: ", addr + i);
@@ -334,6 +343,10 @@ static void cmd_read(void)
 			if (i % 16 == 15 || i == len - 1) {
 				usb_cdc_send("\r\n");
 			}
+		}
+
+		if (started_eclock) {
+			eclock_stop();
 		}
 	}
 }
@@ -1001,8 +1014,8 @@ static void cmd_help(void)
 		"  reg ccr <val>             - Set condition code register\r\n"
 		"  bus_read <addr>           - Read byte from hardware bus\r\n"
 		"  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
-		"  bus_read_block <addr> <len> - Read block from hardware bus\r\n"
-		"  bus_write_block <addr> <data...> - Write block to hardware bus\r\n"
+		"  readb <addr> <len>        - Read block from hardware bus\r\n"
+		"  writeb <addr> <data...>   - Write block to hardware bus\r\n"
 		"  bus_info                  - Show bus configuration\r\n"
 		"  map show                  - Show ROM mapping state\r\n"
 		"  map clear                 - Clear all ROM mapping\r\n"
@@ -1066,12 +1079,12 @@ static const command_entry_t command_table[] = {
 	{"halt", cmd_halt, false, false},
 	{"reset", cmd_reset, false, false},
 	{"bootloader", cmd_bootloader, false, false},
-	{"boot", cmd_bootloader, false, false},               // Alias for bootloader
-	{"break", cmd_break_set, true, false},                // needs <addr>
-	{"bus_read_block", cmd_bus_read_block, true, true},   // needs <addr> <len>
-	{"bus_write_block", cmd_bus_write_block, true, true}, // needs <addr> <data...>
-	{"bus_write", cmd_bus_write, true, true},             // needs <addr> <data>
-	{"bus_read", cmd_bus_read, true, true},               // needs <addr>
+	{"boot", cmd_bootloader, false, false},      // Alias for bootloader
+	{"break", cmd_break_set, true, false},       // needs <addr>
+	{"readb", cmd_bus_read_block, true, true},   // needs <addr> <len>
+	{"writeb", cmd_bus_write_block, true, true}, // needs <addr> <data...>
+	{"bus_write", cmd_bus_write, true, true},    // needs <addr> <data>
+	{"bus_read", cmd_bus_read, true, true},      // needs <addr>
 	{"bus_info", cmd_bus_info, false, false},
 	{"map show", cmd_map_show, false, false},
 	{"map clear", cmd_map_clear, false, true},
