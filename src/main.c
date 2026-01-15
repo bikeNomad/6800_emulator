@@ -152,7 +152,6 @@ int main()
 		if (!run_emulator_sm()) {
 			printf("Emulator SM stopped!\r\n");
 			fflush(stdout);
-			__breakpoint();
 		}
 	}
 	return 0;

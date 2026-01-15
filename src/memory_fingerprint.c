@@ -162,7 +162,7 @@ static bool detect_empty(uint16_t address)
 		}
 	}
 	if (all_ff) {
-		return false;
+		return true;
 	}
 
 	// Check if all 0x00
@@ -174,10 +174,10 @@ static bool detect_empty(uint16_t address)
 		}
 	}
 	if (all_00) {
-		return false;
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 /* Check the range from address to address+TEST_DATA_SIZE to
