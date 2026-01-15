@@ -43,8 +43,9 @@ static page_results_t results[NUM_PAGES]; // One per 256-byte page
 // Startup status (for displaying warnings via USB CDC after boot)
 static sanity_result_t startup_status = SANITY_OK;
 
-page_type_t fingerprint_page(uint16_t address);  // Determine page type at address
-void coalesce_regions(architecture_type_t arch); // Coalesce adjacent regions of same type
+page_type_t fingerprint_page(uint16_t address); // Determine page type at address
+void coalesce_regions(architecture_type_t arch,
+		      uint decoded_bits); // Coalesce adjacent regions of same type
 architecture_type_t
 recognize_architecture(uint *p_decoded_bits); // Determine system architecture from scan results
 void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
@@ -325,6 +326,8 @@ static bool detect_pia(uint16_t address)
 	uint8_t ddrb_readback = bus_read_cycle(address + DDRB_OFFSET);
 
 	if (ddra_readback != 0x00 || ddrb_readback != 0x00) {
+		printf("DDRA_readback = %02x, DDRB_readback = %02x\r\n", ddra_readback,
+		       ddrb_readback);
 		is_pia = false;
 	}
 
@@ -338,6 +341,7 @@ static bool detect_pia(uint16_t address)
 		uint8_t crb_now = bus_read_cycle(address + CRB_OFFSET);
 
 		if ((cra_now & SELECT_PR_BIT) == 0 || (crb_now & SELECT_PR_BIT) == 0) {
+			printf("CRA now = %02x, CRB now = %02x\r\n", cra_now, crb_now);
 			is_pia = false;
 		}
 	}
@@ -355,6 +359,9 @@ static bool detect_pia(uint16_t address)
 		uint8_t prb_written = bus_read_cycle(address + PRB_OFFSET);
 
 		if (pra_now != pra_written || prb_now != prb_written) {
+			printf("PRA now = %02x, PRB now = %02x\r\n", pra_now, prb_now);
+			printf("PRA written = %02x, PRB written = %02x\r\n", pra_written,
+			       prb_written);
 			is_pia = false;
 		}
 	}
@@ -512,7 +519,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 		    decoded_bits);
 
 	// Coalesce regions for better presentation
-	coalesce_regions(arch);
+	coalesce_regions(arch, decoded_bits);
 	printf_func("regions coalesced. Raw:\r\n");
 	print_raw_scan_results(printf_func);
 
@@ -662,7 +669,7 @@ bool last_ram_address(uint16_t *ram_end)
 }
 
 // Coalesce regions for cleaner memory map presentation
-void coalesce_regions(architecture_type_t arch)
+void coalesce_regions(architecture_type_t arch, uint decoded_bits)
 {
 	// Copy scan results to coalesced results initially
 	for (uint i = 0; i < NUM_PAGES; i++) {
@@ -734,8 +741,12 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	}
 
 	// Determine regions from scan
-	uint16_t ram_start = 0xFFFF, ram_end = 0;
-	uint16_t rom_start = 0xFFFF, rom_end = 0;
+	uint32_t ram_start = 0xFFFF, ram_end = 0;
+	uint32_t rom_start = 0xFFFF, rom_end = 0;
+
+	if (decoded_bits == 16) {
+		rom_end = 0xFFFF;
+	}
 
 	// First pass: determine regions
 	// Only process first aliased section of scan
@@ -744,7 +755,7 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	max_pages >>= (16 - decoded_bits);
 
 	for (uint page = 0; page < max_pages; page++) {
-		uint16_t addr = TABLE_INDEX_TO_ADDR(page);
+		uint32_t addr = TABLE_INDEX_TO_ADDR(page);
 
 		switch (results[page].scan) {
 		case PAGE_RAM:
@@ -757,7 +768,7 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 			}
 			break;
 		case PAGE_ROM:
-			if (addr < rom_start) {
+			if (addr >= MIN_ROM_ADDRESS && addr < rom_start) {
 				rom_start = addr;
 			}
 			if (addr > rom_end) {
@@ -781,14 +792,16 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 
 	// Second pass: build map entries
 	for (uint page = 0; page < max_pages; page++) {
-		uint16_t addr = TABLE_INDEX_TO_ADDR(page);
+		uint32_t addr = TABLE_INDEX_TO_ADDR(page);
 
 		switch (results[page].scan) {
 		case PAGE_RAM:
 			setup_ram_mapping(addr);
 			break;
 		case PAGE_ROM:
-			setup_rom_mapping(addr);
+			if (addr >= MIN_ROM_ADDRESS) {
+				setup_rom_mapping(addr);
+			}
 			break;
 		case PAGE_EMPTY:
 			// map EMPTY pages in ROM range as ROM

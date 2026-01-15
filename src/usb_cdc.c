@@ -1134,6 +1134,10 @@ static void dispatch_command(void)
 			}
 
 			printf("running handler\r\n");
+
+			// for debugger (JLink reset type == 12)
+			jlink_reset_strategy_12_marker();
+
 			// Call the handler
 			command_table[i].handler();
 

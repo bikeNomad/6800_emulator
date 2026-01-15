@@ -82,8 +82,8 @@ uint8_t *memory_get_shadow_address(uint16_t address)
 void memory_initialize_map(void)
 {
 	// Default configuration to SYS11
-	mem_config.rom_base = 0x4000;
-	mem_config.rom_size = 0xC000; // 48KB (4000-FFFF)
+	mem_config.rom_base = MIN_ROM_ADDRESS; // 0x4000
+	mem_config.rom_size = MAX_ROM_SIZE;    // 48KB (4000-FFFF)
 	mem_config.ram_base = 0x0000;
 	mem_config.ram_size = 0x0800; // 2KB (0000-07FF)
 

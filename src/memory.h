@@ -38,6 +38,7 @@ typedef struct memory_config_t {
 
 // Flash storage for ROM (at the end of program flash)
 #define FLASH_TARGET_OFFSET (2 * 1024 * 1024) // 2MB offset (adjust based on program size)
+#define MIN_ROM_ADDRESS     0x4000U           // Lowest ROM address
 #define MAX_ROM_SIZE        (48 * 1024)       // 48KB max ROM (increased for System 11)
 #define MAX_RAM_SIZE        (8 * 1024)        // 8KB max RAM (supports up to 0x1FFF)
 
