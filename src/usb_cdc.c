@@ -62,15 +62,14 @@ bool send_command_to_emulator(sm_event_t event)
 			return false;
 		}
 	}
+	printf("Got notification %s after %ld tries\r\n", notification == NOTIF_OK ? "OK" : "ERROR",
+	       tries);
 	return notification == NOTIF_OK;
 }
 
 static inline bool pause_emulator(void)
 {
-	if (!send_command_to_emulator(EV_PAUSE_EMULATOR)) {
-		return false;
-	}
-	return true;
+	return send_command_to_emulator(EV_PAUSE_EMULATOR);
 }
 
 static inline bool resume_emulator(void)
@@ -921,10 +920,10 @@ static void cmd_scan_memory(void)
 	// Scan memory and auto-configure memory map
 	usb_cdc_send("Scanning target system memory...\r\n");
 
-	if (memory_scan_and_build_map(usb_cdc_printf)) {
+	if (memory_scan_and_build_map(printf)) {
 		// Print scan results (use coalesced results for System 11)
-		usb_cdc_send("\r\nScan Results:\r\n");
-		print_scan_results(usb_cdc_printf);
+		printf("\r\nScan Results:\r\n");
+		print_scan_results(printf);
 
 		// Show configuration
 		usb_cdc_printf("\r\nMemory Configuration:\r\n");
@@ -1134,6 +1133,7 @@ static void dispatch_command(void)
 				}
 			}
 
+			printf("running handler\r\n");
 			// Call the handler
 			command_table[i].handler();
 

@@ -2,32 +2,32 @@
 
 Breakpoint=/Users/ned/src/6800_Emulator/src/simple_fsm.c:45, State=BP_STATE_DISABLED
 Breakpoint=0x200044D2, State=BP_STATE_DISABLED
-OpenDocument="sync.h", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/hardware_sync/include/hardware/sync.h", Line=120
-OpenDocument="emulator.c", FilePath="/Users/ned/src/6800_Emulator/src/emulator.c", Line=183
-OpenDocument="spin_lock.h", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/hardware_sync_spin_lock/include/hardware/sync/spin_lock.h", Line=247
-OpenDocument="queue.c", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/common/pico_util/queue.c", Line=48
-OpenDocument="main.c", FilePath="/Users/ned/src/6800_Emulator/src/main.c", Line=64
+OpenDocument="sync.h", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/hardware_sync/include/hardware/sync.h", Line=273
+OpenDocument="emulator.c", FilePath="/Users/ned/src/6800_Emulator/src/emulator.c", Line=188
+OpenDocument="spin_lock.h", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/hardware_sync_spin_lock/include/hardware/sync/spin_lock.h", Line=270
+OpenDocument="queue.c", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/common/pico_util/queue.c", Line=61
+OpenDocument="main.c", FilePath="/Users/ned/src/6800_Emulator/src/main.c", Line=63
 OpenDocument="debug_spi.c", FilePath="/Users/ned/src/6800_Emulator/src/debug_spi.c", Line=11
 OpenDocument="simple_fsm.c", FilePath="/Users/ned/src/6800_Emulator/src/simple_fsm.c", Line=0
 OpenDocument="timer.c", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/hardware_timer/timer.c", Line=102
 OpenDocument="uart.h", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/hardware_uart/include/hardware/uart.h", Line=204
 OpenDocument="stdio_uart.c", FilePath="/Users/ned/PCS/Mobius/micropython/lib/pico-sdk/src/rp2_common/pico_stdio_uart/stdio_uart.c", Line=143
 OpenToolbar="Debug", Floating=0, x=0, y=0
-OpenWindow="Call Stack", DockArea=RIGHT, x=0, y=4, w=615, h=258, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Source Files", DockArea=LEFT, x=0, y=0, w=521, h=193, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=1, w=615, h=120, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=1, w=521, h=255, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
-OpenWindow="Global Data", DockArea=RIGHT, x=0, y=2, w=615, h=214, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Local Data", DockArea=RIGHT, x=0, y=3, w=615, h=168, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Watched Data 1", DockArea=RIGHT, x=0, y=0, w=615, h=104, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Call Stack", DockArea=RIGHT, x=0, y=4, w=615, h=246, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Source Files", DockArea=LEFT, x=0, y=0, w=521, h=195, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Disassembly", DockArea=RIGHT, x=0, y=1, w=615, h=242, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Break & Tracepoints", DockArea=LEFT, x=0, y=1, w=521, h=250, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0, VectorCatchIndexMask=254
+OpenWindow="Global Data", DockArea=RIGHT, x=0, y=2, w=615, h=98, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Local Data", DockArea=RIGHT, x=0, y=3, w=615, h=164, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Watched Data 1", DockArea=RIGHT, x=0, y=0, w=615, h=114, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 OpenWindow="Functions", DockArea=LEFT, x=0, y=2, w=521, h=226, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
-OpenWindow="Call Graph", DockArea=LEFT, x=0, y=3, w=521, h=191, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
+OpenWindow="Call Graph", DockArea=LEFT, x=0, y=3, w=521, h=194, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 OpenWindow="Console", DockArea=BOTTOM, x=0, y=0, w=1643, h=121, FilterBarShown=0, TotalValueBarShown=0, ToolBarShown=0
 SmartViewPlugin="", Page="", Toolbar="Hidden", Window="SmartView 1"
 TableHeader="Global Data", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[198;199;100;100;226;284]
 TableHeader="Vector Catches", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Vector Catch";"Description"], ColWidths=[50;300;500]
-TableHeader="Break & Tracepoints", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Type";"Location";"Extras"], ColWidths=[100;100;252;100]
-TableHeader="Local Data", SortCol="Location", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[111;201;100;100;196;140]
+TableHeader="Break & Tracepoints", SortCol="", SortOrder="ASCENDING", VisibleCols=["";"Type";"Location";"Extras"], ColWidths=[100;100;252;212]
+TableHeader="Local Data", SortCol="Location", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Location";"Size";"Type";"Scope"], ColWidths=[111;201;100;100;196;134]
 TableHeader="Functions", SortCol="Address", SortOrder="ASCENDING", VisibleCols=["Name";"Address";"Size";"#Insts";"Source"], ColWidths=[347;100;100;100;656]
 TableHeader="Call Stack", SortCol="Function", SortOrder="ASCENDING", VisibleCols=["Function";"Stack Frame";"Source";"PC";"Return Address";"Stack Used"], ColWidths=[245;112;257;100;168;100]
 TableHeader="Source Files", SortCol="File", SortOrder="ASCENDING", VisibleCols=["File";"Status";"Size";"#Insts";"Path"], ColWidths=[203;77;53;100;728]
@@ -35,4 +35,4 @@ TableHeader="Call Graph", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["N
 TableHeader="Power Sampling", SortCol="None", SortOrder="ASCENDING", VisibleCols=["Index";"Time";"Ch 0"], ColWidths=[100;100;100]
 TableHeader="Watched Data 1", SortCol="Expression", SortOrder="ASCENDING", VisibleCols=["Expression";"Value";"Location";"Refresh"], ColWidths=[143;358;100;100]
 TableHeader="RegisterSelectionDialog", SortCol="None", SortOrder="ASCENDING", VisibleCols=[], ColWidths=[]
-TableHeader="TargetExceptionDialog", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Address";"Description"], ColWidths=[196;108;27;412]
+TableHeader="TargetExceptionDialog", SortCol="Name", SortOrder="ASCENDING", VisibleCols=["Name";"Value";"Address";"Description"], ColWidths=[27;27;27;26]

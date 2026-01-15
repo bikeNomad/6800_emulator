@@ -99,6 +99,26 @@ static const char *architecture_name(architecture_type_t arch)
 	}
 }
 
+void print_raw_scan_results(printf_func_t printf_func)
+{
+	uint16_t start = 0;
+	uint8_t last_type = results[0].scan;
+
+	for (uint page = 1; page <= NUM_PAGES; page++) {
+		uint8_t current_type =
+			(page < NUM_PAGES) ? results[page].scan : 255; // 255 = sentinel
+
+		if (current_type != last_type || page == NUM_PAGES) {
+			uint16_t end = (page << 8) - 1;
+			const char *type_str = page_type_to_string(last_type);
+			printf_func("  $%04X-$%04X: %s\r\n", start, end, type_str);
+
+			start = page << 8;
+			last_type = current_type;
+		}
+	}
+}
+
 void print_scan_results(printf_func_t printf_func)
 {
 	uint16_t start = 0;
@@ -481,6 +501,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 	for (uint16_t page = 0; page < NUM_PAGES; page++) {
 		uint16_t addr = TABLE_INDEX_TO_ADDR(page);
 		results[page].scan = fingerprint_page(addr);
+		sleep_ms(10);
 	}
 	printf_func("Scan complete\r\n");
 
@@ -492,19 +513,30 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 
 	// Coalesce regions for better presentation
 	coalesce_regions(arch);
+	printf_func("regions coalesced. Raw:\r\n");
+	print_raw_scan_results(printf_func);
+
+	printf_func("Coalesced");
+	print_scan_results(printf_func);
 
 	build_memory_map_from_scan(arch, decoded_bits, printf_func);
+	printf_func("memory map built\r\n");
+	memory_print_summary(printf_func);
 
 	// Copy ROM contents from bus to flash (use coalesced results)
 	if (!copy_rom_contents_from_bus(arch, printf_func)) {
 		printf_func("Warning: Failed to copy ROM contents\r\n");
 		retval = false;
+	} else {
+		printf_func("ROM contents copied from bus\r\n");
 	}
 
 	// Save memory map and config to flash
 	memory_save_memory_map_to_flash();
+	printf_func("Memory map saved to flash\r\n");
 
 	memory_read_ram_from_bus();
+	printf_func("RAM read from bus\r\n");
 
 	// Stop E clock if we started it
 	if (!eclock_was_running) {
@@ -644,7 +676,7 @@ void coalesce_regions(architecture_type_t arch)
 	}
 
 	// Mark all the pages between rom_start and rom_end as ROM
-	for (uint16_t addr = rom_start; addr <= rom_end; addr += ENTRY_PAGE_SIZE) {
+	for (uint32_t addr = rom_start; addr <= rom_end; addr += ENTRY_PAGE_SIZE) {
 		uint16_t page = ADDR_TO_TABLE_INDEX(addr);
 		results[page].coalesced = PAGE_ROM;
 	}
