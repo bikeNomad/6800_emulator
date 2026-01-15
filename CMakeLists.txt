@@ -62,6 +62,7 @@ target_link_libraries(mc6800_emulator
     pico_multicore
     hardware_pio
     hardware_dma
+    hardware_adc
     hardware_spi
     hardware_flash
     hardware_sync

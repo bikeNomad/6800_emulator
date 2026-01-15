@@ -90,9 +90,9 @@ void core1_entry()
 int main()
 {
 	// Set system clock based on build-time configuration
-	// Default is 300MHz for better emulation performance (>2x speedup over
+	// Default is 266MHz for better emulation performance (>2x speedup over
 	// default 150MHz) RP2350 can safely run at 300MHz with proper voltage
-	vreg_set_voltage(VREG_VOLTAGE_1_25);
+	vreg_set_voltage(VREG_VOLTAGE_1_15);
 	sleep_ms(10);
 	set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, true);
 

@@ -17,6 +17,8 @@
 #include "memory_map.h"
 #include "pico/bootrom.h"
 #include "tusb.h"
+#include "hardware/adc.h"
+#include "hardware/vreg.h"
 
 // Command buffer
 #define CMD_BUFFER_SIZE 4096
@@ -28,6 +30,19 @@ static bool in_hex_mode = false;
 #define HEX_BUFFER_SIZE 32768
 static char hex_buffer[HEX_BUFFER_SIZE];
 static uint32_t hex_pos = 0;
+
+/* Choose 'C' for Celsius or 'F' for Fahrenheit. */
+#define TEMPERATURE_UNITS 'C'
+static const char *voltage_names[] = {
+	"0.55", "0.60", "0.65", "0.70", "0.75", "0.80", "0.85", "0.90", "0.95", "1.00", "1.05",
+	"1.10", "1.15", "1.20", "1.25", "1.30", "1.35", "1.40", "1.50", "1.60", "1.65", "1.70",
+	"1.80", "1.90", "2.00", "2.35", "2.50", "2.65", "2.80", "3.00", "3.15", "3.30",
+};
+
+static inline const char *core_voltage_str(void)
+{
+	return voltage_names[vreg_get_voltage()];
+}
 
 // Command tokenization
 #define MAX_TOKENS 32
@@ -89,6 +104,44 @@ static void bus_write_with_eclock(uint16_t address, uint8_t value)
 {
 	// Implement single-byte write using block version for consistency
 	bus_write_block_with_eclock(address, &value, 1);
+}
+
+/* References for this implementation:
+ * raspberry-pi-pico-c-sdk.pdf, Section '4.1.1. hardware_adc'
+ * pico-examples/adc/adc_console/adc_console.c */
+static float read_onboard_temperature(const char unit)
+{
+	adc_select_input(8); // RP2350 80 pin
+
+	/* 12-bit conversion, assume max value == ADC_VREF == 3.3 V */
+	const float conversionFactor = 3.3f / (1 << 12);
+
+	float adc = (float)adc_read() * conversionFactor;
+	float tempC = 27.0f - (adc - 0.706f) / 0.001721f;
+
+	if (unit == 'C') {
+		return tempC;
+	} else if (unit == 'F') {
+		return tempC * 9 / 5 + 32;
+	}
+
+	return -1.0f;
+}
+
+static float average_temperature(const char unit, uint ntimes)
+{
+	float avg = 0.0;
+	uint n = ntimes;
+	while (n-- > 0) {
+		avg += read_onboard_temperature(unit);
+	}
+	return avg / ntimes;
+}
+
+void init_temperature_sensor(void)
+{
+	adc_init();
+	adc_set_temp_sensor_enabled(true);
 }
 
 //--------------------------------------------------------------------+
@@ -284,8 +337,13 @@ static void cmd_status(void)
 	// Include QSPI information
 	uint32_t sys_clock_hz = clock_get_hz(clk_sys);
 	uint32_t qspi_freq_hz = sys_clock_hz / QSPI_CLOCK_DIVISOR;
-	usb_cdc_printf("  QSPI Bus: %lu MHz (divisor: %d)\r\n", qspi_freq_hz / 1000000,
+	usb_cdc_printf("QSPI Bus: %lu MHz (divisor: %d)\r\n", qspi_freq_hz / 1000000,
 		       QSPI_CLOCK_DIVISOR);
+
+	// Include temperature information
+	usb_cdc_printf("Clock: %luMHz, voltage: %sV, Temperature: %.1fºC\r\n",
+		       sys_clock_hz / 1000000, core_voltage_str(),
+		       average_temperature(TEMPERATURE_UNITS, 10));
 
 	if (bus_read_reset()) {
 		usb_cdc_printf("  /RESET Pin asserted\r\n");
@@ -1181,6 +1239,8 @@ static void process_command(char *cmd)
 // Initialize USB CDC
 void usb_cdc_init(void)
 {
+	init_temperature_sensor();
+
 	// Initialize TinyUSB device stack
 	tusb_init();
 
