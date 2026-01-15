@@ -76,9 +76,6 @@ void qspi_report_speed(void)
 // Core 1: Dedicated USB CDC processing
 void core1_entry()
 {
-	printf("Initializing USB CDC...\r\n");
-	usb_cdc_init();
-
 	printf("Core 1: USB CDC processing started\r\n");
 
 	while (1) {
@@ -136,6 +133,9 @@ int main()
 	printf("Initializing debug SPI...\r\n");
 	debug_spi_init();
 
+	printf("Initializing USB CDC...\r\n");
+	usb_cdc_init();
+
 	// Launch Core 1 for dedicated USB CDC processing
 	printf("Core 1: Launching USB CDC processing.\r\n");
 	multicore_launch_core1(core1_entry);
@@ -152,6 +152,7 @@ int main()
 		if (!run_emulator_sm()) {
 			printf("Emulator SM stopped!\r\n");
 			fflush(stdout);
+			__breakpoint();
 		}
 	}
 	return 0;

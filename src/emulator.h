@@ -46,6 +46,8 @@ typedef enum sm_event_t {
 	EV_RESUME_EMULATOR,
 } sm_event_t;
 
+extern const char *event_names[];
+
 // Notifications to USB CDC
 typedef enum sm_notification_t {
 	NOTIF_OK,

@@ -48,8 +48,9 @@ typedef struct {
 bool send_command_to_emulator(sm_event_t event)
 {
 	sm_notification_t notification;
+	printf("sending event %d (%s) to emulator\r\n", event, event_names[event]);
 	if (!post_sm_event(event)) {
-		usb_cdc_send("ERROR: Failed to send command to emulator\r\n");
+		printf("ERROR: Failed to send command to emulator\r\n");
 		return false; // queue full
 	}
 	uint32_t tries = 0;
@@ -57,7 +58,7 @@ bool send_command_to_emulator(sm_event_t event)
 		sleep_ms(1);
 		tries++;
 		if (tries > 100) {
-			usb_cdc_printf("Timeout waiting for notification after event %d\n", event);
+			printf("Timeout waiting for notification after event %d\n", event);
 			return false;
 		}
 	}
@@ -69,16 +70,11 @@ static inline bool pause_emulator(void)
 	if (!send_command_to_emulator(EV_PAUSE_EMULATOR)) {
 		return false;
 	}
-	if (!pio_bus_acquire(10)) {
-		usb_cdc_send("ERROR: Failed to acquire PIO bus in 10ms\r\n");
-		return false;
-	}
 	return true;
 }
 
 static inline bool resume_emulator(void)
 {
-	pio_bus_release();
 	return send_command_to_emulator(EV_RESUME_EMULATOR);
 }
 
@@ -1131,6 +1127,7 @@ static void dispatch_command(void)
 				cmd_token_count -= tokens_consumed;
 			}
 
+			printf("--- Start Command %s\r\n", command_table[i].name);
 			if (command_table[i].pause_emulator) {
 				if (!pause_emulator()) {
 					return;
@@ -1143,6 +1140,7 @@ static void dispatch_command(void)
 			if (command_table[i].pause_emulator) {
 				resume_emulator();
 			}
+			printf("--- End Command %s\r\n", command_table[i].name);
 			return;
 		}
 	}

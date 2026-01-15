@@ -38,18 +38,6 @@ static inline bool bus_read_reset(void)
 // ============================================================================
 
 extern bool pio_bus_initialized;
-extern recursive_mutex_t pio_bus_mutex;
-
-// Acquire the bus; return false if not acquired within timout_ms
-static inline bool pio_bus_acquire(uint32_t timeout_ms)
-{
-	return recursive_mutex_enter_timeout_ms(&pio_bus_mutex, timeout_ms);
-}
-
-static inline void pio_bus_release(void)
-{
-	recursive_mutex_exit(&pio_bus_mutex);
-}
 
 // Initialize PIO state machine for bus cycles
 // Must be called after bus_init() and eclock_init()

@@ -13,9 +13,6 @@
 #include <stdio.h>
 #include "pico/mutex.h"
 
-// Guards ownership of PIO bus and eclock subsystem.
-recursive_mutex_t pio_bus_mutex;
-
 // Address bus GPIO mapping is board-specific (see board_config.h for
 // ADDR_GPIO_MASK)
 #if BOARD_TYPE == BOARD_NED_SYS7
@@ -165,9 +162,6 @@ static int pio_cycle_offset = 0;
 // Initialize PIO bus cycle state machines
 void bus_cycle_pio_init(void)
 {
-	// Initialize mutex
-	recursive_mutex_init(&pio_bus_mutex);
-
 	// Load PIO program
 	pio_clear_instruction_memory(BUS_PIO);
 	pio_cycle_offset = pio_add_program(BUS_PIO, &bus_cycle_program);

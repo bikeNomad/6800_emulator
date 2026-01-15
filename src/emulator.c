@@ -8,6 +8,11 @@
 #include "memory.h"
 #include "usb_cdc.h"
 
+const char *event_names[] = {
+	"INIT",     "ENTER",     "EXIT",     "POLL",           "CMD_RUN",
+	"CMD_HALT", "CMD_RESET", "CMD_LOAD", "PAUSE_EMULATOR", "RESUME_EMULATOR",
+};
+
 #undef GET_NAME
 #define GET_NAME(fsm)                                                                              \
 	do {                                                                                       \
@@ -17,14 +22,9 @@
 
 #define ACQUIRE_BUS(fsm)                                                                           \
 	do {                                                                                       \
-		if (!pio_bus_acquire(10)) {                                                        \
-			printf("ERROR (%s): Emulator failed to acquire PIO bus in 10ms\r\n",       \
-			       fsm->current_state_name);                                           \
-			fsm_terminate(fsm);                                                        \
-		}                                                                                  \
 	} while (0)
 
-#define RELEASE_BUS() pio_bus_release()
+#define RELEASE_BUS()
 
 static queue_t sm_event_queue;     // Events => Emulator State Machine
 static queue_t notification_queue; // Notifications => USB CDC console
