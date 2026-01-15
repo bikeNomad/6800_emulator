@@ -433,7 +433,8 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	const uint8_t expected_cmos_pages[] = {0x01, 0x05, 0x09, 0x0D};
 	int cmos_count = 0;
 	for (uint i = 0; i < sizeof(expected_cmos_pages); i++) {
-		if (results[i].scan == PAGE_WMS_CMOS) {
+		uint8_t page = expected_cmos_pages[i];
+		if (results[page].scan == PAGE_WMS_CMOS) {
 			cmos_count++;
 		}
 	}
@@ -450,10 +451,14 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	const uint8_t expected_pia_pages[] = {0x21, 0x22, 0x24, 0x28, 0x2c, 0x30, 0x34, 0x40};
 	uint8_t pia_count = 0;
 	for (uint i = 0; i < sizeof(expected_pia_pages); i++) {
-		if (results[i].scan == PAGE_PIA) {
+		uint8_t page = expected_pia_pages[i];
+		if (results[page].scan == PAGE_PIA) {
 			pia_count++;
 		}
 	}
+
+	printf("Recognize architecture: Bits:%d, RAM:%d, PIA:%d, CMOS:%d\r\n", decoded_bits,
+	       ram_count, pia_count, cmos_count);
 
 	// System 3-7: CMOS pattern, 15 bits decoded
 	if (cmos_count == 4 && results[0x01].scan == PAGE_WMS_CMOS && decoded_bits == 15) {
@@ -631,7 +636,8 @@ bool last_rom_address(uint16_t *rom_end)
 {
 	for (int page = 255; page >= 0; page--) {
 		if (results[page].scan == PAGE_ROM) {
-			*rom_end = TABLE_INDEX_TO_ADDR(page) + ENTRY_PAGE_SIZE - 1;
+			*rom_end = (uint16_t)((uint32_t)TABLE_INDEX_TO_ADDR(page) +
+					      ENTRY_PAGE_SIZE - 1);
 			return true;
 		}
 	}
@@ -655,7 +661,8 @@ bool last_ram_address(uint16_t *ram_end)
 {
 	for (int page = 255; page >= 0; page--) {
 		if (results[page].scan == PAGE_RAM || results[page].scan == PAGE_WMS_CMOS) {
-			*ram_end = TABLE_INDEX_TO_ADDR(page) + ENTRY_PAGE_SIZE - 1;
+			*ram_end = (uint16_t)((uint32_t)TABLE_INDEX_TO_ADDR(page) +
+					      ENTRY_PAGE_SIZE - 1);
 			return true;
 		}
 	}
@@ -750,23 +757,28 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 
 	for (uint page = 0; page < max_pages; page++) {
 		uint32_t addr = TABLE_INDEX_TO_ADDR(page);
+		uint32_t end_addr = addr + 255;
 
 		switch (results[page].scan) {
 		case PAGE_RAM:
 		case PAGE_WMS_CMOS:
-			if (addr < ram_start) {
-				ram_start = addr;
-			}
-			if (addr > ram_end) {
-				ram_end = addr;
+			if (addr <= MAX_RAM_SIZE) {
+				if (addr < ram_start) {
+					ram_start = addr;
+				}
+				if (end_addr > ram_end) {
+					ram_end = end_addr;
+				}
 			}
 			break;
 		case PAGE_ROM:
-			if (addr >= MIN_ROM_ADDRESS && addr < rom_start) {
-				rom_start = addr;
-			}
-			if (addr > rom_end) {
-				rom_end = addr;
+			if (addr >= MIN_ROM_ADDRESS) {
+				if (addr < rom_start) {
+					rom_start = addr;
+				}
+				if (end_addr > rom_end) {
+					rom_end = end_addr;
+				}
 			}
 			break;
 		default:
@@ -777,11 +789,11 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	// Update mem_config
 	if (ram_start != 0xFFFF) {
 		mem_config.ram_base = ram_start;
-		mem_config.ram_size = (ram_end - ram_start) + 256;
+		mem_config.ram_size = (ram_end - ram_start) + 1;
 	}
 	if (rom_start != 0xFFFF) {
 		mem_config.rom_base = rom_start;
-		mem_config.rom_size = (rom_end - rom_start) + 256;
+		mem_config.rom_size = (rom_end - rom_start) + 1;
 	}
 
 	// Second pass: build map entries

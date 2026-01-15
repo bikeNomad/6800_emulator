@@ -734,20 +734,14 @@ static void cmd_count_off(void)
 #endif
 
 // Helper function to get memory type and mapping status for an address
-static memory_type_t get_memory_info_at_address(uint16_t address, bool *mapped)
+static memory_type_t get_memory_info_at_address(uint16_t address)
 {
-	memory_type_t type = memory_get_mapping_type(address);
-	*mapped = memory_is_address_mapped(address);
-	return type;
+	return memory_get_mapping_type(address);
 }
 
 // Helper function to format memory info string
-static const char *format_memory_info(memory_type_t type, bool mapped)
+static const char *format_memory_info(memory_type_t type)
 {
-	if (!mapped) {
-		return "UNMAPPED";
-	}
-
 	switch (type) {
 	case MEM_TYPE_ROM:
 		return "ROM";
@@ -772,17 +766,15 @@ static void cmd_map_show(void)
 	uint32_t end_addr = 0xFFFF;
 
 	while (current_addr <= end_addr) {
-		bool mapped = false;
-		memory_type_t type = get_memory_info_at_address((uint16_t)current_addr, &mapped);
-		const char *info = format_memory_info(type, mapped);
+		memory_type_t type = get_memory_info_at_address((uint16_t)current_addr);
+		const char *info = format_memory_info(type);
 
 		// Find the end of this contiguous range
 		uint32_t range_end = current_addr;
 		while (range_end + 1 <= end_addr) {
-			bool next_mapped = false;
 			memory_type_t next_type =
-				get_memory_info_at_address((uint16_t)(range_end + 1), &next_mapped);
-			const char *next_info = format_memory_info(next_type, next_mapped);
+				get_memory_info_at_address((uint16_t)(range_end + 1));
+			const char *next_info = format_memory_info(next_type);
 
 			if (strcmp(info, next_info) == 0) {
 				range_end++;
