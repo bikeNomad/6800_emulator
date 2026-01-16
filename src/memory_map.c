@@ -87,6 +87,12 @@ void memory_initialize_map(void)
 	mem_config.ram_base = 0x0000;
 	mem_config.ram_size = 0x0800; // 2KB (0000-07FF)
 
+	memory_update_map();
+}
+
+// Update memory map per mem_config's RAM and ROM ranges
+void memory_update_map(void)
+{
 	// Set all entries to unmapped initially
 	for (uint16_t i = 0; i < NUM_PAGES; i++) {
 		memory_map[i] = ENTRY_UNMAPPED_BUS;
@@ -95,13 +101,13 @@ void memory_initialize_map(void)
 	// Set RAM entries (RAM is always mapped)
 	for (uint32_t address = mem_config.ram_base;
 	     address < mem_config.ram_base + mem_config.ram_size; address += ENTRY_PAGE_SIZE) {
-		setup_ram_mapping(address);
+		map_as_ram(address);
 	}
 
 	// Set ROM entries (ROM is always mapped)
 	for (uint32_t address = mem_config.rom_base;
 	     address < mem_config.rom_base + mem_config.rom_size; address += ENTRY_PAGE_SIZE) {
-		setup_rom_mapping(address);
+		map_as_rom(address);
 	}
 }
 
@@ -158,7 +164,9 @@ void memory_print_summary(printf_func_t printf_func)
 	uint16_t ram_pages = 0;
 	uint16_t unmapped_pages = 0;
 
-	for (uint16_t i = 0; i < NUM_PAGES; i++) {
+	uint total_pages = NUM_PAGES >> (16 - mem_config.decoded_bits);
+
+	for (uint16_t i = 0; i < total_pages; i++) {
 		memory_type_t type = memory_get_type(i * ENTRY_PAGE_SIZE);
 		if (type == MEM_TYPE_UNMAPPED) {
 			unmapped_pages++;
@@ -172,10 +180,9 @@ void memory_print_summary(printf_func_t printf_func)
 		}
 	}
 
-	printf_func("  Memory map: %u mapped pages (%u ROM, %u RAM), %u unmapped pages\r\n",
-		    mapped_pages, rom_pages, ram_pages, unmapped_pages);
-	printf_func("  Total address space: %u pages (%u bytes)\r\n", NUM_PAGES,
-		    NUM_PAGES * ENTRY_PAGE_SIZE);
+	printf_func("  Memory map: %u total pages (%u mapped pages (%u ROM, %u RAM), %u unmapped "
+		    "pages)\r\n",
+		    total_pages, mapped_pages, rom_pages, ram_pages, unmapped_pages);
 }
 
 // Save memory config and map to flash
@@ -335,51 +342,6 @@ void memory_clear_rom_mapping(void)
 	printf("All ROM pages unmapped\n");
 }
 
-// Memory mapping query functions for external access
-
-/**
- * Get the memory type and mapping status for a specific address
- * Returns the memory type (MEM_TYPE_ROM, MEM_TYPE_RAM, or MEM_TYPE_UNMAPPED)
- */
-memory_type_t memory_get_mapping_type(uint16_t address)
-{
-	uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
-	uint32_t table_entry = memory_map[table_index];
-
-	if (table_entry & ENTRY_UNMAPPED) {
-		return MEM_TYPE_UNMAPPED;
-	}
-
-	if (table_entry & ENTRY_WRITABLE) {
-		return MEM_TYPE_RAM;
-	} else {
-		return MEM_TYPE_ROM;
-	}
-}
-
-// Legacy wrapper functions for backward compatibility
-
-// Set ROM mapping for specific address (256-byte page) - legacy wrapper
-void memory_set_rom_mapping(uint16_t address, bool mapped)
-{
-	uint16_t physical_addr = address & ADDR_MASK_A15; // TODO FIX THIS
-	uint8_t table_index = ADDR_TO_TABLE_INDEX(physical_addr);
-
-	if (mapped) {
-		// Map this page as ROM
-		uint32_t shadow_addr =
-			(uint32_t)(uintptr_t)&rom_shadow[0] + (physical_addr - mem_config.rom_base);
-		uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_ROM;
-		memory_map[table_index] = table_entry;
-
-		printf("Mapped ROM page at $%04X (page %u)\n", physical_addr & ~0xFF,
-		       (physical_addr - mem_config.rom_base) / ENTRY_PAGE_SIZE);
-	} else {
-		// Unmap this page (route to bus)
-		memory_map[table_index] = ENTRY_UNMAPPED_BUS;
-	}
-}
-
 /**
  * Check if an address is currently mapped (not unmapped)
  * Returns true if the address is mapped to ROM or RAM
@@ -409,7 +371,7 @@ bool memory_range_has_unmapped(uint16_t address, uint16_t len)
 
 // Memory map building functions
 
-void setup_ram_mapping(uint16_t address)
+void map_as_ram(uint16_t address)
 {
 	uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
 	uint32_t shadow_addr = (uint32_t)(uintptr_t)&ram_shadow[address - mem_config.ram_base];
@@ -417,7 +379,7 @@ void setup_ram_mapping(uint16_t address)
 	memory_map[table_index] = table_entry;
 }
 
-void setup_rom_mapping(uint16_t address)
+void map_as_rom(uint16_t address)
 {
 	uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
 	uint32_t shadow_addr = (uint32_t)(uintptr_t)&rom_shadow[address - mem_config.rom_base];

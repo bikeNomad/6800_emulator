@@ -53,7 +53,7 @@ static int cmd_token_count = 0;
 typedef void (*cmd_handler_fn)(void);
 
 // Command table entry
-typedef struct {
+typedef struct command_entry_t {
 	const char *name;
 	cmd_handler_fn handler;
 	bool needs_args;     // True if command needs remaining tokens as arguments
@@ -186,7 +186,7 @@ static void cmd_config_show(void)
 	usb_cdc_printf("  Debug SPI: %s\r\n", debug_spi_is_enabled() ? "ON" : "OFF");
 }
 
-static void cmd_config_rom(void)
+static void cmd_map_rom(void)
 {
 	// Configure ROM region: config rom <base> <size>
 	// Expects tokens: [config] [rom] <base> <size>
@@ -204,7 +204,7 @@ static void cmd_config_rom(void)
 	}
 }
 
-static void cmd_config_ram(void)
+static void cmd_map_ram(void)
 {
 	// Configure RAM region: config ram <base> <size>
 	// Expects tokens: [config] [ram] <base> <size>
@@ -791,12 +791,6 @@ static void cmd_count_off(void)
 }
 #endif
 
-// Helper function to get memory type and mapping status for an address
-static memory_type_t get_memory_info_at_address(uint16_t address)
-{
-	return memory_get_mapping_type(address);
-}
-
 // Helper function to format memory info string
 static const char *format_memory_info(memory_type_t type)
 {
@@ -824,14 +818,13 @@ static void cmd_map_show(void)
 	uint32_t end_addr = 0xFFFF;
 
 	while (current_addr <= end_addr) {
-		memory_type_t type = get_memory_info_at_address((uint16_t)current_addr);
+		memory_type_t type = memory_get_type((uint16_t)current_addr);
 		const char *info = format_memory_info(type);
 
 		// Find the end of this contiguous range
 		uint32_t range_end = current_addr;
 		while (range_end + 1 <= end_addr) {
-			memory_type_t next_type =
-				get_memory_info_at_address((uint16_t)(range_end + 1));
+			memory_type_t next_type = memory_get_type((uint16_t)(range_end + 1));
 			const char *next_info = format_memory_info(next_type);
 
 			if (strcmp(info, next_info) == 0) {
@@ -854,31 +847,6 @@ static void cmd_map_clear(void)
 	memory_clear_rom_mapping();
 	usb_cdc_send("OK: All ROM pages unmapped\r\n");
 	send_command_to_emulator(EV_CMD_RESET);
-}
-
-static void cmd_map_program(void)
-{
-	// Manually map a specific ROM page (for debugging)
-	// Expects tokens: [map] [program] <addr>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: map program <address_hex>\r\n");
-		return;
-	}
-
-	unsigned int address;
-	if (sscanf(cmd_tokens[0], "%x", &address) == 1) {
-		if (address >= mem_config.rom_base &&
-		    address < mem_config.rom_base + mem_config.rom_size) {
-			send_command_to_emulator(EV_CMD_HALT);
-			memory_set_rom_mapping(address, true);
-			send_command_to_emulator(EV_CMD_RESET);
-			usb_cdc_printf("OK: Mapped ROM page at $%04X\r\n", address);
-		} else {
-			usb_cdc_send("ERROR: Address outside ROM range\r\n");
-		}
-	} else {
-		usb_cdc_send("ERROR: Usage: map program <address_hex>\r\n");
-	}
 }
 
 static void cmd_checksum(void)
@@ -913,68 +881,6 @@ static void cmd_checksum(void)
 
 		usb_cdc_printf("Checksum of $%04X bytes from $%04X: $%04X\r\n", len, addr,
 			       checksum);
-	}
-}
-
-static void cmd_copy_roms(void)
-{
-	// Copy ROMs: scan ROM address range and copy non-0xFF pages to persistent storage
-	usb_cdc_send("Scanning ROM address range for valid data...\r\n");
-
-	// Clear ROM load buffer and mapping bitmap
-	memory_clear_rom_load_buffer();
-	memory_clear_rom_mapping();
-
-	uint16_t pages_scanned = 0;
-	uint16_t pages_copied = 0;
-
-	// Scan through each 256-byte page in ROM range
-	for (uint16_t page_addr = mem_config.rom_base;
-	     page_addr < mem_config.rom_base + mem_config.rom_size; page_addr += ENTRY_PAGE_SIZE) {
-
-		pages_scanned++;
-
-		// Read the entire 256-byte page from bus
-		uint8_t page_buffer[ENTRY_PAGE_SIZE];
-		bus_read_block_with_eclock(page_addr, ENTRY_PAGE_SIZE, page_buffer);
-
-		// Check if page contains any non-0xFF data
-		bool has_data = false;
-		for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
-			if (page_buffer[i] != 0xFF) {
-				has_data = true;
-				break;
-			}
-		}
-
-		if (has_data) {
-			// Load page data using memory_load_hex_data (handles address translation)
-			if (memory_load_hex_data(page_addr, page_buffer, ENTRY_PAGE_SIZE)) {
-				// Mark page as mapped
-				memory_set_rom_mapping(page_addr, true);
-				pages_copied++;
-				usb_cdc_printf("Copied page at $%04X\r\n", page_addr);
-			} else {
-				usb_cdc_printf("ERROR: Failed to load page at $%04X\r\n",
-					       page_addr);
-			}
-		}
-
-		// Progress update every 16 pages (4KB)
-		if ((pages_scanned % 16) == 0) {
-			usb_cdc_printf("Scanned %u pages, copied %u pages...\r\n", pages_scanned,
-				       pages_copied);
-		}
-	}
-
-	usb_cdc_send("Scan complete. Finalizing ROM load...\r\n");
-
-	// Finalize the load (write to flash and update mappings)
-	if (memory_finalize_load()) {
-		usb_cdc_printf("OK: ROM copy complete - %u pages scanned, %u pages copied\r\n",
-			       pages_scanned, pages_copied);
-	} else {
-		usb_cdc_send("ERROR: Failed to finalize ROM load\r\n");
 	}
 }
 
@@ -1033,50 +939,47 @@ static void cmd_verify_memory(void)
 static void cmd_help(void)
 {
 	// Send as single string to avoid buffer overflow
-	usb_cdc_send(
-		"MC6800 Emulator Commands:\r\n"
-		"  load                      - Load Intel HEX\r\n"
-		"  end                       - End Intel HEX\r\n"
-		"  config                    - Show memory configuration\r\n"
-		"  config rom <b> <s>        - Configure ROM region\r\n"
-		"  config ram <b> <s>        - Configure RAM region\r\n"
-		"  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
-		"  read <addr> <len>         - Read memory\r\n"
-		"  write <addr> <data>       - Write memory\r\n"
-		"  status                    - Display CPU status\r\n"
-		"  run                       - Start CPU execution\r\n"
-		"  halt                      - Stop CPU execution\r\n"
-		"  reset                     - Reset CPU\r\n"
+	usb_cdc_send("MC6800 Emulator Commands (all numbers in hex):\r\n"
+		     "  load                      - Load Intel HEX\r\n"
+		     "  end                       - End Intel HEX\r\n"
+		     "  config                    - Show memory configuration\r\n"
+		     "  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
+		     "  read <addr> <len>         - Read memory from shadow or bus\r\n"
+		     "  readb <addr> <len>        - Read data from hardware bus\r\n"
+		     "  write <addr> <data>       - Write memory to shadow or bus\r\n"
+		     "  writeb <addr> <data...>   - Write data to hardware bus\r\n"
+		     "  status                    - Display CPU status\r\n"
+		     "  run                       - Start CPU execution\r\n"
+		     "  halt                      - Stop CPU execution\r\n"
+		     "  reset                     - Reset CPU\r\n"
+		     "  map show                  - Show ROM/RAM mapping state\r\n"
+		     "  map clear                 - Clear all ROM/RAM mappings\r\n"
+		     "  map rom <b> <s>           - Configure ROM region\r\n"
+		     "  map ram <b> <s>           - Configure RAM region\r\n"
+		     "  scan_memory               - Auto-detect and configure memory map\r\n"
+		     "  verify_memory             - Verify memory configuration\r\n"
 #if COUNT_INSTRUCTIONS
-		"  count print               - Print instruction execution counts\r\n"
-		"  count reset               - Reset instruction execution counts\r\n"
-		"  count on                  - Enable instruction counting\r\n"
-		"  count off                 - Disable instruction counting\r\n"
+		     "  count print               - Print instruction execution counts\r\n"
+		     "  count reset               - Reset instruction execution counts\r\n"
+		     "  count on                  - Enable instruction counting\r\n"
+		     "  count off                 - Disable instruction counting\r\n"
 #endif
-		"  debug on/off              - Enable/disable SPI debug output\r\n"
-		"  break <addr>              - Set breakpoint at address\r\n"
-		"  break clear               - Clear all breakpoints\r\n"
-		"  break clear <addr>        - Clear specific breakpoint\r\n"
-		"  break list                - List all breakpoints\r\n"
-		"  reg pc <val>              - Set program counter\r\n"
-		"  reg a <val>               - Set accumulator A\r\n"
-		"  reg b <val>               - Set accumulator B\r\n"
-		"  reg x <val>               - Set index register X\r\n"
-		"  reg sp <val>              - Set stack pointer\r\n"
-		"  reg ccr <val>             - Set condition code register\r\n"
-		"  bus_read <addr>           - Read byte from hardware bus\r\n"
-		"  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
-		"  readb <addr> <len>        - Read block from hardware bus\r\n"
-		"  writeb <addr> <data...>   - Write block to hardware bus\r\n"
-		"  bus_info                  - Show bus configuration\r\n"
-		"  map show                  - Show ROM mapping state\r\n"
-		"  map clear                 - Clear all ROM mapping\r\n"
-		"  map program <addr>        - Manually map ROM page\r\n"
-		"  copy_roms                 - Copy ROM data from bus to persistent storage\r\n"
-		"  scan_memory               - Auto-detect and configure memory map\r\n"
-		"  verify_memory             - Verify memory configuration\r\n"
-		"  bootloader                - Enter bootloader mode\r\n"
-		"  help                      - Show this help\r\n");
+		     "  debug on/off              - Enable/disable SPI debug output\r\n"
+		     "  break <addr>              - Set breakpoint at address\r\n"
+		     "  break clear               - Clear all breakpoints\r\n"
+		     "  break clear <addr>        - Clear specific breakpoint\r\n"
+		     "  break list                - List all breakpoints\r\n"
+		     "  reg pc <val>              - Set program counter\r\n"
+		     "  reg a <val>               - Set accumulator A\r\n"
+		     "  reg b <val>               - Set accumulator B\r\n"
+		     "  reg x <val>               - Set index register X\r\n"
+		     "  reg sp <val>              - Set stack pointer\r\n"
+		     "  reg ccr <val>             - Set condition code register\r\n"
+		     "  bus_read <addr>           - Read byte from hardware bus\r\n"
+		     "  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
+		     "  bus_info                  - Show bus configuration\r\n"
+		     "  bootloader                - Enter bootloader mode\r\n"
+		     "  help                      - Show this help\r\n");
 }
 
 //--------------------------------------------------------------------+
@@ -1100,8 +1003,6 @@ static int tokenize_command(char *cmd)
 // Command table - two-word commands checked first, then single-word
 static const command_entry_t command_table[] = {
 	// Two-word commands (require exact match of first two tokens)
-	{"config rom", cmd_config_rom, true, true}, // needs <base> <size>
-	{"config ram", cmd_config_ram, true, true}, // needs <base> <size>
 	{"debug on", cmd_debug_on, false, false},
 	{"debug off", cmd_debug_off, false, false},
 	{"break clear", cmd_break_clear, true, false}, // needs optional <addr>
@@ -1112,6 +1013,11 @@ static const command_entry_t command_table[] = {
 	{"reg x", cmd_reg_x, true, true},     // needs <value>
 	{"reg sp", cmd_reg_sp, true, true},   // needs <value>
 	{"reg ccr", cmd_reg_ccr, true, true}, // needs <value>
+	{"map show", cmd_map_show, false, false},
+	{"map clear", cmd_map_clear, false, true},
+	{"map ram", cmd_map_ram, true, true}, // needs <base> <size>
+	{"map rom", cmd_map_rom, true, true}, // needs <base> <size>
+
 #if COUNT_INSTRUCTIONS
 	{"count print", cmd_print_instruction_counts, false, false},
 	{"count reset", cmd_reset_instruction_counts, false, false},
@@ -1138,10 +1044,6 @@ static const command_entry_t command_table[] = {
 	{"bus_write", cmd_bus_write, true, true},    // needs <addr> <data>
 	{"bus_read", cmd_bus_read, true, true},      // needs <addr>
 	{"bus_info", cmd_bus_info, false, false},
-	{"map show", cmd_map_show, false, false},
-	{"map clear", cmd_map_clear, false, true},
-	{"map program", cmd_map_program, true, true}, // needs <addr>
-	{"copy_roms", cmd_copy_roms, false, true},
 	{"scan_memory", cmd_scan_memory, false, true},
 	{"verify_memory", cmd_verify_memory, false, true},
 	{"help", cmd_help, false, false},

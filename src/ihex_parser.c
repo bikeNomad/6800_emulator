@@ -146,7 +146,7 @@ bool ihex_load_data(const char *hex_data, uint32_t length)
 					if (type == MEM_TYPE_UNMAPPED) {
 						printf("Mapping ROM page from hex $%04X\n",
 						       (uint16_t)page_addr);
-						memory_set_rom_mapping((uint16_t)page_addr, true);
+						map_as_rom((uint16_t)page_addr);
 					}
 				}
 

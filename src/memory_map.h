@@ -76,9 +76,7 @@ bool memory_is_address_mapped(uint16_t address);
 bool memory_range_has_unmapped(uint16_t address, uint16_t len);
 /** Load memory map from flash storage */
 bool memory_load_memory_map_from_flash(void);
-/** Get the mapping type for an address */
-memory_type_t memory_get_mapping_type(uint16_t address);
-/** Get the memory type for an address (alias for memory_get_mapping_type) */
+/** Get the memory type for an address */
 memory_type_t memory_get_type(uint16_t address);
 /** Get shadow RAM address for fast access to mapped memory */
 uint8_t *memory_get_shadow_address(uint16_t address);
@@ -94,9 +92,9 @@ void memory_print_summary(printf_func_t printf_func);
 void memory_save_memory_map_to_flash(void);
 /** Save ROM mapping portion to flash storage */
 void memory_save_rom_mapping_to_flash(void);
-/** Set ROM mapping for a specific address */
-void memory_set_rom_mapping(uint16_t address, bool mapped);
-/** Set up RAM mapping for an address range */
-void setup_ram_mapping(uint16_t address);
-/** Set up ROM mapping for an address range */
-void setup_rom_mapping(uint16_t address);
+/** Set up RAM mapping for an address page */
+void map_as_ram(uint16_t address);
+/** Set up ROM mapping for an address page */
+void map_as_rom(uint16_t address);
+/** Update memory map per mem_config's RAM and ROM ranges */
+void memory_update_map(void);

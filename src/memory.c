@@ -127,7 +127,7 @@ void memory_configure_rom(uint16_t base, uint16_t size)
 	mem_config.rom_base = base;
 	mem_config.rom_size = size;
 
-	memory_initialize_map();
+	memory_update_map();
 
 	printf("ROM configured: $%04X-$%04X (%d bytes)\n", base, base + size - 1, size);
 }
@@ -146,7 +146,7 @@ void memory_configure_ram(uint16_t base, uint16_t size)
 	// Clear RAM shadow
 	memset(ram_shadow, 0, size);
 
-	memory_initialize_map();
+	memory_update_map();
 
 	memory_read_ram_from_bus();
 
@@ -154,11 +154,11 @@ void memory_configure_ram(uint16_t base, uint16_t size)
 }
 
 // Load Intel HEX data into ROM load buffer or into RAM shadow
-// Return true if ROM was loaded, false if out of bounds or RAM
+// Return true if ROM was loaded, false if out of bounds or more than one type
 bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length)
 {
 	uint16_t start_addr = memory_get_unaliased_address(address);
-	uint16_t end_addr = start_addr + length - 1;
+	uint16_t end_addr = (uint16_t)((uint32_t)start_addr + length - 1);
 	memory_type_t start_type = memory_get_type(start_addr);
 	memory_type_t end_type = memory_get_type(end_addr);
 

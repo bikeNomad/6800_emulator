@@ -33,19 +33,13 @@ typedef enum {
 	PAGE_BALLY_ZERO_PAGE, // Early Bally 0x00-0xFF
 } page_type_t;
 
-// Scan results storage - combined struct
-typedef struct page_results_t {
-	page_type_t scan;      // Raw scan result
-	page_type_t coalesced; // Coalesced result for System 11
-} page_results_t;
+// Scan results storage
+static page_type_t results[NUM_PAGES]; // One per 256-byte page
 
-static page_results_t results[NUM_PAGES]; // One per 256-byte page
 // Startup status (for displaying warnings via USB CDC after boot)
 static sanity_result_t startup_status = SANITY_OK;
 
 page_type_t fingerprint_page(uint16_t address); // Determine page type at address
-void coalesce_regions(architecture_type_t arch,
-		      uint decoded_bits); // Coalesce adjacent regions of same type
 architecture_type_t
 recognize_architecture(uint *p_decoded_bits); // Determine system architecture from scan results
 void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
@@ -100,34 +94,13 @@ const char *architecture_name(architecture_type_t arch)
 	}
 }
 
-void print_raw_scan_results(printf_func_t printf_func)
-{
-	uint16_t start = 0;
-	uint8_t last_type = results[0].scan;
-
-	for (uint page = 1; page <= NUM_PAGES; page++) {
-		uint8_t current_type =
-			(page < NUM_PAGES) ? results[page].scan : 255; // 255 = sentinel
-
-		if (current_type != last_type || page == NUM_PAGES) {
-			uint16_t end = (page << 8) - 1;
-			const char *type_str = page_type_to_string(last_type);
-			printf_func("  $%04X-$%04X: %s\r\n", start, end, type_str);
-
-			start = page << 8;
-			last_type = current_type;
-		}
-	}
-}
-
 void print_scan_results(printf_func_t printf_func)
 {
 	uint16_t start = 0;
-	uint8_t last_type = results[0].coalesced;
+	uint8_t last_type = results[0];
 
 	for (uint page = 1; page <= NUM_PAGES; page++) {
-		uint8_t current_type =
-			(page < NUM_PAGES) ? results[page].coalesced : 255; // 255 = sentinel
+		uint8_t current_type = (page < NUM_PAGES) ? results[page] : 255; // 255 = sentinel
 
 		if (current_type != last_type || page == NUM_PAGES) {
 			uint16_t end = (page << 8) - 1;
@@ -424,8 +397,8 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	*p_decoded_bits = decoded_bits;
 
 	// Early Bally/Stern
-	if (decoded_bits < 16 && results[0x00].scan == PAGE_BALLY_ZERO_PAGE &&
-	    results[0x02].scan == PAGE_BALLY_CMOS) {
+	if (decoded_bits < 16 && results[0x00] == PAGE_BALLY_ZERO_PAGE &&
+	    results[0x02] == PAGE_BALLY_CMOS) {
 		return ARCH_EARLY_BALLY;
 	}
 
@@ -434,7 +407,7 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	int cmos_count = 0;
 	for (uint i = 0; i < sizeof(expected_cmos_pages); i++) {
 		uint8_t page = expected_cmos_pages[i];
-		if (results[page].scan == PAGE_WMS_CMOS) {
+		if (results[page] == PAGE_WMS_CMOS) {
 			cmos_count++;
 		}
 	}
@@ -442,7 +415,7 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	// Count RAM pages at start (System 11 signature)
 	int ram_count = 0;
 	for (int i = 0; i < 0x08; i++) {
-		if (results[i].scan == PAGE_RAM) {
+		if (results[i] == PAGE_RAM) {
 			ram_count++;
 		}
 	}
@@ -452,7 +425,7 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	uint8_t pia_count = 0;
 	for (uint i = 0; i < sizeof(expected_pia_pages); i++) {
 		uint8_t page = expected_pia_pages[i];
-		if (results[page].scan == PAGE_PIA) {
+		if (results[page] == PAGE_PIA) {
 			pia_count++;
 		}
 	}
@@ -461,7 +434,7 @@ architecture_type_t recognize_architecture(uint *p_decoded_bits)
 	       ram_count, pia_count, cmos_count);
 
 	// System 3-7: CMOS pattern, 15 bits decoded
-	if (cmos_count == 4 && results[0x01].scan == PAGE_WMS_CMOS && decoded_bits == 15) {
+	if (cmos_count == 4 && results[0x01] == PAGE_WMS_CMOS && decoded_bits == 15) {
 		if (pia_count == 5) {
 			return ARCH_WILLIAMS_SYS7;
 		} else {
@@ -506,7 +479,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 	printf_func("Scanning 256 pages...\r\n");
 	for (uint16_t page = 0; page < NUM_PAGES; page++) {
 		uint16_t addr = TABLE_INDEX_TO_ADDR(page);
-		results[page].scan = fingerprint_page(addr);
+		results[page] = fingerprint_page(addr);
 		sleep_ms(10);
 	}
 	printf_func("Scan complete\r\n");
@@ -517,12 +490,6 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 	printf_func("Architecture: %s (%u bits decoded)\r\n", architecture_name(arch),
 		    decoded_bits);
 
-	// Coalesce regions for better presentation
-	coalesce_regions(arch, decoded_bits);
-	printf_func("regions coalesced. Raw:\r\n");
-	print_raw_scan_results(printf_func);
-
-	printf_func("Coalesced");
 	print_scan_results(printf_func);
 
 	build_memory_map_from_scan(arch, decoded_bits, printf_func);
@@ -623,7 +590,7 @@ sanity_result_t memory_sanity_check(void)
 bool first_rom_address(uint16_t *rom_start)
 {
 	for (uint page = 0; page < NUM_PAGES; page++) {
-		if (results[page].scan == PAGE_ROM) {
+		if (results[page] == PAGE_ROM) {
 			*rom_start = TABLE_INDEX_TO_ADDR(page);
 			return true;
 		}
@@ -635,7 +602,7 @@ bool first_rom_address(uint16_t *rom_start)
 bool last_rom_address(uint16_t *rom_end)
 {
 	for (int page = 255; page >= 0; page--) {
-		if (results[page].scan == PAGE_ROM) {
+		if (results[page] == PAGE_ROM) {
 			*rom_end = (uint16_t)((uint32_t)TABLE_INDEX_TO_ADDR(page) +
 					      ENTRY_PAGE_SIZE - 1);
 			return true;
@@ -648,7 +615,7 @@ bool last_rom_address(uint16_t *rom_end)
 bool first_ram_address(uint16_t *ram_start)
 {
 	for (uint page = 0; page < NUM_PAGES; page++) {
-		if (results[page].scan == PAGE_RAM || results[page].scan == PAGE_WMS_CMOS) {
+		if (results[page] == PAGE_RAM || results[page] == PAGE_WMS_CMOS) {
 			*ram_start = TABLE_INDEX_TO_ADDR(page);
 			return true;
 		}
@@ -660,7 +627,7 @@ bool first_ram_address(uint16_t *ram_start)
 bool last_ram_address(uint16_t *ram_end)
 {
 	for (int page = 255; page >= 0; page--) {
-		if (results[page].scan == PAGE_RAM || results[page].scan == PAGE_WMS_CMOS) {
+		if (results[page] == PAGE_RAM || results[page] == PAGE_WMS_CMOS) {
 			*ram_end = (uint16_t)((uint32_t)TABLE_INDEX_TO_ADDR(page) +
 					      ENTRY_PAGE_SIZE - 1);
 			return true;
@@ -669,26 +636,6 @@ bool last_ram_address(uint16_t *ram_end)
 	return false; // No ROM found
 }
 
-// Coalesce regions for cleaner memory map presentation
-void coalesce_regions(architecture_type_t arch, uint decoded_bits)
-{
-	// Copy scan results to coalesced results initially
-	for (uint i = 0; i < NUM_PAGES; i++) {
-		results[i].coalesced = results[i].scan;
-	}
-
-	uint16_t rom_start, rom_end;
-	if (!first_rom_address(&rom_start) || !last_rom_address(&rom_end)) {
-		rom_start = 0xFFFF;
-		rom_end = 0xFFFF;
-	}
-
-	// Mark all the pages between rom_start and rom_end as ROM
-	for (uint32_t addr = rom_start; addr <= rom_end; addr += ENTRY_PAGE_SIZE) {
-		uint16_t page = ADDR_TO_TABLE_INDEX(addr);
-		results[page].coalesced = PAGE_ROM;
-	}
-}
 //--------------------------------------------------------------------+
 // Scan Results Access
 //--------------------------------------------------------------------+
@@ -705,8 +652,7 @@ int count_decoded_address_bits(void)
 		for (int i = 0; i < stride; i++) {
 			for (int j = 0; j < pages; j++) {
 				int page_start = j * stride;
-				if (results[i + page_start].scan !=
-				    results[i + page_start + stride].scan) {
+				if (results[i + page_start] != results[i + page_start + stride]) {
 					return decoded_bits + 1;
 				}
 			}
@@ -726,13 +672,9 @@ void apply_system7_rules(void)
 	if ((page0_entry & ENTRY_FLAG_MASK) == ENTRY_MAPPED_RAM) {
 		memory_map[0x10] = page0_entry;
 	}
-
-	// A15 not decoded: mirror low pages to high
-	for (int i = 0; i < 128; i++) {
-		memory_map[i + 128] = memory_map[i];
-	}
 }
 
+/** Use results[] from scan to build entries in memory_map and ranges in mem_config */
 void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 				printf_func_t printf_func)
 {
@@ -745,22 +687,19 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	uint32_t ram_start = 0xFFFF, ram_end = 0;
 	uint32_t rom_start = 0xFFFF, rom_end = 0;
 
-	if (decoded_bits == 16) {
-		rom_end = 0xFFFF;
-	}
+	uint32_t vectors_end = 0xFFFF >> (16 - decoded_bits);
+	uint max_pages = NUM_PAGES >> (16 - decoded_bits);
 
 	// First pass: determine regions
 	// Only process first aliased section of scan
 	mem_config.decoded_bits = decoded_bits;
 	mem_config.architecture = arch;
-	uint max_pages = NUM_PAGES;
-	max_pages >>= (16 - decoded_bits);
 
 	for (uint page = 0; page < max_pages; page++) {
 		uint32_t addr = TABLE_INDEX_TO_ADDR(page);
-		uint32_t end_addr = addr + 255;
+		uint32_t end_addr = addr + ENTRY_PAGE_SIZE - 1;
 
-		switch (results[page].scan) {
+		switch (results[page]) {
 		case PAGE_RAM:
 		case PAGE_WMS_CMOS:
 			if (addr <= MAX_RAM_SIZE) {
@@ -787,66 +726,72 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 		}
 	}
 
+	if (rom_end < vectors_end) {
+		printf_func("Extending ROM from %04lX to %04lX\r\n", rom_end, vectors_end);
+		rom_end = vectors_end;
+	}
+
 	// Update mem_config
 	if (ram_start != 0xFFFF) {
 		mem_config.ram_base = ram_start;
 		mem_config.ram_size = (ram_end - ram_start) + 1;
+	} else {
+		printf_func("Warning: No RAM detected\r\n");
+		mem_config.ram_base = 0;
+		mem_config.ram_size = 0;
 	}
+
 	if (rom_start != 0xFFFF) {
 		mem_config.rom_base = rom_start;
 		mem_config.rom_size = (rom_end - rom_start) + 1;
+	} else {
+		printf_func("Warning: No ROM detected\r\n");
+		mem_config.rom_base = 0;
+		mem_config.rom_size = 0;
 	}
 
-	// Second pass: build map entries
+	// Second pass: build map entries in memory_map
 	for (uint page = 0; page < max_pages; page++) {
 		uint32_t addr = TABLE_INDEX_TO_ADDR(page);
 
-		switch (results[page].scan) {
+		switch (results[page]) {
 		case PAGE_RAM:
-			setup_ram_mapping(addr);
+			map_as_ram(addr);
 			break;
+
 		case PAGE_ROM:
-			if (addr >= MIN_ROM_ADDRESS) {
-				setup_rom_mapping(addr);
-			}
-			break;
 		case PAGE_EMPTY:
 			// map EMPTY pages in ROM range as ROM
-			if (addr >= rom_start && addr <= rom_end) {
-				setup_rom_mapping(addr);
-			}
+			map_as_rom(addr);
 			break;
+
 		default:
 			// PIA, UNMAPPED stay as ENTRY_UNMAPPED_BUS
 			break;
 		}
 	}
 
+	// Alias upper blocks if necessary
+	// If decoded_bits == 16, all address lines are decoded, no aliasing needed
+	if (decoded_bits < 16) {
+		int num_mirrors = 1 << (16 - decoded_bits); // Number of repeating blocks
+		int stride = NUM_PAGES / num_mirrors;
+
+		for (int block = 0; block < stride; block++) {
+			uint offset = stride;
+			for (int i = 1; i < num_mirrors; i++) {
+				memory_map[block + offset] = memory_map[block];
+				offset += stride;
+			}
+		}
+	}
+
 	// Apply architecture-specific rules
 	if (arch == ARCH_WILLIAMS_SYS7) {
 		apply_system7_rules();
-	} else if (arch == ARCH_WILLIAMS_SYS11) {
-		// System 11 uses full A15 decode, no aliasing needed
-		// ROM is continuous from $4000-$FFFF
-	} else {
-		// Unknown architecture - analyze actual address aliasing from scan results
-		int decoded_bits = count_decoded_address_bits();
-		printf_func("Address decoding: %d bits decoded\r\n", decoded_bits);
-
-		if (decoded_bits < 16) {
-			// Apply mirroring based on detected aliasing
-			int mirror_size =
-				1 << (16 - decoded_bits); // Size of repeating block in pages
-			int num_blocks = NUM_PAGES / mirror_size;
-
-			for (int block = 1; block < num_blocks; block++) {
-				for (int i = 0; i < mirror_size; i++) {
-					memory_map[block * mirror_size + i] = memory_map[i];
-				}
-			}
-		}
-		// If decoded_bits == 16, all address lines are decoded, no mirroring needed
 	}
+
+	memory_print_summary(printf_func);
 }
 
 //--------------------------------------------------------------------+
@@ -876,8 +821,8 @@ bool copy_rom_contents_from_bus(architecture_type_t arch, printf_func_t printf_f
 
 			// Check if this page is actually ROM (skip PIA, etc.)
 			uint16_t page = ADDR_TO_TABLE_INDEX(addr);
-			if (page < NUM_PAGES && results[page].coalesced != PAGE_ROM &&
-			    results[page].coalesced != PAGE_EMPTY) {
+			if (page < NUM_PAGES && results[page] != PAGE_ROM &&
+			    results[page] != PAGE_EMPTY) {
 				// Skip non-ROM pages (PIA, etc.) - leave as 0xFF in flash
 				continue;
 			}
@@ -900,7 +845,7 @@ bool copy_rom_contents_from_bus(architecture_type_t arch, printf_func_t printf_f
 	} else {
 		// For other architectures, only copy pages detected as ROM
 		for (uint page = 0; page < max_pages; page++) {
-			if (results[page].coalesced != PAGE_ROM) {
+			if (results[page] != PAGE_ROM) {
 				continue;
 			}
 
