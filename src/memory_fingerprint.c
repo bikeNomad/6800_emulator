@@ -45,8 +45,7 @@ recognize_architecture(uint *p_decoded_bits); // Determine system architecture f
 void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 				printf_func_t printf_func);
 int count_decoded_address_bits(void);
-bool copy_rom_contents_from_bus(architecture_type_t arch,
-				printf_func_t printf_func); // Copy ROM data from bus to memory
+bool copy_rom_contents_from_bus(printf_func_t printf_func); // Copy ROM data from bus to memory
 
 //--------------------------------------------------------------------+
 // Helper Functions
@@ -497,7 +496,7 @@ bool memory_scan_and_build_map(printf_func_t printf_func)
 	memory_print_summary(printf_func);
 
 	// Copy ROM contents from bus to flash (use coalesced results)
-	if (!copy_rom_contents_from_bus(arch, printf_func)) {
+	if (!copy_rom_contents_from_bus(printf_func)) {
 		printf_func("Warning: Failed to copy ROM contents\r\n");
 		retval = false;
 	} else {
@@ -798,78 +797,30 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 // ROM Copying
 //--------------------------------------------------------------------+
 
-bool copy_rom_contents_from_bus(architecture_type_t arch, printf_func_t printf_func)
+bool copy_rom_contents_from_bus(printf_func_t printf_func)
 {
 	// Clear ROM load buffer first
 	memory_clear_rom_load_buffer();
 
 	uint16_t pages_copied = 0;
 
-	// Determine how many pages to scan based on architecture
-	// For System 11, scan full 64KB address space since A15 is fully decoded
-	// For other systems, only scan low address space to avoid aliases
+	// Copy all pages in the configured ROM range
+	for (uint32_t addr = mem_config.rom_base;
+	     addr < (uint32_t)mem_config.rom_base + mem_config.rom_size; addr += ENTRY_PAGE_SIZE) {
 
-	uint max_pages = (arch == ARCH_WILLIAMS_SYS11) ? NUM_PAGES : 128;
-
-	// For System 11, copy all pages in ROM range since ROM is continuous
-	// For other systems, only copy pages detected as ROM
-	if (arch == ARCH_WILLIAMS_SYS11) {
-		// Copy all pages in the configured ROM range
-		for (uint32_t addr = mem_config.rom_base;
-		     addr < (uint32_t)mem_config.rom_base + mem_config.rom_size;
-		     addr += ENTRY_PAGE_SIZE) {
-
-			// Check if this page is actually ROM (skip PIA, etc.)
-			uint16_t page = ADDR_TO_TABLE_INDEX(addr);
-			if (page < NUM_PAGES && results[page] != PAGE_ROM &&
-			    results[page] != PAGE_EMPTY) {
-				// Skip non-ROM pages (PIA, etc.) - leave as 0xFF in flash
-				continue;
-			}
-
-			// Read 256-byte page from bus
-			uint8_t page_buffer[ENTRY_PAGE_SIZE];
-			for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
-				page_buffer[i] = bus_read_cycle((uint16_t)addr + i);
-				busy_wait_us(3);
-			}
-
-			// Load into ROM buffer using existing function
-			if (memory_load_hex_data((uint16_t)addr, page_buffer, ENTRY_PAGE_SIZE)) {
-				pages_copied++;
-			} else {
-				printf_func("Warning: Failed to load ROM page at $%04X\r\n",
-					    (uint16_t)addr);
-			}
+		// Read 256-byte page from bus
+		uint8_t page_buffer[ENTRY_PAGE_SIZE];
+		for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
+			page_buffer[i] = bus_read_cycle((uint16_t)addr + i);
+			busy_wait_us(3);
 		}
-	} else {
-		// For other architectures, only copy pages detected as ROM
-		for (uint page = 0; page < max_pages; page++) {
-			if (results[page] != PAGE_ROM) {
-				continue;
-			}
 
-			uint16_t addr = TABLE_INDEX_TO_ADDR(page);
-
-			// Only copy if address is in configured ROM range
-			if (addr < mem_config.rom_base ||
-			    addr >= mem_config.rom_base + mem_config.rom_size) {
-				continue;
-			}
-
-			// Read 256-byte page from bus
-			uint8_t page_buffer[ENTRY_PAGE_SIZE];
-			for (uint16_t i = 0; i < ENTRY_PAGE_SIZE; i++) {
-				page_buffer[i] = bus_read_cycle(addr + i);
-				busy_wait_us(3);
-			}
-
-			// Load into ROM buffer using existing function
-			if (memory_load_hex_data(addr, page_buffer, ENTRY_PAGE_SIZE)) {
-				pages_copied++;
-			} else {
-				printf_func("Warning: Failed to load ROM page at $%04X\r\n", addr);
-			}
+		// Load into ROM buffer using existing function
+		if (memory_load_hex_data((uint16_t)addr, page_buffer, ENTRY_PAGE_SIZE)) {
+			pages_copied++;
+		} else {
+			printf_func("Warning: Failed to load ROM page at $%04X\r\n",
+				    (uint16_t)addr);
 		}
 	}
 
