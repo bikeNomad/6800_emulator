@@ -87,8 +87,8 @@ tio /dev/tty.usbmodem14201
 | `reg ccr` | value | Set condition code register |
 | `bus_read` | addr | Read byte from hardware bus |
 | `bus_write` | addr data | Write byte to hardware bus |
-| `bus_read_block` | addr len | Read block from hardware bus |
-| `bus_write_block` | addr data... | Write block to hardware bus |
+| `readb` | addr len | Read block from hardware bus |
+| `writeb` | addr data... | Write block to hardware bus |
 | `bus_info` | none | Show bus configuration |
 | `map show` | none | Show ROM mapping state |
 | `map clear` | none | Clear all ROM mapping |
@@ -101,6 +101,7 @@ tio /dev/tty.usbmodem14201
 | `count on` | none | Enable instruction counting |
 | `count off` | none | Disable instruction counting |
 | `bootloader` | none | Enter UF2 bootloader |
+| `boot` | none | Enter UF2 bootloader (alias) |
 
 ## Command Details
 
@@ -119,17 +120,22 @@ help
 ```
 > help
 MC6800 Emulator Commands:
-  load                      - Load Intel HEX (auto-detects ROM/CMOS)
-  end                       - Exit HEX load mode
+  load                      - Load Intel HEX
+  end                       - End Intel HEX
   config                    - Show memory configuration
   config rom <b> <s>        - Configure ROM region
   config ram <b> <s>        - Configure RAM region
+  checksum <addr> <len>     - Calculate checksum of memory range
   read <addr> <len>         - Read memory
   write <addr> <data>       - Write memory
   status                    - Display CPU status
   run                       - Start CPU execution
-  halt                      - Stop CPU execution (auto-saves CMOS)
-  reset                     - Reset CPU (auto-saves CMOS)
+  halt                      - Stop CPU execution
+  reset                     - Reset CPU
+  count print               - Print instruction execution counts
+  count reset               - Reset instruction execution counts
+  count on                  - Enable instruction counting
+  count off                 - Disable instruction counting
   debug on/off              - Enable/disable SPI debug output
   break <addr>              - Set breakpoint at address
   break clear               - Clear all breakpoints
@@ -143,8 +149,8 @@ MC6800 Emulator Commands:
   reg ccr <val>             - Set condition code register
   bus_read <addr>           - Read byte from hardware bus
   bus_write <addr> <data>   - Write byte to hardware bus
-  bus_read_block <addr> <len> - Read block from hardware bus
-  bus_write_block <addr> <data...> - Write block to hardware bus
+  readb <addr> <len>        - Read block from hardware bus
+  writeb <addr> <data...>   - Write block to hardware bus
   bus_info                  - Show bus configuration
   map show                  - Show ROM mapping state
   map clear                 - Clear all ROM mapping
@@ -152,11 +158,8 @@ MC6800 Emulator Commands:
   copy_roms                 - Copy ROM data from bus to persistent storage
   scan_memory               - Auto-detect and configure memory map
   verify_memory             - Verify memory configuration
-  count print               - Print instruction execution counts
-  count reset               - Reset instruction execution counts
-  count on                  - Enable instruction counting
-  count off                 - Disable instruction counting
   bootloader                - Enter bootloader mode
+  boot                      - Enter bootloader mode (alias)
   help                      - Show this help
 ```
 
@@ -942,6 +945,147 @@ Entering bootloader mode...
 - Or flash new firmware (auto-resets)
 
 **Warning**: This command is irreversible without a power cycle or RESET!
+
+### boot
+
+Enter RP2350 bootloader mode (alias for `bootloader`).
+
+**Syntax**:
+
+```
+boot
+```
+
+**Example**:
+
+```
+> boot
+Entering bootloader mode...
+[Connection lost]
+```
+
+**Notes**:
+
+- Same functionality as `bootloader` command
+- Provided as a shorter alternative
+
+### bus_read
+
+Read byte from hardware bus.
+
+**Syntax**:
+
+```
+bus_read <addr_hex>
+```
+
+**Parameters**:
+
+- `addr_hex`: Address in hexadecimal
+
+**Example**:
+
+```
+> bus_read 5000
+86
+```
+
+**Notes**:
+
+- Reads directly from hardware bus (bypasses mapped memory)
+- Useful for debugging hardware interface
+- E clock is automatically started if needed
+
+### bus_write
+
+Write byte to hardware bus.
+
+**Syntax**:
+
+```
+bus_write <addr_hex> <data_hex>
+```
+
+**Parameters**:
+
+- `addr_hex`: Address in hexadecimal
+- `data_hex`: Data byte in hexadecimal
+
+**Example**:
+
+```
+> bus_write 0100 42
+OK
+```
+
+**Notes**:
+
+- Writes directly to hardware bus (bypasses mapped memory)
+- Useful for debugging hardware interface
+- E clock is automatically started if needed
+
+### readb
+
+Read block from hardware bus.
+
+**Syntax**:
+
+```
+readb <addr_hex> <len_hex>
+```
+
+**Parameters**:
+
+- `addr_hex`: Starting address in hexadecimal
+- `len_hex`: Number of bytes to read in hexadecimal
+
+**Example**:
+
+```
+> readb 5000 40
+Reading $0040 bytes from $5000:
+5000: 86 42 4E FF FF FF FF 7E 50 00 97 10 7E 50 2E 20
+5010: 97 10 7E 50 2E 20 97 10 7E 50 2E 20 AA 01 26 45
+5020: 3D 0E 00 01 86 FF 97 53 97 54 3D 27 58 A7 54 58
+5030: 0E 00 01 86 FF 97 53 97 54 3D 27 58 A7 54 58 0E
+```
+
+**Notes**:
+
+- Reads directly from hardware bus (bypasses mapped memory)
+- Useful for debugging hardware interface
+- E clock is automatically started if needed
+- Maximum length: 1024 bytes per command
+
+### writeb
+
+Write block to hardware bus.
+
+**Syntax**:
+
+```
+writeb <addr_hex> <data_hex...>
+```
+
+**Parameters**:
+
+- `addr_hex`: Starting address in hexadecimal
+- `data_hex...`: Data bytes in hexadecimal (space-separated)
+
+**Example**:
+
+```
+> writeb 0100 DE AD BE EF
+OK
+```
+
+**Notes**:
+
+- Writes directly to hardware bus (bypasses mapped memory)
+- Useful for debugging hardware interface
+- E clock is automatically started if needed
+- Can write multiple bytes in one command
+- Values are truncated to 8 bits
 
 ### scan_memory
 

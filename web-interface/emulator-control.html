@@ -1338,8 +1338,8 @@
         }
 
         try {
-          await this.connection.sendCommand(`bus_read_block ${addr} ${len}`);
-          this.appendTerminal(`> bus_read_block ${addr} ${len}`, 'command');
+          await this.connection.sendCommand(`readb ${addr} ${len}`);
+          this.appendTerminal(`> readb ${addr} ${len}`, 'command');
         } catch (error) {
           this.appendTerminal('Error: ' + error.message, 'error');
         }
