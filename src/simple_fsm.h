@@ -5,18 +5,17 @@
 
 // Simple flat state machine executive in which each state is represented by a
 // separate function that receives a uint8_t "event_type" argument. These events
-// include the following standard events: EVT_ENTER: entry to the state
-// EVT_EXIT: exit from the state
+// include the following standard events:
 // EVT_INIT: initialization of the state machine (must do a transition)
+// EVT_ENTER: entry to the state
+// EVT_EXIT: exit from the state
 // EVT_POLL: called during state
-// EVT_TIMEOUT: timer timeout
 
 typedef enum fsm_standard_event_t {
 	EVT_INIT,
 	EVT_ENTER,
 	EVT_EXIT,
 	EVT_POLL,
-	// EVT_TIMEOUT, // TODO
 	EVT_USER_START // start derived SM events here
 } fsm_standard_event_t;
 
@@ -36,10 +35,6 @@ struct FSM {
 	rx_event_t receive_event;
 	uint8_t last_event_received;
 	char const *current_state_name; // set by GET_NAME(fsm) macro
-					// timer_expires TODO
-					// poll_interval TODO
-					// entered_state TODO
-					// timer TODO
 };
 
 bool fsm_run(FSM *fsm, state_method initial_state);

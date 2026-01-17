@@ -142,9 +142,6 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t data)
 	uint32_t base_address = table_entry & ENTRY_ADDR_MASK;
 	uint8_t *shadow_address = (uint8_t *)(uintptr_t)(base_address + offset);
 	*shadow_address = data;
-	// if (table_entry & ENTRY_WRITE_THROUGH) { // CMOS write-through
-	// 	bus_write_cycle(address, data);
-	// }
 }
 
 // Print a summary of the various memory ranges defined in the memory_map

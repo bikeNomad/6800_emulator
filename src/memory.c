@@ -18,51 +18,18 @@
 #include <stdio.h>
 #include <string.h>
 
-// LED control helper for NED_SYS7 board (active low - 0=on, 1=off)
-// GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (supporting
-// >32 GPIOs)
+// LED control for NED_SYS7 board (active low - 0=on, 1=off)
+// GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (>32 GPIOs)
 #if BOARD_TYPE == BOARD_NED_SYS7
-// LED GPIO values for masked writes: bit positions correspond to GPIO numbers
 #define LED_MASK ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))
-#define LED_ROM_ON                                                                                 \
-	((0ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                         \
-	 (1ULL << GPIO_LED_UNMAPPED)) // ROM=0, others=1
-#define LED_RAM_ON                                                                                 \
-	((1ULL << GPIO_LED_ROM) | (0ULL << GPIO_LED_RAM) |                                         \
-	 (1ULL << GPIO_LED_UNMAPPED)) // RAM=0, others=1
-#define LED_UNMAPPED_ON                                                                            \
-	((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                         \
-	 (0ULL << GPIO_LED_UNMAPPED)) // UNMAPPED=0, others=1
-#define LED_ALL_OFF                                                                                \
-	((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) |                                         \
-	 (1ULL << GPIO_LED_UNMAPPED)) // All LEDs off (all=1)
-
-static inline void led_set_rom(void)
-{
-	gpio_put_masked64(LED_MASK, LED_ROM_ON);
-}
-
-static inline void led_set_ram(void)
-{
-	gpio_put_masked64(LED_MASK, LED_RAM_ON);
-}
-
-static inline void led_set_unmapped(void)
-{
-	gpio_put_masked64(LED_MASK, LED_UNMAPPED_ON);
-}
-
-static inline void led_all_off_inline(void)
-{
-	gpio_put_masked64(LED_MASK, LED_ALL_OFF);
-}
+#define LED_ALL_OFF (LED_MASK) // All LEDs off (all bits = 1)
 #endif
 
 // Public function to turn off all LEDs (for use outside memory.c)
 void led_all_off(void)
 {
 #if BOARD_TYPE == BOARD_NED_SYS7
-	led_all_off_inline();
+	gpio_put_masked64(LED_MASK, LED_ALL_OFF);
 #endif
 }
 

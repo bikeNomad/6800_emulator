@@ -25,10 +25,11 @@ static inline uint32_t address_to_gpio(uint16_t addr)
 #else // BOARD_PICO2
 #define WRITE_PINDIRS 0x00000000UL
 #define READ_PINDIRS  0xFFFFFF00UL
-// We're only using 7 address lines (A0,A1,A10-A14), so mask out the rest
+// We're only using 7 address lines (A0,A1,A10-A14), so mask out the rest.
+// Simple shift works because GPIO 8-14 map directly to these address bits.
 static inline uint32_t address_to_gpio(uint16_t addr)
 {
-	return addr << 8; // TODO
+	return addr << 8;
 }
 #endif
 #define DATA_MASK 0x000000FFUL
@@ -205,45 +206,37 @@ void __time_critical_func(bus_write_cycle_pio)(uint16_t address, uint8_t data)
 	pio_sm_put_blocking(BUS_PIO, CYCLE_SM, address_to_gpio(address) | (uint32_t)data);
 }
 
+// Helper macro to temporarily start E clock if needed, execute body, then restore
+#define WITH_ECLOCK(body) do { \
+	bool was_running = eclock_is_running(); \
+	if (!was_running) { \
+		eclock_start(); \
+	} \
+	body \
+	if (!was_running) { \
+		eclock_stop(); \
+	} \
+} while(0)
+
 // Helper functions for bus operations with E clock management
 void __time_critical_func(bus_read_block_with_eclock)(uint16_t address, uint16_t length,
 						      uint8_t *buffer)
 {
-	// Temporarily start E clock if needed
-	bool was_running = eclock_is_running();
-	if (!was_running) {
-		eclock_start();
-	}
-
-	// Read block of data
-	for (uint16_t i = 0; i < length; i++) {
-		buffer[i] = bus_read_cycle(address + i);
-		busy_wait_us(3);
-	}
-
-	// Stop E clock if we started it
-	if (!was_running) {
-		eclock_stop();
-	}
+	WITH_ECLOCK({
+		for (uint16_t i = 0; i < length; i++) {
+			buffer[i] = bus_read_cycle(address + i);
+			busy_wait_us(3);
+		}
+	});
 }
 
 void __time_critical_func(bus_write_block_with_eclock)(uint16_t address, const uint8_t *buffer,
 						       uint16_t length)
 {
-	// Temporarily start E clock if needed
-	bool was_running = eclock_is_running();
-	if (!was_running) {
-		eclock_start();
-	}
-
-	// Write block of data
-	for (uint16_t i = 0; i < length; i++) {
-		bus_write_cycle(address + i, buffer[i]);
-		busy_wait_us(3);
-	}
-
-	// Stop E clock if we started it
-	if (!was_running) {
-		eclock_stop();
-	}
+	WITH_ECLOCK({
+		for (uint16_t i = 0; i < length; i++) {
+			bus_write_cycle(address + i, buffer[i]);
+			busy_wait_us(3);
+		}
+	});
 }
