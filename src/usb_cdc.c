@@ -27,7 +27,7 @@ static uint32_t cmd_pos = 0;
 static bool in_hex_mode = false;
 
 // HEX data buffer
-#define HEX_BUFFER_SIZE 32768
+#define HEX_BUFFER_SIZE (131072)
 static char hex_buffer[HEX_BUFFER_SIZE];
 static uint32_t hex_pos = 0;
 
