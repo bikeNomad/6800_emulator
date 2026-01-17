@@ -759,9 +759,14 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 			break;
 
 		case PAGE_ROM:
+			map_as_rom(addr);
+			break;
+
 		case PAGE_EMPTY:
 			// map EMPTY pages in ROM range as ROM
-			map_as_rom(addr);
+			if (addr >= rom_start && addr <= rom_end) {
+				map_as_rom(addr);
+			}
 			break;
 
 		default:
@@ -789,8 +794,6 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	if (arch == ARCH_WILLIAMS_SYS7) {
 		apply_system7_rules();
 	}
-
-	memory_print_summary(printf_func);
 }
 
 //--------------------------------------------------------------------+

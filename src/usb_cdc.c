@@ -65,7 +65,7 @@ bool send_command_to_emulator(sm_event_t event)
 	sm_notification_t notification;
 	printf("sending event %d (%s) to emulator\r\n", event, event_names[event]);
 	if (!post_sm_event(event)) {
-		printf("ERROR: Failed to send command to emulator\r\n");
+		usb_cdc_send("ERROR: Failed to send command to emulator\r\n");
 		return false; // queue full
 	}
 	uint32_t tries = 0;
@@ -73,7 +73,7 @@ bool send_command_to_emulator(sm_event_t event)
 		sleep_ms(1);
 		tries++;
 		if (tries > 100) {
-			printf("Timeout waiting for notification after event %d\n", event);
+			usb_cdc_printf("Timeout waiting for notification after event %d\n", event);
 			return false;
 		}
 	}
@@ -151,7 +151,6 @@ void init_temperature_sensor(void)
 static void cmd_load(void)
 {
 	if (!send_command_to_emulator(EV_CMD_LOAD)) {
-		usb_cdc_send("ERROR: Failed to load image\r\n");
 		return;
 	}
 	// Enter HEX load mode
@@ -226,7 +225,6 @@ static void cmd_run(void)
 {
 	// Start CPU execution
 	if (!send_command_to_emulator(EV_CMD_RUN)) {
-		usb_cdc_send("ERROR: Failed to start CPU\r\n");
 		return;
 	}
 	usb_cdc_send("OK: CPU started\r\n");
@@ -236,7 +234,6 @@ static void cmd_halt(void)
 {
 	// Stop CPU execution
 	if (!send_command_to_emulator(EV_CMD_HALT)) {
-		usb_cdc_send("ERROR: Failed to halt CPU\r\n");
 		return;
 	}
 	usb_cdc_send("OK: CPU halted\r\n");
@@ -245,7 +242,6 @@ static void cmd_halt(void)
 static void cmd_reset(void)
 {
 	if (!send_command_to_emulator(EV_CMD_RESET)) {
-		usb_cdc_send("ERROR: Failed to reset CPU\r\n");
 		return;
 	}
 	usb_cdc_send("OK: CPU reset\r\n");
@@ -889,11 +885,8 @@ static void cmd_scan_memory(void)
 	// Scan memory and auto-configure memory map
 	usb_cdc_send("Scanning target system memory...\r\n");
 
+	send_command_to_emulator(EV_CMD_HALT);
 	if (memory_scan_and_build_map(printf)) {
-		// Print scan results (use coalesced results for System 11)
-		printf("\r\nScan Results:\r\n");
-		print_scan_results(printf);
-
 		// Show configuration
 		usb_cdc_printf("\r\nMemory Configuration:\r\n");
 		usb_cdc_printf("  ROM: $%04X-$%04X (%d bytes)\r\n", mem_config.rom_base,
@@ -907,6 +900,8 @@ static void cmd_scan_memory(void)
 		usb_cdc_send("Configuration will be used automatically on next boot.\r\n");
 		usb_cdc_send("Target system can now be removed - emulator will run from stored "
 			     "ROM.\r\n");
+
+		send_command_to_emulator(EV_CMD_RESET);
 	} else {
 		usb_cdc_send("ERROR: Failed to scan memory\r\n");
 	}
@@ -1044,7 +1039,7 @@ static const command_entry_t command_table[] = {
 	{"bus_write", cmd_bus_write, true, true},    // needs <addr> <data>
 	{"bus_read", cmd_bus_read, true, true},      // needs <addr>
 	{"bus_info", cmd_bus_info, false, false},
-	{"scan_memory", cmd_scan_memory, false, true},
+	{"scan_memory", cmd_scan_memory, false, false},
 	{"verify_memory", cmd_verify_memory, false, true},
 	{"help", cmd_help, false, false},
 	{NULL, NULL, false, false} // Terminator
