@@ -786,6 +786,9 @@
           throw new Error('Start address required for binary file');
         }
 
+        // Check for data duplication and truncate if necessary
+        binData = this.checkAndTruncateDuplication(binData);
+
         // Convert to Intel HEX
         const hexData = this.binaryToIntelHex(binData, startAddr);
 
@@ -807,6 +810,39 @@
           17: 0x7000
         };
         return mappings[icNumber] || null;
+      }
+
+      checkAndTruncateDuplication(binData) {
+        // Check if ROM data has duplication (second half identical to first half).
+        // If so, return only the first half. Otherwise return original data.
+        const dataLen = binData.length;
+
+        // Check if data length is even and at least 2 bytes
+        if (dataLen < 2 || dataLen % 2 !== 0) {
+          return binData;
+        }
+
+        // Split into two halves
+        const halfLen = dataLen / 2;
+        const firstHalf = binData.slice(0, halfLen);
+        const secondHalf = binData.slice(halfLen);
+
+        // Check if second half is identical to first half
+        let isIdentical = true;
+        for (let i = 0; i < halfLen; i++) {
+          if (firstHalf[i] !== secondHalf[i]) {
+            isIdentical = false;
+            break;
+          }
+        }
+
+        if (isIdentical) {
+          console.log('Detected data duplication: second half identical to first half');
+          console.log(`Truncating from ${dataLen} to ${halfLen} bytes`);
+          return firstHalf;
+        }
+
+        return binData;
       }
 
       binaryToIntelHex(binData, startAddress) {
