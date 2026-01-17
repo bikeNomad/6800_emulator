@@ -73,7 +73,8 @@ bool send_command_to_emulator(sm_event_t event)
 		sleep_ms(1);
 		tries++;
 		if (tries > 100) {
-			usb_cdc_printf("Timeout waiting for notification after event %d\n", event);
+			usb_cdc_printf("Timeout waiting for notification after event %d\r\n",
+				       event);
 			return false;
 		}
 	}
@@ -190,7 +191,7 @@ static void cmd_map_rom(void)
 	// Configure ROM region: config rom <base> <size>
 	// Expects tokens: [config] [rom] <base> <size>
 	if (cmd_token_count < 2) {
-		usb_cdc_send("ERROR: Usage: config rom <base_hex> <size_hex>\r\n");
+		usb_cdc_send("ERROR: Usage: map rom <base_hex> <size_hex>\r\n");
 		return;
 	}
 
@@ -199,7 +200,7 @@ static void cmd_map_rom(void)
 		memory_configure_rom(base, size);
 		usb_cdc_printf("OK: ROM configured at $%04X, size $%04X\r\n", base, size);
 	} else {
-		usb_cdc_send("ERROR: Usage: config rom <base_hex> <size_hex>\r\n");
+		usb_cdc_send("ERROR: Usage: map rom <base_hex> <size_hex>\r\n");
 	}
 }
 
@@ -208,7 +209,7 @@ static void cmd_map_ram(void)
 	// Configure RAM region: config ram <base> <size>
 	// Expects tokens: [config] [ram] <base> <size>
 	if (cmd_token_count < 2) {
-		usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
+		usb_cdc_send("ERROR: Usage: map ram <base_hex> <size_hex>\r\n");
 		return;
 	}
 
@@ -217,7 +218,7 @@ static void cmd_map_ram(void)
 		memory_configure_ram(base, size);
 		usb_cdc_printf("OK: RAM configured at $%04X, size $%04X\r\n", base, size);
 	} else {
-		usb_cdc_send("ERROR: Usage: config ram <base_hex> <size_hex>\r\n");
+		usb_cdc_send("ERROR: Usage: map ram <base_hex> <size_hex>\r\n");
 	}
 }
 
@@ -1009,7 +1010,7 @@ static const command_entry_t command_table[] = {
 	{"reg sp", cmd_reg_sp, true, true},   // needs <value>
 	{"reg ccr", cmd_reg_ccr, true, true}, // needs <value>
 	{"map show", cmd_map_show, false, false},
-	{"map clear", cmd_map_clear, false, true},
+	{"map clear", cmd_map_clear, false, false},
 	{"map ram", cmd_map_ram, true, true}, // needs <base> <size>
 	{"map rom", cmd_map_rom, true, true}, // needs <base> <size>
 

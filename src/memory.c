@@ -21,7 +21,7 @@
 // LED control for NED_SYS7 board (active low - 0=on, 1=off)
 // GPIO 37-39 are LED pins, use gpio_put_masked64 for atomic updates (>32 GPIOs)
 #if BOARD_TYPE == BOARD_NED_SYS7
-#define LED_MASK ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))
+#define LED_MASK    ((1ULL << GPIO_LED_ROM) | (1ULL << GPIO_LED_RAM) | (1ULL << GPIO_LED_UNMAPPED))
 #define LED_ALL_OFF (LED_MASK) // All LEDs off (all bits = 1)
 #endif
 
@@ -96,6 +96,9 @@ void memory_configure_rom(uint16_t base, uint16_t size)
 
 	memory_update_map();
 
+	// Save updated memory map to flash
+	memory_save_memory_map_to_flash();
+
 	printf("ROM configured: $%04X-$%04X (%d bytes)\n", base, base + size - 1, size);
 }
 
@@ -114,6 +117,9 @@ void memory_configure_ram(uint16_t base, uint16_t size)
 	memset(ram_shadow, 0, size);
 
 	memory_update_map();
+
+	// Save updated memory map to flash
+	memory_save_memory_map_to_flash();
 
 	memory_read_ram_from_bus();
 

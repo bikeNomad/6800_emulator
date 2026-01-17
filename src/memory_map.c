@@ -328,7 +328,7 @@ void memory_clear_rom_mapping(void)
 	     address += ENTRY_PAGE_SIZE) {
 		uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
 
-		if (memory_map[table_index] == ENTRY_MAPPED_ROM) {
+		if ((memory_map[table_index] & ENTRY_FLAG_MASK) == ENTRY_MAPPED_ROM) {
 			// Set to unmapped (route to bus)
 			memory_map[table_index] = ENTRY_UNMAPPED_BUS;
 		}
