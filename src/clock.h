@@ -44,6 +44,10 @@ eclock_mode_t eclock_get_mode(void);
 // Must be called when E clock is stopped
 void eclock_set_mode(eclock_mode_t mode);
 
+// Auto-detect external E clock at startup
+// Returns true if external clock detected, false if using internal
+bool eclock_auto_detect(void);
+
 static inline bool eclock_is_running(void)
 {
 	return ECLK_PIO->ctrl & ((1 << E_SM) << PIO_CTRL_SM_ENABLE_LSB);

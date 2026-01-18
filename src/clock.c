@@ -6,6 +6,7 @@
 #include "cpu_state.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
+#include "pico/time.h"
 #include <stdio.h>
 
 // PIO instance and state machine
@@ -130,4 +131,46 @@ void eclock_set_mode(eclock_mode_t mode)
 	// Reset the cycle counter
 	eclock_reset_pio_counter();
 	last_pio_cycles = 0;
+}
+
+// Auto-detect external E clock at startup
+// Returns true if external clock detected, false if using internal
+bool eclock_auto_detect(void)
+{
+	// Detection parameters
+	const uint32_t detection_window_us = 100;  // 100µs window
+	const uint32_t min_cycles_threshold = 10;  // Minimum cycles to consider valid
+
+	// Ensure we start stopped
+	if (eclock_is_running()) {
+		eclock_stop();
+	}
+
+	// Configure for external clock detection
+	eclock_set_mode(ECLOCK_EXTERNAL);
+	eclock_reset_pio_counter();
+
+	// Start counting external clock edges
+	pio_sm_set_enabled(ECLK_PIO, E_SM, true);
+
+	// Wait for detection window
+	busy_wait_us(detection_window_us);
+
+	// Read cycle count and stop
+	uint32_t cycles = eclock_get_pio_cycles();
+	pio_sm_set_enabled(ECLK_PIO, E_SM, false);
+
+	// Decide based on detected cycles
+	if (cycles >= min_cycles_threshold) {
+		// External clock detected - stay in external mode
+		printf("External E clock detected (%lu cycles in %luµs)\r\n",
+		       cycles, detection_window_us);
+		eclock_reset_pio_counter();
+		return true;
+	} else {
+		// No external clock - switch to internal
+		printf("No external E clock detected, using internal\r\n");
+		eclock_set_mode(ECLOCK_INTERNAL);
+		return false;
+	}
 }

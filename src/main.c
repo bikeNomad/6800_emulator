@@ -122,6 +122,7 @@ int main()
 
 	printf("Initializing E clock...\r\n");
 	eclock_init();
+	eclock_auto_detect();
 	// Note: E clock will be started by cpu_start() when user runs 'run' command
 
 	printf("Initializing PIO bus cycles...\r\n");
