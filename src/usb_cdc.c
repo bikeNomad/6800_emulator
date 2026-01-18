@@ -270,6 +270,26 @@ static void cmd_debug_off(void)
 	usb_cdc_send("OK: Debug SPI disabled\r\n");
 }
 
+static void cmd_clock_internal(void)
+{
+	if (eclock_is_running()) {
+		usb_cdc_send("ERROR: Stop CPU first (halt command)\r\n");
+		return;
+	}
+	eclock_set_mode(ECLOCK_INTERNAL);
+	usb_cdc_send("OK: E clock set to internal (PIO generated)\r\n");
+}
+
+static void cmd_clock_external(void)
+{
+	if (eclock_is_running()) {
+		usb_cdc_send("ERROR: Stop CPU first (halt command)\r\n");
+		return;
+	}
+	eclock_set_mode(ECLOCK_EXTERNAL);
+	usb_cdc_send("OK: E clock set to external (input from target)\r\n");
+}
+
 static void cmd_bus_info(void)
 {
 	// Bus information
@@ -351,9 +371,9 @@ static void cmd_status(void)
 	if (bus_read_irq()) {
 		usb_cdc_printf("  /IRQ Pin asserted\r\n");
 	}
-	if (!eclock_is_running()) {
-		usb_cdc_printf("  E Clock is stopped\r\n");
-	}
+	usb_cdc_printf("  E Clock: %s (%s)\r\n",
+		       eclock_is_running() ? "running" : "stopped",
+		       eclock_get_mode() == ECLOCK_INTERNAL ? "internal" : "external");
 }
 
 static void cmd_read(void)
@@ -961,6 +981,8 @@ static void cmd_help(void)
 		     "  count off                 - Disable instruction counting\r\n"
 #endif
 		     "  debug on/off              - Enable/disable SPI debug output\r\n"
+		     "  clock internal            - Use PIO-generated E clock (default)\r\n"
+		     "  clock external            - Use external E clock input\r\n"
 		     "  break <addr>              - Set breakpoint at address\r\n"
 		     "  break clear               - Clear all breakpoints\r\n"
 		     "  break clear <addr>        - Clear specific breakpoint\r\n"
@@ -1001,6 +1023,8 @@ static const command_entry_t command_table[] = {
 	// Two-word commands (require exact match of first two tokens)
 	{"debug on", cmd_debug_on, false, false},
 	{"debug off", cmd_debug_off, false, false},
+	{"clock internal", cmd_clock_internal, false, false},
+	{"clock external", cmd_clock_external, false, false},
 	{"break clear", cmd_break_clear, true, false}, // needs optional <addr>
 	{"break list", cmd_break_list, false, false},
 	{"reg pc", cmd_reg_pc, true, true},   // needs <value>

@@ -76,6 +76,8 @@ tio /dev/tty.usbmodem14201
 | `reset` | none | Reset CPU |
 | `debug on` | none | Enable SPI debug output |
 | `debug off` | none | Disable SPI debug output |
+| `clock internal` | none | Use PIO-generated E clock (default) |
+| `clock external` | none | Use external E clock input |
 | `break` | addr | Set breakpoint |
 | `break clear` | [addr] | Clear breakpoint(s) |
 | `break list` | none | List breakpoints |
@@ -137,6 +139,8 @@ MC6800 Emulator Commands:
   count on                  - Enable instruction counting
   count off                 - Disable instruction counting
   debug on/off              - Enable/disable SPI debug output
+  clock internal            - Use PIO-generated E clock (default)
+  clock external            - Use external E clock input
   break <addr>              - Set breakpoint at address
   break clear               - Clear all breakpoints
   break clear <addr>        - Clear specific breakpoint
@@ -511,7 +515,7 @@ CPU Status:
   Speed ratio: 1.75x
   Speed: 0.9999x real-time
   QSPI Bus: 133 MHz (divisor: 2)
-  E Clock is stopped
+  E Clock: running (internal)
 ```
 
 **CCR Flags**:
@@ -684,6 +688,59 @@ OK: Debug SPI disabled
 
 - Disables SPI debug output to improve performance
 - Debug output is disabled by default
+
+### clock internal
+
+Set E clock to internal mode (PIO-generated). This is the default mode where the emulator generates the E clock signal.
+
+**Syntax**:
+
+```
+clock internal
+```
+
+**Example**:
+
+```
+> clock internal
+OK: E clock set to internal (PIO generated)
+```
+
+**Notes**:
+
+- CPU must be halted before changing clock mode
+- This is the default mode on startup
+- E clock pin is configured as output
+- PIO generates precise 0.894886 MHz clock (3.579545 MHz / 4)
+
+### clock external
+
+Set E clock to external mode (input from target system). Use this when the target system provides its own E clock.
+
+**Syntax**:
+
+```
+clock external
+```
+
+**Example**:
+
+```
+> halt
+OK: CPU halted
+> clock external
+OK: E clock set to external (input from target)
+> run
+OK: CPU started
+```
+
+**Notes**:
+
+- CPU must be halted before changing clock mode
+- E clock pin is configured as input
+- Emulator synchronizes to external clock edges
+- Useful for testing with real hardware clock source
+- Cycle counting still works (counts external clock edges)
 
 ### break
 

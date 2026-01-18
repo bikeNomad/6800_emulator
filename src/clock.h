@@ -15,6 +15,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+// E clock mode selection
+typedef enum {
+	ECLOCK_INTERNAL,  // PIO generates E clock (output)
+	ECLOCK_EXTERNAL   // External E clock source (input)
+} eclock_mode_t;
+
 // Global cycle counters (non-volatile for performance - not accessed by ISRs)
 extern uint32_t cycle_count;
 extern uint32_t pending_cycles;
@@ -30,6 +36,13 @@ void eclock_start(void);
 
 // Stop E clock generation
 bool eclock_stop(void);
+
+// Get current E clock mode
+eclock_mode_t eclock_get_mode(void);
+
+// Set E clock mode (internal or external)
+// Must be called when E clock is stopped
+void eclock_set_mode(eclock_mode_t mode);
 
 static inline bool eclock_is_running(void)
 {

@@ -1,6 +1,7 @@
 ; PIO program to generate E clock for MC6800 emulator
 ; Target frequency: 3.579545 MHz / 4 = 0.894886 MHz
 ; Period: 1.117µs (approximately 560ns high, 560ns low)
+; Single OUT pin is E clock
 
 .program eclock
 
@@ -42,6 +43,29 @@ next_edge:
     jmp x--, next_edge  ; another edge if X>0
 
     push                ; signal done
+.wrap
+
+
+; Program to count external E clock cycles (falling edges)
+; Single IN pin is E clock (directly tied to target system's E clock)
+; Provides cycle count via rxfifo[0] (same interface as eclock program)
+
+.program eclock_external
+
+.fifo txput             ; Enable rxf_putget registers for direct FIFO access
+
+entry_point:
+    mov x, ~null        ; Initialize X to 0xFFFFFFFF (count down)
+    mov isr, x          ; Move X to ISR
+    mov rxfifo[0], isr  ; Initialize counter in rxfifo[0]
+
+.wrap_target
+    wait 1 pin 0        ; Wait for E clock HIGH
+    wait 0 pin 0        ; Wait for E clock LOW (falling edge)
+    jmp x-- continue    ; Decrement X
+continue:
+    mov isr, x          ; Move X to ISR
+    mov rxfifo[0], isr  ; Update cycle count
 .wrap
 
 
@@ -94,6 +118,26 @@ static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_p
 
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void eclock_external_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    // Configure pin as PIO INPUT (external clock source)
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);  // false = input
+
+    // Get default configuration
+    pio_sm_config c = eclock_external_program_get_default_config(offset);
+
+    // Configure IN pin for wait instructions
+    sm_config_set_in_pins(&c, pin);
+
+    // Run at full system clock speed to catch all edges
+    sm_config_set_clkdiv_int_frac(&c, 1, 0);
+
+    // Initialize state machine
+    pio_sm_init(pio, sm, offset, &c);
+    // Stop immediately (will be started later)
+    pio_sm_set_enabled(pio, sm, false);
 }
 
 %}
