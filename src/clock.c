@@ -138,8 +138,8 @@ void eclock_set_mode(eclock_mode_t mode)
 bool eclock_auto_detect(void)
 {
 	// Detection parameters
-	const uint32_t detection_window_us = 100;  // 100µs window
-	const uint32_t min_cycles_threshold = 10;  // Minimum cycles to consider valid
+	const uint32_t detection_window_us = 100; // 100µs window
+	const uint32_t min_cycles_threshold = 10; // Minimum cycles to consider valid
 
 	// Ensure we start stopped
 	if (eclock_is_running()) {
@@ -160,11 +160,13 @@ bool eclock_auto_detect(void)
 	uint32_t cycles = eclock_get_pio_cycles();
 	pio_sm_set_enabled(ECLK_PIO, E_SM, false);
 
+	printf("External E clock detection: (%lu cycles in %luµs)\r\n", cycles,
+	       detection_window_us);
+
 	// Decide based on detected cycles
 	if (cycles >= min_cycles_threshold) {
 		// External clock detected - stay in external mode
-		printf("External E clock detected (%lu cycles in %luµs)\r\n",
-		       cycles, detection_window_us);
+		printf("External E clock detected\r\n");
 		eclock_reset_pio_counter();
 		return true;
 	} else {
