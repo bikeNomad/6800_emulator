@@ -934,10 +934,12 @@ static void cmd_map_show(void)
 	memory_load_memory_map_from_flash();
 
 	// Display memory mapping state with contiguous ranges
-	usb_cdc_send("Memory Map:\r\n");
+	// Only show unique address space based on decoded bits
+	uint32_t end_addr = (1 << mem_config.decoded_bits) - 1;
+	usb_cdc_printf("Memory Map ($0000-$%04lX, %d bits decoded):\r\n", end_addr,
+		       mem_config.decoded_bits);
 
 	uint32_t current_addr = 0x0000;
-	uint32_t end_addr = 0xFFFF;
 
 	while (current_addr <= end_addr) {
 		memory_type_t type = memory_get_type((uint16_t)current_addr);
