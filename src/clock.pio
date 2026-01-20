@@ -47,7 +47,8 @@ next_edge:
 
 
 ; Program to count external E clock cycles (falling edges)
-; Single IN pin is E clock (directly tied to target system's E clock)
+; IN pin is external E clock input (GPIO_ECLOCK_IN)
+; SET pin is E clock output (GPIO_ECLOCK) - mirrors input for bus_cycle PIO
 ; Provides cycle count via rxfifo[0] (same interface as eclock program)
 
 .program eclock_external
@@ -60,8 +61,10 @@ entry_point:
     mov rxfifo[0], isr  ; Initialize counter in rxfifo[0]
 
 .wrap_target
-    wait 1 pin 0        ; Wait for E clock HIGH
-    wait 0 pin 0        ; Wait for E clock LOW (falling edge)
+    wait 1 pin 0        ; Wait for E clock input HIGH
+    set pins, 1         ; Mirror HIGH to output
+    wait 0 pin 0        ; Wait for E clock input LOW (falling edge)
+    set pins, 0         ; Mirror LOW to output
     jmp x-- continue    ; Decrement X
 continue:
     mov isr, x          ; Move X to ISR
@@ -120,16 +123,25 @@ static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_p
     pio_sm_set_enabled(pio, sm, true);
 }
 
-static inline void eclock_external_program_init(PIO pio, uint sm, uint offset, uint pin) {
-    // Configure pin as PIO INPUT (external clock source)
-    pio_gpio_init(pio, pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);  // false = input
+static inline void eclock_external_program_init(PIO pio, uint sm, uint offset, uint out_pin, uint in_pin) {
+    // Configure output pin (GPIO_ECLOCK) as PIO output - mirrors external clock
+    // so bus_cycle PIO can still synchronize to it
+    pio_gpio_init(pio, out_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, out_pin, 1, true);  // true = output
+
+    // Configure input pin (GPIO_ECLOCK_IN) for reading external clock
+    gpio_init(in_pin);
+    gpio_set_dir(in_pin, GPIO_IN);
+    gpio_set_input_enabled(in_pin, true);
 
     // Get default configuration
     pio_sm_config c = eclock_external_program_get_default_config(offset);
 
-    // Configure IN pin for wait instructions
-    sm_config_set_in_pins(&c, pin);
+    // Configure SET pin for clock output (mirrors external clock)
+    sm_config_set_set_pins(&c, out_pin, 1);
+
+    // Configure IN pin for wait instructions - use the dedicated input pin
+    sm_config_set_in_pins(&c, in_pin);
 
     // Run at full system clock speed to catch all edges
     sm_config_set_clkdiv_int_frac(&c, 1, 0);

@@ -9,6 +9,10 @@
 #include "debug_spi.h"
 #include "emulator.h"
 #include "hardware/clocks.h"
+#include "hardware/gpio.h"
+#include "hardware/structs/iobank0.h"
+#include "hardware/structs/padsbank0.h"
+#include "pico/time.h"
 #include "ihex_parser.h"
 #include "instructions.h"
 #include "interrupts.h"
@@ -288,6 +292,107 @@ static void cmd_clock_external(void)
 	}
 	eclock_set_mode(ECLOCK_EXTERNAL);
 	usb_cdc_send("OK: E clock set to external (input from target)\r\n");
+}
+
+static void cmd_clock_test(void)
+{
+	if (eclock_is_running()) {
+		usb_cdc_send("ERROR: Stop CPU first (halt command)\r\n");
+		return;
+	}
+
+	usb_cdc_printf("E clock output GPIO: %d\r\n", GPIO_ECLOCK);
+	usb_cdc_printf("E clock input GPIO:  %d\r\n", GPIO_ECLOCK_IN);
+	usb_cdc_printf("Current mode: %s\r\n",
+		       eclock_get_mode() == ECLOCK_INTERNAL ? "internal" : "external");
+
+	// Test 1: Direct GPIO sampling on GPIO_ECLOCK (through level shifter)
+	usb_cdc_send("\r\nTest 1: GPIO_ECLOCK (output pin) sampling...\r\n");
+
+	gpio_init(GPIO_ECLOCK);
+	gpio_set_dir(GPIO_ECLOCK, GPIO_IN);
+	gpio_set_input_enabled(GPIO_ECLOCK, true);
+	gpio_set_pulls(GPIO_ECLOCK, false, false);
+
+	usb_cdc_printf("  GPIO%d CTRL: 0x%08lX\r\n", GPIO_ECLOCK,
+		       iobank0_hw->io[GPIO_ECLOCK].ctrl);
+	usb_cdc_printf("  PAD CTRL: 0x%08lX\r\n",
+		       padsbank0_hw->io[GPIO_ECLOCK]);
+
+	uint32_t transitions = 0;
+	bool last_state = gpio_get(GPIO_ECLOCK);
+	absolute_time_t end_time = make_timeout_time_us(100);
+
+	while (!time_reached(end_time)) {
+		bool state = gpio_get(GPIO_ECLOCK);
+		if (state != last_state) {
+			transitions++;
+			last_state = state;
+		}
+	}
+	usb_cdc_printf("  Transitions in 100us: %lu (expected ~178)\r\n", transitions);
+
+	// Test 2: Direct GPIO sampling on GPIO_ECLOCK_IN (direct input)
+	usb_cdc_send("\r\nTest 2: GPIO_ECLOCK_IN (input pin) sampling...\r\n");
+
+	gpio_init(GPIO_ECLOCK_IN);
+	gpio_set_dir(GPIO_ECLOCK_IN, GPIO_IN);
+	gpio_set_input_enabled(GPIO_ECLOCK_IN, true);
+	gpio_set_pulls(GPIO_ECLOCK_IN, false, false);
+
+	usb_cdc_printf("  GPIO%d CTRL: 0x%08lX\r\n", GPIO_ECLOCK_IN,
+		       iobank0_hw->io[GPIO_ECLOCK_IN].ctrl);
+	usb_cdc_printf("  PAD CTRL: 0x%08lX\r\n",
+		       padsbank0_hw->io[GPIO_ECLOCK_IN]);
+
+	transitions = 0;
+	last_state = gpio_get(GPIO_ECLOCK_IN);
+	end_time = make_timeout_time_us(100);
+
+	while (!time_reached(end_time)) {
+		bool state = gpio_get(GPIO_ECLOCK_IN);
+		if (state != last_state) {
+			transitions++;
+			last_state = state;
+		}
+	}
+	usb_cdc_printf("  Transitions in 100us: %lu (expected ~178)\r\n", transitions);
+
+	// Test 3: PIO external clock counting using GPIO_ECLOCK_IN
+	usb_cdc_send("\r\nTest 3: PIO external clock program (100us window)...\r\n");
+
+	// Save current mode and switch to external
+	eclock_mode_t saved_mode = eclock_get_mode();
+	eclock_set_mode(ECLOCK_EXTERNAL);
+	eclock_reset_pio_counter();
+
+	// Read initial value
+	uint32_t initial = eclock_get_pio_cycles();
+	usb_cdc_printf("  Initial PIO cycle count: %lu\r\n", initial);
+
+	// Start PIO and wait
+	pio_sm_set_enabled(ECLK_PIO, E_SM, true);
+	busy_wait_us(100);
+
+	// Read final value
+	uint32_t final = eclock_get_pio_cycles();
+	pio_sm_set_enabled(ECLK_PIO, E_SM, false);
+
+	usb_cdc_printf("  Final PIO cycle count: %lu\r\n", final);
+	usb_cdc_printf("  Cycles counted: %lu\r\n", final - initial);
+	usb_cdc_printf("  Expected at 894kHz: ~89 cycles\r\n");
+
+	// Test 4: Check PIO state machine state
+	usb_cdc_send("\r\nTest 4: PIO state machine debug info...\r\n");
+	usb_cdc_printf("  PIO SM enabled: %s\r\n",
+		       (ECLK_PIO->ctrl & (1 << E_SM)) ? "yes" : "no");
+	usb_cdc_printf("  PIO FSTAT: 0x%08lX\r\n", ECLK_PIO->fstat);
+	usb_cdc_printf("  PIO FDEBUG: 0x%08lX\r\n", ECLK_PIO->fdebug);
+
+	// Restore original mode
+	eclock_set_mode(saved_mode);
+
+	usb_cdc_send("\r\nTest complete.\r\n");
 }
 
 static void cmd_bus_info(void)
@@ -1025,6 +1130,7 @@ static const command_entry_t command_table[] = {
 	{"debug off", cmd_debug_off, false, false},
 	{"clock internal", cmd_clock_internal, false, false},
 	{"clock external", cmd_clock_external, false, false},
+	{"clock test", cmd_clock_test, false, false},
 	{"break clear", cmd_break_clear, true, false}, // needs optional <addr>
 	{"break list", cmd_break_list, false, false},
 	{"reg pc", cmd_reg_pc, true, true},   // needs <value>

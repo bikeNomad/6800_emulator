@@ -124,9 +124,13 @@ void eclock_set_mode(eclock_mode_t mode)
 		// Reinitialize for internal clock generation (output)
 		eclock_program_init(ECLK_PIO, E_SM, eclock_offset, GPIO_ECLOCK);
 	} else {
-		// Initialize for external clock counting (input)
-		eclock_external_program_init(ECLK_PIO, E_SM, eclock_external_offset, GPIO_ECLOCK);
+		// Initialize for external clock counting (input on GPIO_ECLOCK_IN)
+		// Mirrors clock to GPIO_ECLOCK for bus_cycle PIO
+		eclock_external_program_init(ECLK_PIO, E_SM, eclock_external_offset,
+					     GPIO_ECLOCK, GPIO_ECLOCK_IN);
 	}
+	// Sync program always uses GPIO_ECLOCK so it stays synchronized with bus_cycle PIO
+	sync_program_init(ECLK_PIO, SYNC_SM, sync_offset, GPIO_ECLOCK, GPIO_TIMING_TEST);
 
 	// Reset the cycle counter
 	eclock_reset_pio_counter();
