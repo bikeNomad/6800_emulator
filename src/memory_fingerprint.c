@@ -729,6 +729,8 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 
 		switch (results[page]) {
 		case PAGE_BALLY_ZERO_PAGE:
+			// Bally zero page is not mapped as RAM (bus access for PIAs)
+			break;
 		case PAGE_RAM:
 		case PAGE_WMS_CMOS:
 			if (addr <= MAX_RAM_SIZE) {
@@ -785,6 +787,9 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 
 		switch (results[page]) {
 		case PAGE_BALLY_ZERO_PAGE:
+			// Bally zero page stays unmapped (bus access for PIAs)
+			break;
+
 		case PAGE_RAM:
 			map_as_ram(addr);
 			break;
