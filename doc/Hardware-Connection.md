@@ -65,11 +65,18 @@ This guide covers the physical connections required to interface the MC6800 Emul
 | Signal | Direction | GPIO | Notes |
 |--------|-----------|------|-------|
 | VMA | Output | 25 | Valid Memory Address |
-| E | Output | 24 | E Clock (894.886 kHz) |
+| E | Output | 24 | E Clock output (894.886 kHz internal, or mirror of external) |
+| E_IN | Input | 31 | External E Clock input (optional, auto-detected at startup) |
 | R/W | Output | 26 | Read/Write (1=Read, 0=Write) |
 | /IRQ | Input | 27 | Interrupt Request (active low) |
 | /NMI | Input | 28 | Non-Maskable Interrupt (active low) |
 | /RESET | Input | 29 | Reset (active low) |
+
+**E Clock Modes**:
+
+- **Internal Mode** (default): PIO generates 894.886 kHz clock on GPIO24
+- **External Mode**: External clock read from GPIO31, mirrored to GPIO24 for internal synchronization
+- **Auto-Detection**: At startup, the emulator checks GPIO31 for clock activity and automatically selects the appropriate mode
 
 ### Debug Interfaces
 
@@ -458,21 +465,26 @@ Before full connection:
 
 ### Recommended Test Signals
 
-1. **E Clock (GPIO 24)**
-   - Frequency: 894.886 kHz
+1. **E Clock Output (GPIO 24)**
+   - Frequency: 894.886 kHz (internal) or matches external clock
    - Duty cycle: 50%
    - Amplitude: 3.3V
+   - In external mode, mirrors the clock from GPIO31
 
-2. **Data Bus (GPIO 0-7)**
+2. **E Clock Input (GPIO 31)** - External mode only
+   - Connect external E clock here (bypasses level shifter for direct input)
+   - Auto-detected at startup (≥10 edges in 100µs = external mode)
+
+3. **Data Bus (GPIO 0-7)**
    - Idle: High-Z (with pull-ups)
    - Active read: Input mode
    - Active write: Output mode, 0V or 3.3V
 
-3. **VMA (GPIO 25)**
+4. **VMA (GPIO 25)**
    - Asserted during bus cycles
    - De-asserted between cycles
 
-4. **R/W (GPIO 26)**
+5. **R/W (GPIO 26)**
    - High during reads
    - Low during writes
 

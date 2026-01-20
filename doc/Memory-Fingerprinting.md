@@ -123,8 +123,27 @@ $4000-$FFFF: ROM (48KB)
 
 **Signature:**
 
-- Special CMOS patterns
-- RAM at $0000, PIAs at $88, $90, $A0, $C0
+- 13-bit address decoding (8KB unique address space, aliased 8 times)
+- Bally zero page at $0000-$00FF (special RAM pattern, stays unmapped for PIA access)
+- Bally CMOS at $0200-$03FF (4-bit low nybble = 0xF pattern, stays unmapped)
+- RAM at $0100-$01FF
+- ROM typically at $1000-$1FFF
+
+**Memory Layout:**
+
+```
+$0000-$00FF: Zero page (unmapped - bus access for PIAs)
+$0100-$01FF: RAM (256 bytes)
+$0200-$03FF: CMOS (unmapped - write-through to bus)
+$0400-$0FFF: PIAs and other peripherals (unmapped)
+$1000-$1FFF: ROM (4KB)
+```
+
+**Important Notes:**
+
+- The Bally zero page ($0000-$00FF) is intentionally left unmapped so that memory accesses in this range go to the physical bus, allowing the PIAs to be accessed
+- Bally CMOS also stays unmapped for write-through to the target system
+- With 13-bit decoding, the 8KB address space ($0000-$1FFF) is mirrored 8 times throughout the 64KB space
 
 #### Address Decoding Analysis
 
@@ -312,8 +331,13 @@ View current configuration:
 # Show memory summary
 config
 
-# Show detailed mapping
+# Show detailed mapping (respects decoded bits)
 map show
+# Output shows only unique address space, e.g.:
+# Memory Map ($0000-$1FFF, 13 bits decoded):
+#   $0000-$00FF: UNMAPPED
+#   $0100-$01FF: RAM
+#   ...
 
 # Verify against hardware
 verify_memory

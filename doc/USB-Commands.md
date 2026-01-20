@@ -92,7 +92,7 @@ tio /dev/tty.usbmodem14201
 | `readb` | addr len | Read block from hardware bus |
 | `writeb` | addr data... | Write block to hardware bus |
 | `bus_info` | none | Show bus configuration |
-| `map show` | none | Show ROM mapping state |
+| `map show` | none | Show memory mapping (respects decoded bits) |
 | `map clear` | none | Clear all ROM mapping |
 | `map program` | addr | Manually map ROM page |
 | `copy_roms` | none | Copy ROM data from bus to persistent storage |
@@ -156,7 +156,7 @@ MC6800 Emulator Commands:
   readb <addr> <len>        - Read block from hardware bus
   writeb <addr> <data...>   - Write block to hardware bus
   bus_info                  - Show bus configuration
-  map show                  - Show ROM mapping state
+  map show                  - Show memory mapping (respects decoded bits)
   map clear                 - Clear all ROM mapping
   map program <addr>        - Manually map ROM page
   copy_roms                 - Copy ROM data from bus to persistent storage
@@ -709,8 +709,7 @@ OK: E clock set to internal (PIO generated)
 **Notes**:
 
 - CPU must be halted before changing clock mode
-- This is the default mode on startup
-- E clock pin is configured as output
+- E clock pin (GPIO24) is configured as output
 - PIO generates precise 0.894886 MHz clock (3.579545 MHz / 4)
 
 ### clock external
@@ -737,10 +736,36 @@ OK: CPU started
 **Notes**:
 
 - CPU must be halted before changing clock mode
-- E clock pin is configured as input
+- External clock is read from GPIO31 (dedicated input pin)
+- The external clock is mirrored to GPIO24 for internal synchronization
 - Emulator synchronizes to external clock edges
 - Useful for testing with real hardware clock source
 - Cycle counting still works (counts external clock edges)
+
+### E Clock Auto-Detection
+
+At startup, the emulator automatically detects whether an external E clock is present:
+
+1. Configures for external clock mode
+2. Counts clock edges for 100µs
+3. If ≥10 edges detected, stays in external mode
+4. Otherwise, switches to internal mode
+
+**UART Output Example**:
+
+```
+External E clock detection: (56 cycles in 100µs)
+External E clock detected
+```
+
+or:
+
+```
+External E clock detection: (0 cycles in 100µs)
+No external E clock detected, using internal
+```
+
+This allows the emulator to work with or without a target system connected without manual configuration.
 
 ### break
 
@@ -1184,15 +1209,35 @@ Memory scan and configuration complete
 2. **Detects memory types** by testing each page:
    - **ROM**: Read-only memory with consistent data
    - **RAM**: Read/write memory that passes write tests
-   - **CMOS**: Special RAM with high nybble always 0xF (Williams System 7)
+   - **CMOS**: Special RAM patterns (Williams high nybble=0xF, Bally low nybble=0xF)
    - **PIA**: 6820/6821 Peripheral Interface Adapter chips
    - **Empty**: All 0xFF or all 0x00
+   - **Bally Zero Page**: Special RAM pattern at $0000 (stays unmapped for PIA access)
 3. **Recognizes architecture** based on detected patterns:
-   - Williams System 7: CMOS at specific addresses, RAM mirroring
-   - Williams System 11: Contiguous RAM at start
-4. **Builds memory map** with appropriate mappings and aliases
-5. **Copies ROM contents** from bus to persistent flash storage
-6. **Saves configuration** to flash for use on next boot
+   - Early Bally/Stern: 13-bit decoding, Bally zero page, Bally CMOS
+   - Williams System 7: CMOS at specific addresses, RAM mirroring, 15-bit decoding
+   - Williams System 11: Contiguous RAM at start, 16-bit decoding
+4. **Analyzes address decoding** to determine how many address bits are decoded (13-16)
+5. **Builds memory map** with appropriate mappings and aliases
+6. **Copies ROM contents** from bus to persistent flash storage
+7. **Saves configuration** to flash for use on next boot
+
+**Example (Early Bally with 13-bit decoding)**:
+
+```
+> scan_memory
+Starting memory scan...
+Scanning 256 pages...
+Scan complete
+Architecture: Early Bally or Stern (13 bits decoded)
+
+Memory Configuration:
+  ROM: $1200-$1FFF (3584 bytes)
+  RAM: $0100-$01FF (256 bytes)
+  Architecture: Early Bally or Stern (decoded 13 bits)
+
+Memory map and ROM contents have been saved to flash.
+```
 
 **Notes**:
 
@@ -1201,6 +1246,7 @@ Memory scan and configuration complete
 - May take 10-30 seconds depending on target system
 - Configuration is saved and used automatically on reboot
 - Useful for initial setup or when changing target systems
+- For Bally boards, the zero page ($0000-$00FF) stays unmapped for PIA access
 
 ### verify_memory
 
@@ -1242,6 +1288,52 @@ ERROR: RAM mismatch - run 'scan_memory' to update
 - Useful for diagnosing hardware changes or connection issues
 - Non-destructive (restores any test data written)
 - Run after changing target systems or if emulation seems unstable
+
+### map show
+
+Display the current memory mapping. Shows only the unique address space based on the number of decoded address bits.
+
+**Syntax**:
+
+```
+map show
+```
+
+**Example (Williams System 7, 15 bits decoded)**:
+
+```
+> map show
+Memory Map ($0000-$7FFF, 15 bits decoded):
+  $0000-$00FF: RAM
+  $0100-$01FF: CMOS
+  $0200-$13FF: RAM
+  $1400-$1FFF: UNMAPPED
+  $2000-$20FF: PIA
+  ...
+  $5000-$7FFF: ROM
+```
+
+**Example (Early Bally, 13 bits decoded)**:
+
+```
+> map show
+Memory Map ($0000-$1FFF, 13 bits decoded):
+  $0000-$00FF: UNMAPPED
+  $0100-$01FF: RAM
+  $0200-$03FF: UNMAPPED
+  $0400-$05FF: ROM
+  ...
+  $1200-$1FFF: ROM
+```
+
+**Notes**:
+
+- Only displays the unique address space (not aliased regions)
+- For 16-bit decoding: shows full $0000-$FFFF
+- For 15-bit decoding: shows $0000-$7FFF (32KB unique)
+- For 13-bit decoding: shows $0000-$1FFF (8KB unique)
+- UNMAPPED regions route to the physical bus (for PIAs, external peripherals)
+- RAM and ROM are handled internally by the emulator for fast access
 
 ## Command Line Editing
 
