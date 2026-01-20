@@ -14,6 +14,7 @@ from main_pio_test import (
 
 PAGE_SIZE = const(256)
 PAGE_ADDRESS_MASK = const(0xFF00)
+NUM_PAGES = const(256)
 PRA_OFFSET = const(0)
 DDRA_OFFSET = const(0)
 CRA_OFFSET = const(1)
@@ -22,9 +23,59 @@ DDRB_OFFSET = const(2)
 CRB_OFFSET = const(3)
 SELECT_PR_BIT = const(0x04)  # set this bit in CRx to access PRx instead of DDRx
 
+# Page classification types (matching C enum)
+PAGE_UNMAPPED = const(0)
+PAGE_EMPTY = const(1)
+PAGE_ROM = const(2)
+PAGE_RAM = const(3)
+PAGE_PIA = const(4)
+PAGE_WMS_CMOS = const(5)
+PAGE_BALLY_CMOS = const(6)
+PAGE_BALLY_ZERO_PAGE = const(7)
+
+# Architecture types
+ARCH_UNKNOWN = const(0)
+ARCH_EARLY_BALLY = const(1)
+ARCH_WILLIAMS_SYS3_6 = const(2)
+ARCH_WILLIAMS_SYS7 = const(3)
+ARCH_WILLIAMS_SYS9 = const(4)
+ARCH_WILLIAMS_SYS11 = const(5)
+
 TEST_DATA = b"This is a test of the bus"
 
+# Scan results storage - one per 256-byte page
+results = [PAGE_UNMAPPED] * NUM_PAGES
+
+# Legacy dict for compatibility
 DETECTED = {}
+
+
+def page_type_to_string(page_type):
+    """Convert page type constant to string"""
+    names = {
+        PAGE_UNMAPPED: "UNMAPPED",
+        PAGE_EMPTY: "EMPTY",
+        PAGE_ROM: "ROM",
+        PAGE_RAM: "RAM",
+        PAGE_PIA: "PIA",
+        PAGE_WMS_CMOS: "WMS CMOS (4-bit)",
+        PAGE_BALLY_CMOS: "BALLY CMOS (4-bit)",
+        PAGE_BALLY_ZERO_PAGE: "BALLY ZERO PAGE",
+    }
+    return names.get(page_type, "UNKNOWN")
+
+
+def architecture_name(arch):
+    """Convert architecture constant to string"""
+    names = {
+        ARCH_UNKNOWN: "Unknown",
+        ARCH_EARLY_BALLY: "Early Bally or Stern",
+        ARCH_WILLIAMS_SYS3_6: "Williams System 3-6",
+        ARCH_WILLIAMS_SYS7: "Williams System 7",
+        ARCH_WILLIAMS_SYS9: "Williams System 9",
+        ARCH_WILLIAMS_SYS11: "Williams System 11",
+    }
+    return names.get(arch, "Unknown")
 
 
 # Return integer
@@ -39,20 +90,20 @@ def _is_empty(data):
 
 
 def detect_empty(address):
-    """Return 'EMPTY' if the given address range is empty and reads 0xFF"""
+    """Return PAGE_EMPTY if the given address range is empty (all 0xFF or all 0x00)"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     if _is_empty(block_data):
-        return "EMPTY"
+        return PAGE_EMPTY
     return None
 
 
 def detect_sys3_7_cmos(address):
-    """Return 'CMOS' if a System 3-7 CMOS RAM is at the address.
+    """Return PAGE_WMS_CMOS if a System 3-7 CMOS RAM is at the address.
     This RAM reads 0xF in the high nybble and stores the low nybble."""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
-    # Check for CMOS pattern
+    # Check for CMOS pattern (high nybble = 0xF)
     for i in range(PAGE_SIZE):
         if (block_data[i] & 0xF0) != 0xF0:
             return None
@@ -66,11 +117,33 @@ def detect_sys3_7_cmos(address):
     for i in range(len(TEST_DATA)):
         if (block_data_readback[i] & 0x0F) != (TEST_DATA[i] & 0x0F):
             return None
-    return "CMOS"
+    return PAGE_WMS_CMOS
+
+
+def detect_bally_cmos(address):
+    """Return PAGE_BALLY_CMOS if Bally CMOS RAM is at the address.
+    This RAM reads 0xF in the low nybble and stores the high nybble."""
+    address &= PAGE_ADDRESS_MASK
+    block_data = bus_read_block(address, PAGE_SIZE)
+    # Check for CMOS pattern (low nybble = 0xF)
+    for i in range(PAGE_SIZE):
+        if (block_data[i] & 0x0F) != 0x0F:
+            return None
+    # Write test data
+    bus_write_block(address, TEST_DATA)
+    # Read data back
+    block_data_readback = bus_read_block(address, len(TEST_DATA))
+    # Restore original data
+    bus_write_block(address, block_data)
+    # Check that high nybbles match
+    for i in range(len(TEST_DATA)):
+        if (block_data_readback[i] & 0xF0) != (TEST_DATA[i] & 0xF0):
+            return None
+    return PAGE_BALLY_CMOS
 
 
 def detect_ram(address):
-    """Return 'RAM' if the given address range appears to be RAM"""
+    """Return PAGE_RAM if the given address range appears to be RAM"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     # Write test data
@@ -80,12 +153,12 @@ def detect_ram(address):
     # Restore original data
     bus_write_block(address, block_data)
     if block_data_readback == TEST_DATA:
-        return "RAM"
+        return PAGE_RAM
     return None
 
 
 def detect_pia(address):
-    """Return 'PIA (crc16)' if a 6820 or 6821 PIA is at the start of the given address range"""
+    """Return PAGE_PIA if a 6820 or 6821 PIA is at the start of the given address range"""
     address &= PAGE_ADDRESS_MASK
     block_data = bus_read_block(address, PAGE_SIZE)
     # Check if block repeats the same 4 bytes
@@ -183,34 +256,164 @@ def detect_pia(address):
             print(f"pra_now={hex(pra_now)} prb_now={hex(prb_now)}")
             print(f"pra_written={hex(pra_written)} prb_written={hex(prb_written)}")
 
-        pras = bytearray(pra_now, prb_now)
-        crc = crc16(pras)
-        return f"PIA ({crc:04x})"
+        return PAGE_PIA
     else:
         return None
 
 
+def detect_bally_page0(address):
+    """Return PAGE_BALLY_ZERO_PAGE if this is an early Bally/Stern page 0.
+    Has 128 bytes of RAM at 0, PIAs at 0x88 and 0x90."""
+    if address != 0:
+        return None
+    if detect_ram(address) and detect_pia(0x88) and detect_pia(0x90):
+        return PAGE_BALLY_ZERO_PAGE
+    return None
+
+
 def initialize():
+    """Initialize results array and legacy DETECTED dict"""
+    global results
+    results = [PAGE_UNMAPPED] * NUM_PAGES
     for base in range(0, 0x10000, PAGE_SIZE):
         DETECTED[base] = None
 
 
+def fingerprint_page(address):
+    """Determine page type at address. Returns PAGE_* constant.
+    Order matches C version: PIA, Bally page0, RAM, WMS CMOS, Bally CMOS, empty, ROM"""
+    # PIA must be checked first to avoid false RAM detection
+    result = detect_pia(address)
+    if result is not None:
+        return result
+
+    # Check for early Bally/Stern page 0
+    if address == 0x0000:
+        result = detect_bally_page0(address)
+        if result is not None:
+            return result
+
+    result = detect_ram(address)
+    if result is not None:
+        return result
+
+    result = detect_sys3_7_cmos(address)
+    if result is not None:
+        return result
+
+    result = detect_bally_cmos(address)
+    if result is not None:
+        return result
+
+    result = detect_empty(address)
+    if result is not None:
+        return result
+
+    # Default to ROM for anything else
+    return PAGE_ROM
+
+
 def fingerprint(address):
-    return (
-        detect_pia(address)
-        or detect_ram(address)
-        or detect_sys3_7_cmos(address)
-        or detect_empty(address)
-        or "ROM"
-    )
+    """Legacy wrapper - returns string for compatibility"""
+    page_type = fingerprint_page(address)
+    return page_type_to_string(page_type)
+
+
+def page_types_equivalent(a, b):
+    """Check if two page types are equivalent for aliasing detection.
+    PAGE_BALLY_ZERO_PAGE is functionally RAM for aliasing purposes."""
+    if a == b:
+        return True
+    # PAGE_BALLY_ZERO_PAGE is equivalent to PAGE_RAM for aliasing purposes
+    if (a == PAGE_BALLY_ZERO_PAGE and b == PAGE_RAM) or \
+       (a == PAGE_RAM and b == PAGE_BALLY_ZERO_PAGE):
+        return True
+    return False
+
+
+def count_decoded_address_bits():
+    """Detect how many address bits are actually decoded by checking for repeating patterns.
+    Returns number of decoded bits (8-16)."""
+    # For N decoded bits: section_size = 2^(N-8) pages, num_copies = 2^(16-N)
+    # If all copies match the first section, then only N bits are decoded
+    for bits in range(15, 7, -1):
+        section_size = 1 << (bits - 8)  # Pages per unique section
+        num_copies = NUM_PAGES // section_size  # Number of copies
+
+        all_match = True
+        # Compare each copy with the first section (copy 0)
+        for i in range(section_size):
+            if not all_match:
+                break
+            for copy in range(1, num_copies):
+                compare_page = copy * section_size + i
+                if not page_types_equivalent(results[i], results[compare_page]):
+                    all_match = False
+                    break
+
+        if not all_match:
+            # Copies don't match, so at least (bits+1) bits are decoded
+            return bits + 1
+        # All copies match, try checking for fewer decoded bits
+
+    return 8  # Minimum 8 bits (256 bytes per page)
+
+
+def recognize_architecture():
+    """Determine system architecture from scan results.
+    Returns (architecture_type, decoded_bits) tuple."""
+    decoded_bits = count_decoded_address_bits()
+
+    # Early Bally/Stern
+    if decoded_bits < 16 and results[0x00] == PAGE_BALLY_ZERO_PAGE and \
+       results[0x02] == PAGE_BALLY_CMOS:
+        return ARCH_EARLY_BALLY, decoded_bits
+
+    # Count CMOS at specific addresses (System 3-7 signature)
+    expected_cmos_pages = [0x01, 0x05, 0x09, 0x0D]
+    cmos_count = sum(1 for page in expected_cmos_pages if results[page] == PAGE_WMS_CMOS)
+
+    # Count RAM pages at start (System 11 signature)
+    ram_count = sum(1 for i in range(0x08) if results[i] == PAGE_RAM)
+
+    # Count PIA pages in expected places (System 3-7, 9/11)
+    expected_pia_pages = [0x21, 0x22, 0x24, 0x28, 0x2c, 0x30, 0x34, 0x40]
+    pia_count = sum(1 for page in expected_pia_pages if results[page] == PAGE_PIA)
+
+    print(f"Recognize architecture: Bits:{decoded_bits}, RAM:{ram_count}, PIA:{pia_count}, CMOS:{cmos_count}")
+
+    # System 3-7: CMOS pattern, 15 bits decoded
+    if cmos_count == 4 and results[0x01] == PAGE_WMS_CMOS and decoded_bits == 15:
+        if pia_count == 5:
+            return ARCH_WILLIAMS_SYS7, decoded_bits
+        else:
+            return ARCH_WILLIAMS_SYS3_6, decoded_bits
+
+    # System 9/11: 2K RAM at start, no 4-bit CMOS
+    if cmos_count == 0 and ram_count == 8:
+        # System 9: A15 not decoded, only 4 PIAs
+        if pia_count == 4 and decoded_bits == 15:
+            return ARCH_WILLIAMS_SYS9, decoded_bits
+        # System 11: 2K Contiguous RAM at start, no CMOS pattern, A15 decoded
+        if pia_count == 6 and decoded_bits == 16:
+            return ARCH_WILLIAMS_SYS11, decoded_bits
+
+    return ARCH_UNKNOWN, decoded_bits
 
 
 def scan():
+    """Scan all memory pages and store results."""
+    global results
     gc.collect()
     was_started = eclock_start()
-    for base in range(0, 0x10000, PAGE_SIZE):
-        DETECTED[base] = fingerprint(base)
+    print("Scanning 256 pages...")
+    for page in range(NUM_PAGES):
+        addr = page << 8
+        results[page] = fingerprint_page(addr)
+        # Also update legacy dict
+        DETECTED[addr] = page_type_to_string(results[page])
         gc.collect()
+    print("Scan complete")
     if not was_started:
         eclock_stop()
 
@@ -225,64 +428,85 @@ def rom_crc16(address, length):
     return crc
 
 
-def print_range(address, length, type):
-    if type == "ROM":
-        label = f"{type} ({rom_crc16(address, length):04x})"
+def print_scan_results():
+    """Print scan results in coalesced format (matching C version)."""
+    start = 0
+    last_type = results[0]
+
+    for page in range(1, NUM_PAGES + 1):
+        current_type = results[page] if page < NUM_PAGES else 255  # 255 = sentinel
+
+        if current_type != last_type or page == NUM_PAGES:
+            end = (page << 8) - 1
+            type_str = page_type_to_string(last_type)
+            print(f"  ${start:04X}-${end:04X}: {type_str}")
+            start = page << 8
+            last_type = current_type
+
+
+def print_range(address, length, type_str):
+    if type_str == "ROM":
+        label = f"{type_str} ({rom_crc16(address, length):04x})"
     else:
-        label = type
+        label = type_str
     print(f"{address:04x}-{address + length - 1:04x}: {label}")
     return (address, length, label)
 
 
 def report():
-    """Print out a report, return a summary dict keyed by address for further analysis."""
+    """Print scan results with architecture recognition, return summary dict."""
+    # Print raw scan results
+    print_scan_results()
+
+    # Recognize architecture
+    arch, decoded_bits = recognize_architecture()
+    print(f"Architecture: {architecture_name(arch)} ({decoded_bits} bits decoded)")
+
+    # Build coalesced summary for legacy compatibility
     # For System 11 ROM space ($4000-$FFFF), coalesce consecutive ROM and EMPTY regions
-    # since EMPTY areas are just unused ROM space
     SYS11_ROM_START = 0x4000
 
-    # First pass: create coalesced regions for System 11 ROM space
     coalesced_regions = []
     last_type = None
     last_address = 0
 
-    for base in range(0, 0x10000 + PAGE_SIZE, PAGE_SIZE):
-        type = DETECTED.get(base)
+    for page in range(NUM_PAGES + 1):
+        base = page << 8
+        page_type = results[page] if page < NUM_PAGES else 255  # sentinel
         is_rom_space = base >= SYS11_ROM_START
 
         # In System 11 ROM space, treat EMPTY as ROM for coalescing purposes
-        if is_rom_space and type == "EMPTY":
-            effective_type = "ROM"
+        if is_rom_space and page_type == PAGE_EMPTY:
+            effective_type = PAGE_ROM
         else:
-            effective_type = type
+            effective_type = page_type
 
-        if effective_type != last_type:
-            if last_type is not None:
+        if effective_type != last_type or page == NUM_PAGES:
+            if last_type is not None and last_type != 255:
                 # For ROM space regions that were coalesced, determine the correct label
-                if last_type == "ROM" and last_address >= SYS11_ROM_START:
+                if last_type == PAGE_ROM and last_address >= SYS11_ROM_START:
                     # Check if this region contains any actual ROM data
                     has_real_rom = False
-                    for check_base in range(last_address, base, PAGE_SIZE):
-                        if DETECTED.get(check_base) == "ROM":
+                    for check_page in range(last_address >> 8, page):
+                        if results[check_page] == PAGE_ROM:
                             has_real_rom = True
                             break
 
                     if has_real_rom:
-                        # Calculate CRC over the entire coalesced region
                         crc = rom_crc16(last_address, base - last_address)
                         label = f"ROM ({crc:04x})"
                     else:
                         label = "EMPTY"
                 else:
-                    label = last_type
+                    label = page_type_to_string(last_type)
 
                 coalesced_regions.append((last_address, base - last_address, label))
             last_type = effective_type
             last_address = base
 
-    # Print the coalesced regions and build summary
+    # Build summary dict
     summary = {}
     for addr, length, label in coalesced_regions:
-        print(f"{addr:04x}-{addr + length - 1:04x}: {label}")
         summary[addr] = (length, label)
 
     return summary

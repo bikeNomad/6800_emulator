@@ -9,6 +9,7 @@ GPIO_IRQ = 27
 GPIO_NMI = 28
 GPIO_RESET = 29
 GPIO_TEST_PIN = 30
+GPIO_ECLOCK_IN = 31  # E clock input for external clock (SPARE_IN)
 
 ADDR_LINES = 16
 N_ADDR_DATA_PINS = 8 + ADDR_LINES  # 8 data pins + 16 address pins
