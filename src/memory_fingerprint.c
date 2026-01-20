@@ -639,28 +639,53 @@ bool last_ram_address(uint16_t *ram_end)
 // Scan Results Access
 //--------------------------------------------------------------------+
 
+// Helper function to check if two page types are equivalent for aliasing detection
+// PAGE_BALLY_ZERO_PAGE is functionally RAM, just with PIAs detected at specific offsets
+static bool page_types_equivalent(page_type_t a, page_type_t b)
+{
+	if (a == b) {
+		return true;
+	}
+	// PAGE_BALLY_ZERO_PAGE is equivalent to PAGE_RAM for aliasing purposes
+	// (the PIAs at 0x88/0x90 only exist at address 0, not at aliased addresses)
+	if ((a == PAGE_BALLY_ZERO_PAGE && b == PAGE_RAM) ||
+	    (a == PAGE_RAM && b == PAGE_BALLY_ZERO_PAGE)) {
+		return true;
+	}
+	return false;
+}
+
 // Helper function needed by build_memory_map_from_scan
+// Detects how many address bits are actually decoded by checking for repeating patterns
 int count_decoded_address_bits(void)
 {
-	// Check for repeated sequences that indicate non-decoded address lines
-	int decoded_bits = 15;
-	int stride = 128;
-	int pages = 2;
+	// For N decoded bits: section_size = 2^(N-8) pages, num_copies = 2^(16-N)
+	// If all copies match the first section, then only N bits are decoded
+	// Start checking from 15 bits down to 8 bits
 
-	while (decoded_bits > 8) {
-		for (int i = 0; i < stride; i++) {
-			for (int j = 0; j < pages; j++) {
-				int page_start = j * stride;
-				if (results[i + page_start] != results[i + page_start + stride]) {
-					return decoded_bits + 1;
+	for (int bits = 15; bits >= 8; bits--) {
+		int section_size = 1 << (bits - 8);  // Pages per unique section
+		int num_copies = NUM_PAGES / section_size;  // Number of copies
+
+		bool all_match = true;
+		// Compare each copy with the first section (copy 0)
+		for (int i = 0; i < section_size && all_match; i++) {
+			for (int copy = 1; copy < num_copies && all_match; copy++) {
+				int compare_page = copy * section_size + i;
+				if (!page_types_equivalent(results[i], results[compare_page])) {
+					all_match = false;
 				}
 			}
 		}
-		decoded_bits--;
-		stride >>= 1;
-		pages <<= 1;
+
+		if (!all_match) {
+			// Copies don't match, so at least (bits+1) bits are decoded
+			return bits + 1;
+		}
+		// All copies match, try checking for fewer decoded bits
 	}
-	return decoded_bits;
+
+	return 8;  // Minimum 8 bits (256 bytes per page)
 }
 
 // Williams System 3-7 does not decode A15, and duplicates the zero page of RAM at $1000
@@ -689,6 +714,10 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 	uint32_t vectors_end = 0xFFFF >> (16 - decoded_bits);
 	uint max_pages = NUM_PAGES >> (16 - decoded_bits);
 
+	// Architecture-specific minimum ROM address
+	// Early Bally has ROM at $1000-$1FFF, Williams at $4000+
+	uint32_t min_rom_addr = (arch == ARCH_EARLY_BALLY) ? 0x1000 : MIN_ROM_ADDRESS;
+
 	// First pass: determine regions
 	// Only process first aliased section of scan
 	mem_config.decoded_bits = decoded_bits;
@@ -699,6 +728,7 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 		uint32_t end_addr = addr + ENTRY_PAGE_SIZE - 1;
 
 		switch (results[page]) {
+		case PAGE_BALLY_ZERO_PAGE:
 		case PAGE_RAM:
 		case PAGE_WMS_CMOS:
 			if (addr <= MAX_RAM_SIZE) {
@@ -711,7 +741,7 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 			}
 			break;
 		case PAGE_ROM:
-			if (addr >= MIN_ROM_ADDRESS) {
+			if (addr >= min_rom_addr) {
 				if (addr < rom_start) {
 					rom_start = addr;
 				}
@@ -754,8 +784,19 @@ void build_memory_map_from_scan(architecture_type_t arch, uint decoded_bits,
 		uint32_t addr = TABLE_INDEX_TO_ADDR(page);
 
 		switch (results[page]) {
+		case PAGE_BALLY_ZERO_PAGE:
 		case PAGE_RAM:
 			map_as_ram(addr);
+			break;
+
+		case PAGE_WMS_CMOS:
+			// Williams CMOS is mapped as RAM (shadow copy)
+			map_as_ram(addr);
+			break;
+
+		case PAGE_BALLY_CMOS:
+			// Bally CMOS stays unmapped (write-through to bus)
+			// per comment in memory.h
 			break;
 
 		case PAGE_ROM:
