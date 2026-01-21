@@ -1,13 +1,11 @@
-from bus_test import BusTester
-from hexdump import hexdump, hexdump_from_file
+from micropython import const
+from bus_cycle_pio import bus_read_byte, bus_write_byte
 
-t = BusTester()
+DDR_BIT = const(0x04)
 
-class PIATester:
-    DDR_BIT = 0x04
 
-    def __init__(self, bus_tester, base_address):
-        self._t = bus_tester
+class PIA:
+    def __init__(self, base_address):
         self._addr = base_address
         self._cra = 0
         self._ddra = 0
@@ -15,117 +13,126 @@ class PIATester:
         self._crb = 0
         self._ddrb = 0
         self._prb = 0
-    
+
+        self._pra_addr = self._addr
+        self._ddra_addr = self._addr
+        self._cra_addr = self._addr + 1
+        self._prb_addr = self._addr + 2
+        self._ddrb_addr = self._addr + 2
+        self._crb_addr = self._addr + 3
+
     @property
     def cra(self):
-        return (self._cra := self._t.read_byte(self._addr))
+        """Return the CRA contents."""
+        self._cra = bus_read_byte(self._cra_addr)
+        return self._cra
 
     @cra.setter
     def cra(self, value):
-        self._t.write_byte(self._addr, value)
+        """Set the CRA contents."""
+        bus_write_byte(self._cra_addr, value)
         self._cra = value
 
     @property
     def crb(self):
-        return (self._crb := self._t.read_byte(self._addr + 3))
+        """Return the CRB contents."""
+        self._crb = bus_read_byte(self._crb_addr)
+        return self._crb
 
     @crb.setter
     def crb(self, value):
-        self._t.write_byte(self._addr + 3, value)
+        """Set the CRB contents."""
+        bus_write_byte(self._crb_addr, value)
         self._crb = value
-    
+
     @property
     def pra(self):
-        if self._cra & DDR_BIT:
-            self._pra = self.t.read_byte(self._addr)
-        else:
-            # set DDR_BIT in CRA first:
+        """Return the PRA contents."""
+        # Sync with hardware and ensure DDR_BIT is set to select PRA
+        self._cra = bus_read_byte(self._cra_addr)
+        if not (self._cra & DDR_BIT):
             self.cra = self._cra | DDR_BIT
-            self._pra = self.t.read_byte(self._addr)
-            # restore CRA
-            self.cra = self._cra & ~DDR_BIT
+        self._pra = bus_read_byte(self._pra_addr)
         return self._pra
-    
+
     @pra.setter
     def pra(self, value):
-        if self._cra & DDR_BIT:
-            self._t.write_byte(self._addr, value)
-        else:
-            # set DDR_BIT in CRA first:
+        """Set the PRA contents."""
+        # Sync with hardware and ensure DDR_BIT is set to select PRA
+        self._cra = bus_read_byte(self._cra_addr)
+        if not (self._cra & DDR_BIT):
             self.cra = self._cra | DDR_BIT
-            self._t.write_byte(self._addr, value)
-            # restore CRA
-            self.cra = self._cra & ~DDR_BIT
+        bus_write_byte(self._cra_addr, value)
         self._pra = value
 
     @property
     def prb(self):
-        if self._crb & DDR_BIT:
-            self._prb = self.t.read_byte(self._addr + 2)
-        else:
-            # set DDR_BIT in CRA first:
+        """Return the PRB contents."""
+        # Sync with hardware and ensure DDR_BIT is set to select PRB
+        self._crb = bus_read_byte(self._crb_addr)
+        if not (self._crb & DDR_BIT):
             self.crb = self._crb | DDR_BIT
-            self._prb = self.t.read_byte(self._addr + 2)
-            # restore CRA
-            self.crb = self._crb & ~DDR_BIT
+        self._prb = bus_read_byte(self._prb_addr)
         return self._prb
-    
+
     @prb.setter
     def prb(self, value):
-        if self._crb & DDR_BIT:
-            self._t.write_byte(self._addr + 2, value)
-        else:
-            # set DDR_BIT in CRA first:
+        """Set the PRB contents."""
+        # Sync with hardware and ensure DDR_BIT is set to select PRB
+        self._crb = bus_read_byte(self._crb_addr)
+        if not (self._crb & DDR_BIT):
             self.crb = self._crb | DDR_BIT
-            self._t.write_byte(self._addr + 2, value)
-            # restore CRA
-            self.crb = self._crb & ~DDR_BIT
+        bus_write_byte(self._prb_addr, value)
         self._prb = value
 
     @property
     def ddra(self):
+        """Return the DDRA contents."""
+        # Sync with hardware
+        self._cra = bus_read_byte(self._cra_addr)
+        # Clear DDR_BIT to select DDRA
         if self._cra & DDR_BIT:
-            self._ddra = self.t.read_byte(self._addr)
-        else:
-            # reset DDR_BIT in CRA first:
             self.cra = self._cra & ~DDR_BIT
-            self._ddra = self.t.read_byte(self._addr)
-            # restore CRA
-            self.cra = self._cra | DDR_BIT
+        self._ddra = bus_read_byte(self._ddra_addr)
+        # Set DDR_BIT back to normal operating state (PRA selected)
+        self.cra = self._cra | DDR_BIT
         return self._ddra
-    
+
     @ddra.setter
     def ddra(self, value):
-        if not (self._cra & DDR_BIT):
-            self._t.write_byte(self._addr, value)
-        else:
-            # reset DDR_BIT in CRA first:
+        """Set the DDRA contents."""
+        # Sync with hardware
+        self._cra = bus_read_byte(self._cra_addr)
+        # Clear DDR_BIT to select DDRA
+        if self._cra & DDR_BIT:
             self.cra = self._cra & ~DDR_BIT
-            self._t.write_byte(self._addr, value)
-            # restore CRA
-            self.cra = self._cra | DDR_BIT
+        bus_write_byte(self._ddra_addr, value)
         self._ddra = value
+        # Set DDR_BIT back to normal operating state (PRA selected)
+        self.cra = self._cra | DDR_BIT
 
     @property
     def ddrb(self):
-        if not (self._crb & DDR_BIT):
-            self._ddrb = self.t.read_byte(self._addr + 2)
-        else:
-            # reset DDR_BIT in CRA first:
+        """Return the DDRB contents."""
+        # Sync with hardware
+        self._crb = bus_read_byte(self._crb_addr)
+        # Clear DDR_BIT to select DDRB
+        if self._crb & DDR_BIT:
             self.crb = self._crb & ~DDR_BIT
-            self._ddrb = self.t.read_byte(self._addr + 2)
-            # restore CRA
-            self.crb = self._crb | DDR_BIT
+        self._ddrb = bus_read_byte(self._ddrb_addr)
+        # Set DDR_BIT back to normal operating state (PRB selected)
+        self.crb = self._crb | DDR_BIT
         return self._ddrb
-    
+
     @ddrb.setter
     def ddrb(self, value):
-        if not (self._crb & DDR_BIT):
-            self._t.write_byte(self._addr + 2, value)
-        else:
-            # reset DDR_BIT in CRA first:
+        """Set the DDRB contents."""
+        # Sync with hardware
+        self._crb = bus_read_byte(self._crb_addr)
+        # Clear DDR_BIT to select DDRB
+        if self._crb & DDR_BIT:
             self.crb = self._crb & ~DDR_BIT
-            self._t.write_byte(self._addr + 2, value)
-            # restore CRA
-            self.crb = self._crb | DDR_BIT
+        bus_write_byte(self._ddrb_addr, value)
         self._ddrb = value
+        # Set DDR_BIT back to normal operating state (PRB selected)
+        self.crb = self._crb | DDR_BIT

@@ -2,13 +2,13 @@ import struct
 import gc
 from micropython import const
 import modbus_crc16
-from main_pio_test import (
+from pio_bus_access import (
     eclock_start,
     eclock_stop,
     bus_read_block,
     bus_write_block,
-    bus_read_cycle as bus_read_byte,
-    bus_write_cycle as bus_write_byte,
+    bus_read_byte,
+    bus_write_byte,
 )
 
 
@@ -158,14 +158,13 @@ def detect_ram(address):
 
 
 def detect_pia(address):
-    """Return PAGE_PIA if a 6820 or 6821 PIA is at the start of the given address range"""
-    address &= PAGE_ADDRESS_MASK
-    block_data = bus_read_block(address, PAGE_SIZE)
-    # Check if block repeats the same 4 bytes
-    # if any(block_data[i] != block_data[i % 4] for i in range(PAGE_SIZE)):
-    #   return False
-    # Save state in order to restore it later
-    pra_ddra, cra, prb_ddrb, crb = block_data[PRA_OFFSET : PRA_OFFSET + 4]
+    """Return PAGE_PIA if a 6820 or 6821 PIA is at the given address.
+    Note: Does NOT apply page mask - caller must pass exact address."""
+    # Read the 4 PIA registers individually (like C version)
+    pra_ddra = bus_read_byte(address + PRA_OFFSET)
+    cra = bus_read_byte(address + CRA_OFFSET)
+    prb_ddrb = bus_read_byte(address + PRB_OFFSET)
+    crb = bus_read_byte(address + CRB_OFFSET)
     if cra & SELECT_PR_BIT:
         pra = pra_ddra
         bus_write_byte(address + CRA_OFFSET, cra & ~SELECT_PR_BIT)
@@ -261,14 +260,138 @@ def detect_pia(address):
         return None
 
 
+def detect_bally_pia(address):
+    """Detect PIA with lenient checks for Bally 4-bit CMOS interference.
+    Only checks that CRs respond to SELECT_PR_BIT, ignores DDR readback issues."""
+    # Read initial CR values
+    cra = bus_read_byte(address + CRA_OFFSET)
+    crb = bus_read_byte(address + CRB_OFFSET)
+
+    # Clear SELECT_PR_BIT to access DDRs
+    bus_write_byte(address + CRA_OFFSET, 0x00)
+    bus_write_byte(address + CRB_OFFSET, 0x00)
+
+    # Set SELECT_PR_BIT to access PRs
+    bus_write_byte(address + CRA_OFFSET, SELECT_PR_BIT)
+    bus_write_byte(address + CRB_OFFSET, SELECT_PR_BIT)
+
+    # Read back CRs - SELECT_PR_BIT should be set
+    cra_now = bus_read_byte(address + CRA_OFFSET)
+    crb_now = bus_read_byte(address + CRB_OFFSET)
+
+    # Restore original state
+    bus_write_byte(address + CRA_OFFSET, cra)
+    bus_write_byte(address + CRB_OFFSET, crb)
+
+    # Check that SELECT_PR_BIT is set in both CRs
+    # (may have CMOS interference in other bits, but bit 2 should respond)
+    return (cra_now & SELECT_PR_BIT) != 0 and (crb_now & SELECT_PR_BIT) != 0
+
+
 def detect_bally_page0(address):
     """Return PAGE_BALLY_ZERO_PAGE if this is an early Bally/Stern page 0.
-    Has 128 bytes of RAM at 0, PIAs at 0x88 and 0x90."""
+    Bally: PIAs at 0x88 and 0x90. Stern: PIAs at 0xA0 and 0xC0.
+    RAM may be 4-bit CMOS-style."""
     if address != 0:
         return None
-    if detect_ram(address) and detect_pia(0x88) and detect_pia(0x90):
+    # Check for PIAs at expected Bally locations (use lenient detection)
+    if detect_bally_pia(0x88) and detect_bally_pia(0x90):
+        return PAGE_BALLY_ZERO_PAGE
+    # Check for PIAs at expected Stern locations
+    if detect_bally_pia(0xA0) and detect_bally_pia(0xC0):
         return PAGE_BALLY_ZERO_PAGE
     return None
+
+
+def test_ram_detection(address):
+    """Debug function to test RAM detection at a specific address."""
+    print(f"Testing RAM detection at ${address:04X}")
+
+    # Read original data
+    original = bus_read_block(address, len(TEST_DATA))
+    print(f"  Original data: {original.hex()}")
+
+    # Write test data
+    bus_write_block(address, TEST_DATA)
+    print(f"  Wrote: {TEST_DATA.hex()}")
+
+    # Read back
+    readback = bus_read_block(address, len(TEST_DATA))
+    print(f"  Readback:      {readback.hex()}")
+
+    # Restore
+    bus_write_block(address, original)
+
+    # Compare
+    if readback == TEST_DATA:
+        print("  PASS: RAM detected (full 8-bit)")
+    else:
+        # Check for 4-bit CMOS pattern
+        high_match = all((readback[i] & 0xF0) == (TEST_DATA[i] & 0xF0)
+                         for i in range(len(TEST_DATA)))
+        low_match = all((readback[i] & 0x0F) == (TEST_DATA[i] & 0x0F)
+                        for i in range(len(TEST_DATA)))
+        if high_match and not low_match:
+            print("  FAIL: 4-bit RAM (high nybble only, low reads as 0xF)")
+        elif low_match and not high_match:
+            print("  FAIL: 4-bit RAM (low nybble only, high reads as 0xF)")
+        else:
+            print("  FAIL: No RAM or unknown pattern")
+
+
+def test_pia_detection(address):
+    """Debug function to test PIA detection at a specific address.
+    Call with eclock running: eclock_start(); test_pia_detection(0x88)"""
+    print(f"Testing PIA detection at ${address:04X}")
+
+    # Read the 4 PIA registers
+    pra_ddra = bus_read_byte(address + PRA_OFFSET)
+    cra = bus_read_byte(address + CRA_OFFSET)
+    prb_ddrb = bus_read_byte(address + PRB_OFFSET)
+    crb = bus_read_byte(address + CRB_OFFSET)
+    print(f"  Initial: PRA/DDRA=${pra_ddra:02X} CRA=${cra:02X} "
+          f"PRB/DDRB=${prb_ddrb:02X} CRB=${crb:02X}")
+
+    # Try to access DDRs by clearing SELECT_PR_BIT in CRs
+    bus_write_byte(address + CRA_OFFSET, 0x00)
+    bus_write_byte(address + CRB_OFFSET, 0x00)
+
+    # Write 0x00 to DDRs
+    bus_write_byte(address + DDRA_OFFSET, 0x00)
+    bus_write_byte(address + DDRB_OFFSET, 0x00)
+
+    # Read back DDRs
+    ddra_rb = bus_read_byte(address + DDRA_OFFSET)
+    ddrb_rb = bus_read_byte(address + DDRB_OFFSET)
+    print(f"  After DDR=0x00: DDRA readback=${ddra_rb:02X} "
+          f"DDRB readback=${ddrb_rb:02X}")
+
+    if ddra_rb != 0x00 or ddrb_rb != 0x00:
+        print("  FAIL: DDRs did not read back as 0x00")
+    else:
+        print("  PASS: DDRs read back as 0x00")
+
+    # Try setting SELECT_PR_BIT in CRs
+    bus_write_byte(address + CRA_OFFSET, SELECT_PR_BIT)
+    bus_write_byte(address + CRB_OFFSET, SELECT_PR_BIT)
+
+    cra_now = bus_read_byte(address + CRA_OFFSET)
+    crb_now = bus_read_byte(address + CRB_OFFSET)
+    print(f"  After CR=0x04: CRA=${cra_now:02X} CRB=${crb_now:02X}")
+
+    if (cra_now & SELECT_PR_BIT) == 0 or (crb_now & SELECT_PR_BIT) == 0:
+        print("  FAIL: SELECT_PR_BIT not set in CRs")
+    else:
+        print("  PASS: SELECT_PR_BIT set in CRs")
+
+    # Restore original state
+    bus_write_byte(address + CRA_OFFSET, cra)
+    bus_write_byte(address + CRB_OFFSET, crb)
+
+    # Check Bally-style detection (lenient - only checks SELECT_PR_BIT)
+    bally_pia = (cra_now & SELECT_PR_BIT) != 0 and (crb_now & SELECT_PR_BIT) != 0
+    print(f"  Bally PIA detection: {'PASS' if bally_pia else 'FAIL'}")
+    print("  State restored")
 
 
 def initialize():
@@ -282,16 +405,20 @@ def initialize():
 def fingerprint_page(address):
     """Determine page type at address. Returns PAGE_* constant.
     Order matches C version: PIA, Bally page0, RAM, WMS CMOS, Bally CMOS, empty, ROM"""
-    # PIA must be checked first to avoid false RAM detection
-    result = detect_pia(address)
-    if result is not None:
-        return result
+    # Ensure page-aligned address
+    address &= PAGE_ADDRESS_MASK
 
-    # Check for early Bally/Stern page 0
+    # Check for early Bally/Stern page 0 FIRST
+    # (must be before CMOS detection since Bally page 0 has 4-bit RAM)
     if address == 0x0000:
         result = detect_bally_page0(address)
         if result is not None:
             return result
+
+    # PIA must be checked before RAM to avoid false RAM detection
+    result = detect_pia(address)
+    if result is not None:
+        return result
 
     result = detect_ram(address)
     if result is not None:
@@ -325,8 +452,9 @@ def page_types_equivalent(a, b):
     if a == b:
         return True
     # PAGE_BALLY_ZERO_PAGE is equivalent to PAGE_RAM for aliasing purposes
-    if (a == PAGE_BALLY_ZERO_PAGE and b == PAGE_RAM) or \
-       (a == PAGE_RAM and b == PAGE_BALLY_ZERO_PAGE):
+    if (a == PAGE_BALLY_ZERO_PAGE and b == PAGE_RAM) or (
+        a == PAGE_RAM and b == PAGE_BALLY_ZERO_PAGE
+    ):
         return True
     return False
 
@@ -365,22 +493,29 @@ def recognize_architecture():
     decoded_bits = count_decoded_address_bits()
 
     # Early Bally/Stern
-    if decoded_bits < 16 and results[0x00] == PAGE_BALLY_ZERO_PAGE and \
-       results[0x02] == PAGE_BALLY_CMOS:
+    if (
+        decoded_bits < 16
+        and results[0x00] == PAGE_BALLY_ZERO_PAGE
+        and results[0x02] == PAGE_BALLY_CMOS
+    ):
         return ARCH_EARLY_BALLY, decoded_bits
 
     # Count CMOS at specific addresses (System 3-7 signature)
     expected_cmos_pages = [0x01, 0x05, 0x09, 0x0D]
-    cmos_count = sum(1 for page in expected_cmos_pages if results[page] == PAGE_WMS_CMOS)
+    cmos_count = sum(
+        1 for page in expected_cmos_pages if results[page] == PAGE_WMS_CMOS
+    )
 
     # Count RAM pages at start (System 11 signature)
     ram_count = sum(1 for i in range(0x08) if results[i] == PAGE_RAM)
 
     # Count PIA pages in expected places (System 3-7, 9/11)
-    expected_pia_pages = [0x21, 0x22, 0x24, 0x28, 0x2c, 0x30, 0x34, 0x40]
+    expected_pia_pages = [0x21, 0x22, 0x24, 0x28, 0x2C, 0x30, 0x34, 0x40]
     pia_count = sum(1 for page in expected_pia_pages if results[page] == PAGE_PIA)
 
-    print(f"Recognize architecture: Bits:{decoded_bits}, RAM:{ram_count}, PIA:{pia_count}, CMOS:{cmos_count}")
+    print(
+        f"Recognize architecture: Bits:{decoded_bits}, RAM:{ram_count}, PIA:{pia_count}, CMOS:{cmos_count}"
+    )
 
     # System 3-7: CMOS pattern, 15 bits decoded
     if cmos_count == 4 and results[0x01] == PAGE_WMS_CMOS and decoded_bits == 15:

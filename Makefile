@@ -134,8 +134,9 @@ micropython-pio:
 	mpremote cp micropython/bus_cycle_pio.py :
 	mpremote cp micropython/clock_pio.py :
 	mpremote cp micropython/sm_helpers.py :
-	mpremote cp micropython/main_pio_test.py :
+	mpremote cp micropython/pio_bus_access.py :
 	mpremote cp micropython/fingerprint.py :
+	mpremote cp micropython/pia_tester.py :
 	mpremote cp micropython/modbus_crc16.py :
 
 %.s19: %.asm
