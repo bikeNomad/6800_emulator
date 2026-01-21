@@ -319,24 +319,17 @@ bool memory_load_memory_map_from_flash(void)
 	return config_valid;
 }
 
-// Clear all ROM mapping (set ROM pages to unmapped in memory map)
-void memory_clear_rom_mapping(void)
+// Clear all mapping (set all pages to unmapped in memory map)
+void memory_clear_map(void)
 {
 	// Set all ROM pages to unmapped
-	for (uint32_t address = mem_config.rom_base;
-	     address < (uint32_t)mem_config.rom_base + mem_config.rom_size;
-	     address += ENTRY_PAGE_SIZE) {
-		uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
-
-		if ((memory_map[table_index] & ENTRY_FLAG_MASK) == ENTRY_MAPPED_ROM) {
-			// Set to unmapped (route to bus)
-			memory_map[table_index] = ENTRY_UNMAPPED_BUS;
-		}
+	for (uint table_index = 0; table_index < NUM_PAGES; table_index++) {
+		memory_map[table_index] = ENTRY_UNMAPPED_BUS;
 	}
 
 	// Save updated memory map to flash
 	memory_save_memory_map_to_flash();
-	printf("All ROM pages unmapped\n");
+	printf("All memory pages unmapped\n");
 }
 
 /**

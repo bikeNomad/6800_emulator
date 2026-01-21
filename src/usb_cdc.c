@@ -314,10 +314,8 @@ static void cmd_clock_test(void)
 	gpio_set_input_enabled(GPIO_ECLOCK, true);
 	gpio_set_pulls(GPIO_ECLOCK, false, false);
 
-	usb_cdc_printf("  GPIO%d CTRL: 0x%08lX\r\n", GPIO_ECLOCK,
-		       iobank0_hw->io[GPIO_ECLOCK].ctrl);
-	usb_cdc_printf("  PAD CTRL: 0x%08lX\r\n",
-		       padsbank0_hw->io[GPIO_ECLOCK]);
+	usb_cdc_printf("  GPIO%d CTRL: 0x%08lX\r\n", GPIO_ECLOCK, iobank0_hw->io[GPIO_ECLOCK].ctrl);
+	usb_cdc_printf("  PAD CTRL: 0x%08lX\r\n", padsbank0_hw->io[GPIO_ECLOCK]);
 
 	uint32_t transitions = 0;
 	bool last_state = gpio_get(GPIO_ECLOCK);
@@ -342,8 +340,7 @@ static void cmd_clock_test(void)
 
 	usb_cdc_printf("  GPIO%d CTRL: 0x%08lX\r\n", GPIO_ECLOCK_IN,
 		       iobank0_hw->io[GPIO_ECLOCK_IN].ctrl);
-	usb_cdc_printf("  PAD CTRL: 0x%08lX\r\n",
-		       padsbank0_hw->io[GPIO_ECLOCK_IN]);
+	usb_cdc_printf("  PAD CTRL: 0x%08lX\r\n", padsbank0_hw->io[GPIO_ECLOCK_IN]);
 
 	transitions = 0;
 	last_state = gpio_get(GPIO_ECLOCK_IN);
@@ -384,8 +381,7 @@ static void cmd_clock_test(void)
 
 	// Test 4: Check PIO state machine state
 	usb_cdc_send("\r\nTest 4: PIO state machine debug info...\r\n");
-	usb_cdc_printf("  PIO SM enabled: %s\r\n",
-		       (ECLK_PIO->ctrl & (1 << E_SM)) ? "yes" : "no");
+	usb_cdc_printf("  PIO SM enabled: %s\r\n", (ECLK_PIO->ctrl & (1 << E_SM)) ? "yes" : "no");
 	usb_cdc_printf("  PIO FSTAT: 0x%08lX\r\n", ECLK_PIO->fstat);
 	usb_cdc_printf("  PIO FDEBUG: 0x%08lX\r\n", ECLK_PIO->fdebug);
 
@@ -476,8 +472,7 @@ static void cmd_status(void)
 	if (bus_read_irq()) {
 		usb_cdc_printf("  /IRQ Pin asserted\r\n");
 	}
-	usb_cdc_printf("  E Clock: %s (%s)\r\n",
-		       eclock_is_running() ? "running" : "stopped",
+	usb_cdc_printf("  E Clock: %s (%s)\r\n", eclock_is_running() ? "running" : "stopped",
 		       eclock_get_mode() == ECLOCK_INTERNAL ? "internal" : "external");
 }
 
@@ -967,9 +962,8 @@ static void cmd_map_show(void)
 static void cmd_map_clear(void)
 {
 	send_command_to_emulator(EV_CMD_HALT);
-	// Clear all ROM mapping
-	memory_clear_rom_mapping();
-	usb_cdc_send("OK: All ROM pages unmapped\r\n");
+	memory_clear_map();
+	usb_cdc_send("OK: All memory pages unmapped\r\n");
 	send_command_to_emulator(EV_CMD_RESET);
 }
 
