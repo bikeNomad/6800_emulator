@@ -4,36 +4,62 @@ from pio_bus_access import eclock_start, eclock_stop, eclock_set_mode, ECLOCK_EX
 from array import array
 
 
-PIA1 = PIA(0x88)  # U10
-PIA2 = PIA(0x90)  # U11
+U10 = PIA(0x88)  # U10
+U11 = PIA(0x90)  # U11
 
 
 def scan_once():
+    U10.prb = 0
+    U11.prb = 0
+    U10.ca2 = 0
+    U11.ca2 = 0
+    U10.cb2 = 0
+    U11.cb2 = 0
     for i in range(8):
         bit = 1 << i
-        PIA1.pra = bit
-        PIA1.prb = bit
-        PIA2.pra = bit
-        PIA2.prb = bit
+        U10.pra = bit
+        U11.pra = bit
+    U10.pra = 0
+    U11.pra = 0
+    U10.ca2 = 1
+    U11.ca2 = 1
+    U10.ca2 = 0
+    U11.ca2 = 0
+    for i in range(8):
+        bit = 1 << i
+        U10.prb = bit
+        U11.prb = bit
+    U10.prb = 0
+    U11.prb = 0
+    U10.cb2 = 1
+    U11.cb2 = 1
+    U10.cb2 = 0
+    U11.cb2 = 0
 
 
 def register_report():
-    print(f"U10 DDRA={hex(PIA1.ddra)} DDRB={hex(PIA1.ddrb)}")
-    print(f"U10 PRA={hex(PIA1.pra)} PRB={hex(PIA1.prb)}")
-    print(f"U11 DDRA={hex(PIA2.ddra)} DDRB={hex(PIA2.ddrb)}")
-    print(f"U11 PRA={hex(PIA2.pra)} PRB={hex(PIA2.prb)}")
+    print(f"U10 DDRA={hex(U10.ddra)} DDRB={hex(U10.ddrb)}")
+    print(f"U10 CRA={hex(U10.cra)} CRB={hex(U10.crb)}")
+    print(f"U10 PRA={hex(U10.pra)} PRB={hex(U10.prb)}")
+    print(f"U11 DDRA={hex(U11.ddra)} DDRB={hex(U11.ddrb)}")
+    print(f"U11 CRA={hex(U11.cra)} CRB={hex(U11.crb)}")
+    print(f"U11 PRA={hex(U11.pra)} PRB={hex(U11.prb)}")
 
 
 def run_output_test():
     # Set up both PIAs as all outputs
-    PIA1.ddra = 0xFF
-    PIA1.ddrb = 0xFF
-    PIA2.ddra = 0xFF
-    PIA2.ddrb = 0xFF
-    PIA1.pra = 0x00
-    PIA1.prb = 0x00
-    PIA2.pra = 0x00
-    PIA2.prb = 0x00
+    U10.ddra = 0xFF
+    U10.ddrb = 0xFF
+    U11.ddra = 0xFF
+    U11.ddrb = 0xFF
+    U10.pra = 0x00
+    U10.prb = 0x00
+    U11.pra = 0x00
+    U11.prb = 0x00
+    U10.ca2 = 0
+    U11.ca2 = 0
+    U10.cb2 = 0
+    U11.cb2 = 0
     register_report()
 
     started = ticks_ms()
@@ -48,27 +74,33 @@ def run_output_test():
 def read_switches_once(sws):
     for i in range(8):
         bit = 1 << i
-        PIA1.pra = bit
+        U10.pra = bit
         sleep_us(10)
-        sws[i] = PIA1.prb
+        sws[i] = U10.prb
+    U10.pra = 0
+    U10.cb2 = 1
+    sws[8] = U10.prb
+    U10.cb2 = 0
 
 
 def print_dip_switch_states(current_switches):
-    for i in range(5, 8):
+    for i in range(5, 9):
         sw = current_switches[i]
         print(f"{i}: {sw:08b}")
 
 
 def read_switches():
-    last_switches = bytearray(8)
-    current_switches = bytearray(8)
-    PIA1.ddra = 0xFF  # PA0-PA7 all ouputs
-    PIA1.ddrb = 0x00  # PB0-PB7 all inputs
-    PIA1.pra = 0xFF
-    sleep_us(10)
+    last_switches = bytearray(9)
+    current_switches = bytearray(9)
+    last_mv = memoryview(last_switches)
+    U10.ddra = 0xFF  # PA0-PA7 all ouputs
+    U10.ddrb = 0x00  # PB0-PB7 all inputs
+    U10.pra = 0
+    U10.ca2 = 0
+    U10.cb2 = 0
     register_report()
     read_switches_once(current_switches)
-    last_switches = current_switches
+    last_mv[:] = current_switches
     print_dip_switch_states(current_switches)
     while True:
         read_switches_once(current_switches)
@@ -81,21 +113,21 @@ def read_switches():
                 )
             )
             print(diffs)
-            last_switches = current_switches
+            last_mv[:] = current_switches
 
 
+eclock_set_mode(ECLOCK_EXTERNAL)
 eclock_start()
 
+
 try:
-    print("Driving PRA/PRB...")
+    print("Driving PRA/PRB/CA2/CB2 (Ctrl-C to break)")
     run_output_test()
 except KeyboardInterrupt:
     pass
 
 try:
-    print("Reading switches...")
+    print("Reading switches (Ctrl-C to break)")
     read_switches()
 except KeyboardInterrupt:
     pass
-
-eclock_stop()
