@@ -38,3 +38,5 @@ sanity_result_t memory_sanity_check(void);          // Perform sanity check on m
 void print_scan_results(printf_func_t printf_func); // Print the memory scan results
 const char *
 architecture_name(architecture_type_t arch); // Get the name of the detected architecture
+// Copy the ROM range defined in mem_config into our flash
+bool copy_rom_contents_from_bus(printf_func_t printf_func);

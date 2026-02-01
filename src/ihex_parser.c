@@ -123,8 +123,8 @@ bool ihex_load_data(const char *hex_data, uint32_t length)
 			switch (record.record_type) {
 			case IHEX_TYPE_DATA:
 				full_address = base_address + record.address;
-				if (!memory_load_hex_data(full_address, record.data,
-							  record.byte_count)) {
+				if (!memory_load_data(full_address, record.data,
+						      record.byte_count)) {
 					printf("Failed to load data at address $%04lX\n",
 					       (unsigned long)full_address);
 					return false;

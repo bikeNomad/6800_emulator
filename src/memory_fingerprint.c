@@ -664,8 +664,8 @@ int count_decoded_address_bits(void)
 	// Start checking from 15 bits down to 8 bits
 
 	for (int bits = 15; bits >= 8; bits--) {
-		int section_size = 1 << (bits - 8);  // Pages per unique section
-		int num_copies = NUM_PAGES / section_size;  // Number of copies
+		int section_size = 1 << (bits - 8);        // Pages per unique section
+		int num_copies = NUM_PAGES / section_size; // Number of copies
 
 		bool all_match = true;
 		// Compare each copy with the first section (copy 0)
@@ -685,7 +685,7 @@ int count_decoded_address_bits(void)
 		// All copies match, try checking for fewer decoded bits
 	}
 
-	return 8;  // Minimum 8 bits (256 bytes per page)
+	return 8; // Minimum 8 bits (256 bytes per page)
 }
 
 // Williams System 3-7 does not decode A15, and duplicates the zero page of RAM at $1000
@@ -865,7 +865,7 @@ bool copy_rom_contents_from_bus(printf_func_t printf_func)
 		}
 
 		// Load into ROM buffer using existing function
-		if (memory_load_hex_data((uint16_t)addr, page_buffer, ENTRY_PAGE_SIZE)) {
+		if (memory_load_data((uint16_t)addr, page_buffer, ENTRY_PAGE_SIZE)) {
 			pages_copied++;
 		} else {
 			printf_func("Warning: Failed to load ROM page at $%04X\r\n",

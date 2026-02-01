@@ -128,7 +128,7 @@ void memory_configure_ram(uint16_t base, uint16_t size)
 
 // Load Intel HEX data into ROM load buffer or into RAM shadow
 // Return true if ROM was loaded, false if out of bounds or more than one type
-bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length)
+bool memory_load_data(uint16_t address, const uint8_t *data, uint16_t length)
 {
 	uint16_t start_addr = memory_get_unaliased_address(address);
 	uint16_t end_addr = (uint16_t)((uint32_t)start_addr + length - 1);

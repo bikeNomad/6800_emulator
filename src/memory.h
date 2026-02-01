@@ -75,7 +75,7 @@ uint8_t memory_read_fast(uint16_t address);
 void memory_write_fast(uint16_t address, uint8_t value);
 
 // Load Intel HEX data into flash shadow copy
-bool memory_load_hex_data(uint16_t address, const uint8_t *data, uint16_t length);
+bool memory_load_data(uint16_t address, const uint8_t *data, uint16_t length);
 
 // Finalize EPROM load (commit to flash)
 bool memory_finalize_load(void);

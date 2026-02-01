@@ -203,6 +203,9 @@ static void cmd_map_rom(void)
 	if (sscanf(cmd_tokens[0], "%x", &base) == 1 && sscanf(cmd_tokens[1], "%x", &size) == 1) {
 		memory_configure_rom(base, size);
 		usb_cdc_printf("OK: ROM configured at $%04X, size $%04X\r\n", base, size);
+		if (!copy_rom_contents_from_bus(usb_cdc_printf)) {
+			usb_cdc_send("ERROR: Failed to copy ROM contents from flash\r\n");
+		}
 	} else {
 		usb_cdc_send("ERROR: Usage: map rom <base_hex> <size_hex>\r\n");
 	}

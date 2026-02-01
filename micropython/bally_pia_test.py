@@ -9,6 +9,7 @@ U11 = PIA(0x90)  # U11
 
 
 def scan_once():
+    """Generate pulses from all the pins of U10 and U11 (PA0-7, CA2, PB0-7, CB2)"""
     U10.prb = 0
     U11.prb = 0
     U10.ca2 = 0
@@ -38,12 +39,10 @@ def scan_once():
 
 
 def register_report():
-    print(f"U10 DDRA={hex(U10.ddra)} DDRB={hex(U10.ddrb)}")
-    print(f"U10 CRA={hex(U10.cra)} CRB={hex(U10.crb)}")
-    print(f"U10 PRA={hex(U10.pra)} PRB={hex(U10.prb)}")
-    print(f"U11 DDRA={hex(U11.ddra)} DDRB={hex(U11.ddrb)}")
-    print(f"U11 CRA={hex(U11.cra)} CRB={hex(U11.crb)}")
-    print(f"U11 PRA={hex(U11.pra)} PRB={hex(U11.prb)}")
+    print("U10:")
+    U10.dump_regs()
+    print("U11:")
+    U11.dump_regs()
 
 
 def run_output_test():
@@ -72,6 +71,7 @@ def run_output_test():
 
 
 def read_switches_once(sws):
+    """Using U10 port A and CA2 as the strobes, read the switch states on port B."""
     for i in range(8):
         bit = 1 << i
         U10.pra = bit
