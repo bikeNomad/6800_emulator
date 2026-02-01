@@ -9,23 +9,21 @@ providing hardware-level compatibility with vintage MC6800-based systems.
 - **Cycle-Accurate Emulation**: Every MC6800 instruction executes in exactly the correct number of E clock cycles
 - **Hardware Bus Interface**: Physical GPIO connections allow interfacing with real MC6800 peripheral chips (PIAs, etc.)
 - **Auto-Configuration**: Memory fingerprinting automatically detects and configures system architecture
-- **Multiple Board Support**: Works with Raspberry Pi Pico 2 (26 GPIO) and Ned's System 7 Board (48 GPIO)
-- **Flexible Address Decoding**: Full 16-bit addressing or optimized 7-line mode (A0, A1, A10-A14) for PIA access
+- **Custom Hardware**: Designed for Ned's System 7 Board (RP2350B with 48 GPIO)
+- **Full Address Bus**: Complete 16-bit address bus (A0-A15) for full 64KB address space
 - **External Clock Support**: Auto-detect and synchronize to external E clock source
 - **USB CDC Interface**: Command-line control, Intel HEX file loading, and comprehensive diagnostics
 - **Web Interface**: Browser-based GUI for easy ROM loading and monitoring
 - **Debug Features**: SPI debug output, UART console, LED indicators (ROM/RAM/unmapped access)
-- **Flash-Based Storage**: ROM (up to 48KB) and CMOS (256 bytes) with persistent flash storage
+- **Flash-Based Storage**: Persistent flash-based storage for ROM (up to 48KB).
 
 ## Hardware Platform
 
-- **Microcontroller**: Raspberry Pi RP2350 (dual Cortex-M33 cores)
-- **Supported Boards**:
-  - **Raspberry Pi Pico 2 W** (BOARD_PICO2): 26 GPIO pins, optimized address bus (A0, A1, A10-A14)
-  - **Ned's System 7 Board** (BOARD_NED_SYS7): 48 GPIO pins, full 16-bit address bus, LED indicators
-- **Memory**: 520KiB SRAM, 16MiB Flash, 8MiB PSRAM (NED_SYS7 only)
+- **Microcontroller**: Raspberry Pi RP2350B (dual Cortex-M33 cores, 48 GPIO package)
+- **Board**: Ned's System 7 Board (BOARD_NED_SYS7)
+- **Memory**: 520KiB SRAM, 16MiB Flash, 8MiB PSRAM
 - **System Clock**: Configurable 150-300MHz (default: 266MHz for 133MHz QSPI flash)
-- **Bus Interface**: 8-bit data bus, configurable address bus (7 or 16 lines), full control signals
+- **Bus Interface**: 8-bit data bus, full 16-bit address bus, complete control signals
 - **Clock Generation**: PIO-based E clock at 894.886 kHz (3.579545 MHz / 4) or external clock input
 
 ## Target System Memory Architecture
@@ -38,14 +36,13 @@ The emulator automatically detects and configures memory regions for the followi
 - **Williams System 7**: 5KB RAM ($0000-$13FF) with mirroring at $1000-$10FF
 - **Williams System 9**: Extended memory configuration
 - **Williams System 11**: Up to 48KB ROM support
-- **Williams WPC**: WPC pinball controller support
 
 ### Memory Configuration
 
 - **RAM**: Up to 8KB shadow RAM with configurable base address and aliasing support
 - **ROM**: Up to 48KB flash-backed storage (minimum address $4000)
-- **CMOS**: 256 bytes persistent flash storage with write-through to target hardware
 - **Bus Access**: Unmapped addresses route to physical GPIO bus for peripheral chips (PIAs, etc.)
+- **CMOS**: Handled as unmapped, with write-through to target hardware
 
 ## Software Architecture
 
@@ -66,15 +63,14 @@ The emulator consists of several key components:
 
 - Full MC6800 instruction set with cycle-accurate timing
 - Physical bus interface with PIO acceleration
-- External E clock input with auto-detection
-- Multiple board support (Pico 2, NED_SYS7)
+- Auto-detection of external E clock input (MC6800 systems)
 - Automatic memory fingerprinting and architecture detection
-- Support for Early Bally, Stern MPU-100/200, Williams System 3/6/7/9/11, WPC
+- Support for Early Bally, Stern MPU-100/200, Williams System 3/6/7/9/11
 - USB CDC command interface with Intel HEX loading
-- Web-based control interface with automatic IC detection
+- Optional Web-based control interface
 - Flexible memory configuration with address aliasing
-- Flash-backed ROM (up to 48KB) and CMOS (256 bytes) storage
-- LED indicators for memory access visualization (NED_SYS7)
+- Flash-backed ROM (up to 48KB) storage
+- LED indicators for memory access visualization (NED_SYS7 board)
 - Optional SPI debug output for logic analyzer
 - Breakpoint system with up to 16 breakpoints
 - Comprehensive diagnostics and memory dump commands
@@ -84,89 +80,29 @@ The emulator consists of several key components:
 - Support for banked memory systems
 - Support for faster (2MHz) E clocks
 - MC6809 processor emulation
-- 6502 processor emulation
 - PSRAM utilization for extended storage
 
 ## Quick Start
 
-### Prerequisites
+For detailed setup and usage instructions, see the documentation:
 
-- Raspberry Pi Pico SDK installed
-- CMake and build tools
-- Set `PICO_SDK_PATH` environment variable
+- **[Getting Started Guide](doc/Getting-Started.md)** - Complete setup, building, and first program
+- **[Web Interface Guide](doc/Web-Interface.md)** - Browser-based control panel (easiest method)
+- **[Hardware Connection](doc/Hardware-Connection.md)** - Pin assignments and wiring
+- **[USB Commands Reference](doc/USB-Commands.md)** - Command-line interface
+- **[Memory Configuration](doc/Memory-Map.md)** - Memory layout and configuration
+- **[Architecture Overview](doc/Architecture.md)** - System design and implementation
 
-### Building
+### Quick Build
 
-1. **Clone the repository**:
+```bash
+git clone https://github.com/bikeNomad/6800_emulator.git
+cd 6800_emulator
+make
+# Flash images/BOARD_NED_SYS7.uf2 to device in BOOTSEL mode
+```
 
-   ```bash
-   git clone https://github.com/bikeNomad/6800_emulator.git
-   cd 6800_emulator
-   ```
-
-2. **Build the firmware**:
-
-   ```bash
-   mkdir build
-   cd build
-   cmake ..
-   make
-   ```
-
-   **Build options** (pass to CMake with `-D`):
-   - `BOARD_TYPE`: `BOARD_PICO2` or `BOARD_NED_SYS7` (default: `BOARD_NED_SYS7`)
-   - `SYS_CLOCK_MHZ`: 150-300 (default: 266)
-   - `QSPI_CLOCK_DIVISOR`: 1-4 (default: 2)
-   - `DEBUG_INTERRUPTS`: 0 or 1 (default: 0)
-
-   Example for Pico 2:
-   ```bash
-   cmake -DBOARD_TYPE=BOARD_PICO2 ..
-   make
-   ```
-
-3. **Flash the device**:
-   - Put RP2350 into bootloader mode (hold `BOOTSEL` while connecting USB or pressing `RESET`)
-   - Copy `build/mc6800_emulator.uf2` to the `RP2350` USB drive
-
-### First-Time Setup
-
-1. **Connect via serial terminal**:
-
-   ```bash
-   screen /dev/tty.usbmodem14201 115200
-   ```
-
-2. **Auto-configure memory** (if connected to target system):
-
-   ```
-   scan
-   ```
-
-   This will detect the system architecture and configure memory regions automatically.
-
-3. **Load ROM** (Intel HEX format):
-
-   ```
-   load
-   [paste Intel HEX content]
-   [blank line to finish]
-   ```
-
-4. **Run the emulator**:
-
-   ```
-   reset
-   run
-   ```
-
-### Using the Web Interface
-
-Open `web-interface/emulator-control.html` in a Chrome/Edge browser for a graphical control panel with:
-- One-click ROM loading (HEX or binary files)
-- Real-time CPU status monitoring
-- Automatic IC number detection (System 7)
-- Built-in terminal access
+Build options: `SYS_CLOCK_MHZ=266 QSPI_CLOCK_DIVISOR=2 DEBUG_INTERRUPTS=0`
 
 ## Technical Specifications
 
@@ -181,46 +117,48 @@ Open `web-interface/emulator-control.html` in a Chrome/Edge browser for a graphi
 
 - **Instruction Set**: Complete MC6800 instruction set with cycle-accurate timing
 - **Cycle Accuracy**: Each instruction executes in exactly the correct number of E clock cycles
-- **Performance Constraint**: All instructions must complete within 1.12µs per cycle
 
 ### Bus Interface
 
-- **Data Bus**: 8 lines (bidirectional with level shifting)
-- **Address Bus**:
-  - **BOARD_NED_SYS7**: Full 16-bit (A0-A15 on GPIO 8-23)
-  - **BOARD_PICO2**: Optimized 7-bit (A0, A1, A10-A14) for PIA access
+- **Data Bus**: 8 lines (bidirectional)
+- **Address Bus**: 16-bit (A0-A15 on GPIO 8-23)
 - **Control Signals**:
-  - VMA (Valid Memory Address) output
-  - R/W (Read/Write) output
+  - `VMA` (Valid Memory Address) output
+  - `R/W` (Read/Write) output
   - E clock output (PIO-generated) or input (external clock)
-- **Interrupt Inputs**: /IRQ, /NMI, /RESET (active low)
+- **Interrupt Inputs**: `/IRQ`, `/NMI`, `/RESET` (active low)
 
-### GPIO Pin Assignments
+### GPIO Pin Assignments (BOARD_NED_SYS7)
 
-**Data Bus** (all boards):
-- GPIO 0-7: D0-D7 (bidirectional)
+**Data Bus** (GPIO 0-7):
 
-**Address Bus**:
-- **NED_SYS7**: GPIO 8-23 (A0-A15)
-- **PICO2**: GPIO 8-14 (A0, A1, A10-A14)
+- D0-D7: Bidirectional 8-bit data bus
+
+**Address Bus** (GPIO 8-23):
+
+- A0-A15: Full 16-bit address bus
 
 **Control Signals**:
-- **NED_SYS7**: E clock (GPIO 24), VMA (GPIO 25), R/W (GPIO 26)
-- **PICO2**: E clock (GPIO 21), VMA (GPIO 22), R/W (GPIO 23)
 
-**Interrupts** (all boards):
-- GPIO 27: /IRQ
-- GPIO 28: /NMI
-- GPIO 29: /RESET
+- GPIO 24: E clock (output or input for external clock)
+- GPIO 25: VMA (Valid Memory Address)
+- GPIO 26: R/W (Read/Write)
 
-**LED Indicators** (NED_SYS7 only):
-- GPIO 37: ROM access (green)
-- GPIO 38: RAM/CMOS access (red)
-- GPIO 39: Unmapped/bus access (yellow)
+**Interrupts**:
+
+- GPIO 27: /IRQ (active low)
+- GPIO 28: /NMI (active low)
+- GPIO 29: /RESET (active low)
+
+**LED Indicators**:
+
+- GPIO 37: ROM access (green, active low)
+- GPIO 38: RAM access (red, active low)
+- GPIO 39: Unmapped/bus access (yellow, active low)
 
 ### Clock Generation
 
-- **E Clock Frequency**: 894.886 kHz (3.579545 MHz ÷ 4)
+- **E Clock Frequency**: 894.886 kHz (3.579545 MHz ÷ 4) or external input
 - **Internal Mode**: PIO-based generation for jitter-free timing
 - **External Mode**: Auto-detect external E clock input
 - **Synchronization**: PIO-based cycle counting ensures cycle-accurate execution
@@ -231,14 +169,14 @@ Open `web-interface/emulator-control.html` in a Chrome/Edge browser for a graphi
 - **RAM Storage**: Up to 8KB shadow RAM with configurable base address
 - **CMOS Storage**: 256 bytes persistent flash with write-through to bus
 - **Address Aliasing**: Supports incomplete address decoding (e.g., System 7 RAM mirroring)
-- **Memory Types**: ROM, RAM, CMOS, Unmapped (routed to GPIO bus)
+- **Memory Types**: ROM, RAM, Unmapped (routed to GPIO bus)
 
 ### USB Interface
 
 - **Device Class**: CDC (Communications Device Class) serial port
 - **Baud Rate**: Virtual (USB full-speed)
 - **Features**:
-  - Intel HEX file loading (ROM and CMOS)
+  - Intel HEX file loading
   - Interactive command shell
   - Memory read/write/dump commands
   - Breakpoint control
@@ -246,55 +184,9 @@ Open `web-interface/emulator-control.html` in a Chrome/Edge browser for a graphi
 
 ### Debug Interfaces
 
-- **UART**: Hardware serial output for diagnostics (115200 baud)
-- **SPI**: Optional clocked debug stream with PC, R/W, and data bus values
-- **LED Indicators**: Visual feedback for memory access patterns (NED_SYS7)
-
-## Command Reference
-
-The USB CDC interface provides an interactive command shell with the following commands:
-
-### System Control
-- `run` - Start emulator execution
-- `halt` - Stop emulator execution
-- `reset` - Reset CPU to initial state (vector from $FFFE)
-- `step [count]` - Execute one or more instructions
-- `status` - Display CPU registers and state
-
-### Memory Operations
-- `dump <start> [end]` - Display memory contents in hex/ASCII
-- `write <addr> <byte> [byte...]` - Write bytes to memory
-- `read <addr> [length]` - Read and display memory
-- `fill <start> <end> <value>` - Fill memory range with value
-- `checksum <start> <end>` - Calculate checksum of memory range
-
-### ROM/CMOS Loading
-- `load` - Load Intel HEX file (paste content, blank line to finish)
-- `load_cmos` - Load CMOS data from Intel HEX
-- `save_cmos` - Write CMOS shadow to flash storage
-- `copy_roms` - Copy ROM contents from physical bus to flash
-
-### Memory Configuration
-- `map` - Display current memory map
-- `map ram <base> <size>` - Configure RAM region
-- `map rom <base> <size>` - Configure ROM region
-- `map clear` - Clear all memory mappings
-- `scan` - Auto-detect system architecture and configure memory
-
-### Breakpoints
-- `break <addr>` - Set breakpoint at address
-- `break list` - List all breakpoints
-- `break clear [addr]` - Clear breakpoint(s)
-
-### Clock Control
-- `clock internal` - Use PIO-generated E clock
-- `clock external` - Use external E clock input
-- `clock status` - Display clock mode and cycle counters
-
-### Debugging
-- `trace [on|off]` - Enable/disable instruction trace
-- `spi [on|off]` - Enable/disable SPI debug output
-- `help` - Display command help
+- **UART**: Hardware serial output for diagnostics (115200 baud, GPIO 40/41)
+- **SPI**: Optional clocked debug stream with PC, R/W, and data bus values (GPIO 33-36)
+- **LED Indicators**: Visual feedback for memory access patterns (GPIO 37-39)
 
 ## Web Interface
 
@@ -346,10 +238,10 @@ The emulator uses several techniques to achieve cycle-accurate timing:
 ### Cycle Timing
 
 Each MC6800 instruction must complete within the exact number of E clock cycles:
+
 - Memory reads/writes to ROM/RAM: No bus delay (shadow copy access)
 - Memory access to unmapped regions: Full bus cycle with PIO synchronization
 - Instruction execution: Precise cycle counting with periodic synchronization
-- Critical constraint: Each E clock cycle is 1.12µs (894.886 kHz)
 
 ### Supported System Architectures
 
@@ -361,7 +253,6 @@ The emulator auto-detects and supports:
 - **Williams System 7**: 5KB RAM with mirroring, 16KB ROM
 - **Williams System 9**: Extended ROM support
 - **Williams System 11**: Up to 48KB ROM
-- **Williams WPC**: WPC pinball platform
 
 ## Development
 
@@ -374,21 +265,23 @@ The emulator auto-detects and supports:
 
 ### Build Configuration
 
-Key CMake options:
-- `BOARD_TYPE`: Select target board
-- `SYS_CLOCK_MHZ`: System clock frequency
-- `QSPI_CLOCK_DIVISOR`: Flash access speed
-- `DEBUG_INTERRUPTS`: Enable interrupt debug output
+Key build options:
+
+- `SYS_CLOCK_MHZ`: System clock frequency (150-300 MHz, default: 266)
+- `QSPI_CLOCK_DIVISOR`: Flash access speed divisor (1-4, default: 2)
+- `DEBUG_INTERRUPTS`: Enable interrupt debug output (0 or 1, default: 0)
 
 ### Testing
 
 The repository includes test programs in `tests/`:
+
 - `test_program_2.asm`: Basic instruction test
 - `test_program_2.hex`: Assembled Intel HEX format
 
 ### Contributing
 
 Contributions are welcome! Key areas for development:
+
 - Additional processor support (MC6809, 6502)
 - Banked memory systems
 - Faster E clock modes (2 MHz+)

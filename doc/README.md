@@ -306,7 +306,6 @@ read 7FF8 8
 ### RP2350 Documentation
 
 - [RP2350 Datasheet](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)
-- [Pico 2 W Pinout](https://datasheets.raspberrypi.com/pico/Pico-2-W-pinout.pdf)
 
 ### Tools
 

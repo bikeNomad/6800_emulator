@@ -2,7 +2,7 @@
 
 ## Overview
 
-The MC6800 Emulator is a cycle-accurate hardware emulator that runs on the Raspberry Pi Pico 2 W (RP2350). It provides a bridge between modern development tools and vintage MC6800-based systems, allowing you to develop, test, and debug MC6800 code without requiring original hardware.
+The MC6800 Emulator is a cycle-accurate hardware emulator that runs on the RP2350B microcontroller. It provides a bridge between modern development tools and vintage MC6800-based systems, allowing you to develop, test, and debug MC6800 code without requiring original hardware.
 
 ## Design Philosophy
 
@@ -31,16 +31,16 @@ Unlike pure software emulators, this design includes a **physical bus interface*
 - **GPIO**: 48 pins (NED_SYS7 board)
 - **Connectivity**: USB CDC for development, UART for debug
 
-### Supported Board
+### Hardware Board
 
 **Ned's System 7 Board (BOARD_NED_SYS7)**
 
-- Full GPIO (48 pins)
+- RP2350B with 48 GPIO pins
 - Complete address bus (A0-A15) = 16 address lines
-- Address space: 64KB full range
+- Full 64KB address space
 - LED indicators for memory access visualization
-- PSRAM interface support
-- Best for: Complete system replacement, full memory access
+- 8MB PSRAM interface support
+- Designed for complete MC6800 system replacement
 
 ## System Architecture
 

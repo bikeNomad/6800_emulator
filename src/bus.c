@@ -13,26 +13,15 @@
 #include <stdio.h>
 #include "pico/mutex.h"
 
-// Address bus GPIO mapping is board-specific (see board_config.h for
-// ADDR_GPIO_MASK)
-#if BOARD_TYPE == BOARD_NED_SYS7
+// Address bus GPIO mapping (GPIO 8-23 for A0-A15)
 #define WRITE_PINDIRS 0xFFFFFFFFUL
 #define READ_PINDIRS  0xFFFFFF00UL
+#define DATA_MASK     0x000000FFUL
+
 static inline uint32_t address_to_gpio(uint16_t addr)
 {
 	return addr << 8;
 }
-#else // BOARD_PICO2
-#define WRITE_PINDIRS 0x00000000UL
-#define READ_PINDIRS  0xFFFFFF00UL
-// We're only using 7 address lines (A0,A1,A10-A14), so mask out the rest.
-// Simple shift works because GPIO 8-14 map directly to these address bits.
-static inline uint32_t address_to_gpio(uint16_t addr)
-{
-	return addr << 8;
-}
-#endif
-#define DATA_MASK 0x000000FFUL
 
 // Initialize bus interface
 void bus_init(void)
@@ -48,24 +37,13 @@ void bus_init(void)
 		gpio_pull_up(i); // Weak pull-ups for floating data bus
 	}
 
-	// Configure address bus (board-specific GPIO assignments)
-#if BOARD_TYPE == BOARD_PICO2
-	// PICO2: GPIO 8-14 for A0,A1,A10-A14 (7 pins, non-contiguous)
-	for (int i = 8; i <= 14; i++) {
-		gpio_init(i);
-		gpio_set_dir(i, GPIO_OUT);
-		gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);
-		gpio_put(i, 0);
-	}
-#else
-	// NED_SYS7: GPIO 8-23 for full address bus (A0-A15)
+	// Configure address bus: GPIO 8-23 for full address bus (A0-A15)
 	for (int i = 8; i <= 23; i++) {
 		gpio_init(i);
 		gpio_set_dir(i, GPIO_OUT);
 		gpio_set_drive_strength(i, GPIO_DRIVE_STRENGTH_12MA);
 		gpio_put(i, 0);
 	}
-#endif
 
 	// Configure control signals
 	gpio_init(GPIO_VMA);
@@ -92,57 +70,35 @@ void bus_init(void)
 	gpio_pull_up(GPIO_RESET);
 
 	// Initialize unused GPIO pins as inputs with pull-ups to prevent floating
-#if BOARD_TYPE == BOARD_PICO2
-	// PICO2 unused pins: 15, 20, 24, 25, 26
-	const int unused_pins[] = {15, 20, 24, 25, 26};
-	for (int i = 0; i < 5; i++) {
-		gpio_init(unused_pins[i]);
-		gpio_set_dir(unused_pins[i], GPIO_IN);
-		gpio_pull_up(unused_pins[i]);
-	}
-#else
-	// NED_SYS7: Initialize unused GPIO pins as inputs with pull-ups
-	// Unused: 31-32 (after control signals), 35-36 (old UART pins), 42-47
-	// (after LEDs/UART) Allow for either 36 or 39 to be used for yellow LED.
-	const int unused_pins[] = {30, 31, 32, 35, 36, 39, 42, 43, 44, 45, 46, 47};
+	// Unused: 30-32, 35-36 (old UART pins), 42-47 (after LEDs/UART)
+	const int unused_pins[] = {30, 31, 32, 35, 36, 42, 43, 44, 45, 46, 47};
 	for (int i = 0; i < 11; i++) {
 		gpio_init(unused_pins[i]);
 		gpio_set_dir(unused_pins[i], GPIO_IN);
 		gpio_pull_up(unused_pins[i]);
 	}
 
-	// NED_SYS7: Initialize LED indicators (active low, so HIGH = off)
+	// Initialize LED indicators (active low, so HIGH = off)
 	gpio_init(GPIO_LED_ROM);
 	gpio_set_dir(GPIO_LED_ROM, GPIO_OUT);
-	gpio_set_drive_strength(GPIO_LED_ROM,
-				GPIO_DRIVE_STRENGTH_12MA); // Increase brightness
-	gpio_put(GPIO_LED_ROM, 1);                         // Off
+	gpio_set_drive_strength(GPIO_LED_ROM, GPIO_DRIVE_STRENGTH_12MA);
+	gpio_put(GPIO_LED_ROM, 1); // Off
 
 	gpio_init(GPIO_LED_RAM);
 	gpio_set_dir(GPIO_LED_RAM, GPIO_OUT);
-	gpio_set_drive_strength(GPIO_LED_RAM,
-				GPIO_DRIVE_STRENGTH_12MA); // Increase brightness
-	gpio_put(GPIO_LED_RAM, 1);                         // Off
+	gpio_set_drive_strength(GPIO_LED_RAM, GPIO_DRIVE_STRENGTH_12MA);
+	gpio_put(GPIO_LED_RAM, 1); // Off
 
 	gpio_init(GPIO_LED_UNMAPPED);
 	gpio_set_dir(GPIO_LED_UNMAPPED, GPIO_OUT);
-	gpio_set_drive_strength(GPIO_LED_UNMAPPED,
-				GPIO_DRIVE_STRENGTH_12MA); // Increase brightness
-	gpio_put(GPIO_LED_UNMAPPED, 1);                    // Off
-#endif
+	gpio_set_drive_strength(GPIO_LED_UNMAPPED, GPIO_DRIVE_STRENGTH_12MA);
+	gpio_put(GPIO_LED_UNMAPPED, 1); // Off
 
 	printf("Bus interface initialized for %s\r\n", BOARD_NAME);
 	printf("  Data:  GPIO %d-%d\r\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
-#if BOARD_TYPE == BOARD_PICO2
-	printf("  Addr:  GPIO 8-14 -> MC6800 A{0,1,10-14} (%d lines, %d "
-	       "addresses)\r\n",
+	printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\r\n",
 	       ADDR_LINES, ADDR_SPACE_SIZE);
-	printf("  Addr mask: 0x%04X (non-contiguous address space)\r\n", ADDR_MASK);
-#else
-	printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\r\n", ADDR_LINES,
-	       ADDR_SPACE_SIZE);
 	printf("  Addr mask: 0x%04X (full address space)\r\n", ADDR_MASK);
-#endif
 	printf("  VMA:   GPIO %d\r\n", GPIO_VMA);
 	printf("  R/W:   GPIO %d\r\n", GPIO_RW);
 	printf("  /IRQ:  GPIO %d\r\n", GPIO_IRQ);

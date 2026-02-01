@@ -14,11 +14,13 @@ A web-based interface for controlling the MC6800 emulator via WebSerial API. Thi
 ## Browser Support
 
 **Supported:**
+
 - ✅ Google Chrome 89+
 - ✅ Microsoft Edge 89+
 - ✅ Opera 75+
 
 **Not Supported:**
+
 - ❌ Firefox (no WebSerial API support)
 - ❌ Safari (no WebSerial API support)
 
@@ -33,12 +35,14 @@ A web-based interface for controlling the MC6800 emulator via WebSerial API. Thi
 ### 1. Opening the Interface
 
 **Option A: Local file (file://)**
+
 ```bash
 # Simply open the HTML file in Chrome/Edge
 open emulator-control.html
 ```
 
-**Option B: Local web server (http://localhost)**
+**Option B: Local web server (<http://localhost>)**
+
 ```bash
 # Python 3
 cd web-interface
@@ -56,12 +60,13 @@ python3 -m http.server 8000
 ### 3. CPU Control
 
 - **Run**: Start CPU execution
-- **Halt**: Stop CPU and save CMOS
+- **Halt**: Stop CPU
 - **Reset**: Reset CPU to initial state
 
 ### 4. Monitoring Status
 
 The status panel automatically refreshes every 1 second, showing:
+
 - **PC**: Program Counter
 - **A, B**: Accumulators
 - **X**: Index Register
@@ -82,6 +87,7 @@ The status panel automatically refreshes every 1 second, showing:
 #### Binary Files (.bin)
 
 **With IC number in filename:**
+
 ```
 IC26.bin   → Automatically loads to $5800
 IC14.bin   → Automatically loads to $6000
@@ -94,6 +100,7 @@ IC17.bin   → Automatically loads to $7000
 3. Otherwise, enter start address (hex, without $) and click **"Upload ROM"**
 
 **System 7 IC Mappings:**
+
 - IC26 → $5800
 - IC14 → $6000
 - IC20 → $6800
@@ -116,6 +123,7 @@ The terminal provides full access to all emulator commands:
 ```
 
 **Terminal Features:**
+
 - Type commands and press Enter
 - Use ↑/↓ arrow keys for command history
 - All responses displayed in real-time
@@ -229,6 +237,7 @@ Part of the MC6800 Emulator project.
 ## Support
 
 For issues or questions:
+
 1. Check the terminal for error messages
 2. Verify browser console for JavaScript errors
 3. Review the USB CDC command documentation in `src/usb_cdc.c`

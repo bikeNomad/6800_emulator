@@ -50,7 +50,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
 **Build commands**:
 ```bash
 # MC6809
-cmake -DBOARD_TYPE=BOARD_PICO2 -DCPU_TYPE=CPU_MC6809 ..
+cmake -DCPU_TYPE=CPU_MC6809 ..
 make
 # Output: mc6809_emulator.uf2
 ```

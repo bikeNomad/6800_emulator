@@ -19,8 +19,8 @@ set(CMAKE_CXX_STANDARD 17)
 # Initialize the Pico SDK
 pico_sdk_init()
 
-# Board configuration (can be overridden from command line)
-# Options: BOARD_PICO2 (default) or BOARD_WAVESHARE
+# Board configuration
+# Only BOARD_NED_SYS7 is supported
 if(NOT DEFINED BOARD_TYPE)
     set(BOARD_TYPE "BOARD_NED_SYS7")
 endif()
@@ -74,17 +74,13 @@ target_link_libraries(mc6800_emulator
 pico_enable_stdio_usb(mc6800_emulator 0)
 pico_enable_stdio_uart(mc6800_emulator 1)
 
-# Set UART pins based on board type (defined in board_config.h)
-if(BOARD_TYPE STREQUAL "BOARD_PICO2")
-    set(UART_TX_PIN 24)
-    set(UART_RX_PIN 25)
-    set(UART_INSTANCE 1) # UART1 for Pico 2
-elseif(BOARD_TYPE STREQUAL "BOARD_NED_SYS7")
+# Set UART pins for BOARD_NED_SYS7
+if(BOARD_TYPE STREQUAL "BOARD_NED_SYS7")
     set(UART_TX_PIN 40)
     set(UART_RX_PIN 41)
     set(UART_INSTANCE 1) # UART1 for NED_SYS7
 else()
-    message(FATAL_ERROR "Unknown BOARD_TYPE: ${BOARD_TYPE}")
+    message(FATAL_ERROR "Unknown BOARD_TYPE: ${BOARD_TYPE}. Only BOARD_NED_SYS7 is supported.")
 endif()
 
 message(STATUS "UART configuration: UART${UART_INSTANCE} on TX=GPIO${UART_TX_PIN}, RX=GPIO${UART_RX_PIN}")
