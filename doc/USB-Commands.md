@@ -68,6 +68,7 @@ tio /dev/tty.usbmodem14201
 | `config rom` | base size | Configure ROM region |
 | `config ram` | base size | Configure RAM region |
 | `checksum` | addr len | Calculate checksum of memory range |
+| `download` | addr len | Download memory as Intel HEX |
 | `read` | addr len | Read memory |
 | `write` | addr data... | Write memory |
 | `status` | none | Display CPU status |
@@ -393,6 +394,110 @@ for (uint32_t i = 0; i < length; i++) {
     sum += value;
 }
 uint16_t checksum = sum & 0xFFFF;  // Modulo 64k
+```
+
+### download
+
+Download memory contents as Intel HEX format. This command reads the specified memory range and outputs it in standard Intel HEX format, which can be saved to a file and used with EPROM programmers, assemblers, or loaded back into the emulator.
+
+**Syntax**:
+
+```
+download <addr_hex> <len_hex>
+```
+
+**Parameters**:
+
+- `addr_hex`: Starting address in hexadecimal
+- `len_hex`: Number of bytes to download (1-65536)
+
+**Example**:
+
+```
+> download 5000 80
+Downloading $0080 bytes from $5000 as Intel HEX:
+:10500000864E7E400086FF97109710971097109755
+:105010007E50001097109710971097109710971085
+:105020001097109710971097109710971097109775
+:105030001097109710971097109710971097109765
+:105040001097109710971097109710971097109755
+:105050001097109710971097109710971097109745
+:105060001097109710971097109710971097109735
+:105070001097109710971097109710971097109725
+:00000001FF
+OK: Downloaded 128 bytes
+```
+
+**Intel HEX Format**:
+
+Each line follows the format: `:LLAAAATTDD...DDCC`
+
+- `LL` = Byte count (16 bytes per record is standard)
+- `AAAA` = Address (16-bit, big-endian)
+- `TT` = Record type (00=data, 01=EOF)
+- `DD...DD` = Data bytes
+- `CC` = Checksum (two's complement of sum)
+
+**Usage**:
+
+**Save to file on macOS/Linux**:
+```bash
+# Capture output to file
+screen -L /dev/tty.usbmodem14201
+> download 5000 4000
+# Press Ctrl+A, then H to save log
+# File saved as screenlog.0
+```
+
+**Save using terminal redirection**:
+```bash
+# Using echo and capture
+echo "download 5000 4000" > /dev/tty.usbmodem14201 &
+cat /dev/tty.usbmodem14201 > rom_backup.hex
+```
+
+**Use with minicom**:
+```bash
+minicom -D /dev/tty.usbmodem14201 -C rom_backup.log
+> download 5000 4000
+# Exit minicom - log file contains output
+```
+
+**Notes**:
+
+- Output can be redirected to a file and loaded back with the `load` command
+- Standard format compatible with most assemblers and EPROM programmers
+- Maximum range: 65536 bytes (full address space)
+- Reads from mapped memory (ROM/RAM) or physical bus for unmapped addresses
+- If unmapped regions are accessed, E clock is automatically started
+- Each data record contains 16 bytes (standard practice)
+- EOF record (`:00000001FF`) is automatically appended
+
+**Use Cases**:
+
+- **Backup ROM contents**: Save current ROM before loading new code
+- **Extract code**: Retrieve code from emulator for analysis or archival
+- **Verify uploads**: Download and compare with original to verify integrity
+- **Create test files**: Generate HEX files from memory for testing
+- **ROM development**: Extract modified ROM after runtime patches
+
+**Example Workflow**:
+
+```bash
+# 1. Save current ROM
+> download 5000 3000 > original_rom.hex
+
+# 2. Load modified code
+> load
+[paste new HEX]
+
+# 3. Test the code
+> reset
+> run
+
+# 4. If problems occur, reload original
+> load
+[paste original_rom.hex contents]
 ```
 
 ### read

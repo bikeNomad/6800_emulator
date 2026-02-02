@@ -194,6 +194,42 @@
       display: block;
     }
 
+    #download-status {
+      margin-top: 10px;
+      padding: 8px;
+      border-radius: 3px;
+      display: none;
+    }
+
+    #download-status.success {
+      background: #1f5a3f;
+      color: #4ec9b0;
+      display: block;
+    }
+
+    #download-status.error {
+      background: #5a1f1f;
+      color: #f48771;
+      display: block;
+    }
+
+    #download-status.progress {
+      background: #3c3c1f;
+      color: #dcdcaa;
+      display: block;
+    }
+
+    .preset-btn {
+      padding: 5px 10px;
+      margin: 3px 3px 3px 0;
+      font-size: 12px;
+      background: #404040;
+    }
+
+    .preset-btn:hover:not(:disabled) {
+      background: #505050;
+    }
+
     #address-input {
       margin-top: 10px;
       padding: 10px;
@@ -509,6 +545,31 @@
       Supports Intel HEX (.hex) and binary (.bin) files.<br>
       Binary files: IC number auto-detected from filename (IC26→$5800, IC14→$6000, IC20→$6800, IC17→$7000)<br>
       Manual address overrides auto-detection.
+    </div>
+  </div>
+
+  <!-- ROM Download Panel -->
+  <div class="panel">
+    <h2>ROM Download</h2>
+    <div style="margin-bottom: 10px;">
+      <label for="download-addr">Address (hex):</label>
+      <input type="text" id="download-addr" placeholder="5000" maxlength="4" style="width: 80px;" disabled>
+      <label for="download-len" style="margin-left: 10px;">Length (hex):</label>
+      <input type="text" id="download-len" placeholder="3000" maxlength="4" style="width: 80px;" disabled>
+    </div>
+    <button id="download-btn" disabled>Download Memory</button>
+    <div style="margin-top: 10px; font-size: 12px; color: #808080;">
+      <div>Quick presets:</div>
+      <button id="download-rom-btn" class="preset-btn" disabled>ROM (5000:3000)</button>
+      <button id="download-ram-btn" class="preset-btn" disabled>RAM (0000:1400)</button>
+      <button id="download-cmos-btn" class="preset-btn" disabled>CMOS (0100:100)</button>
+      <button id="download-vectors-btn" class="preset-btn" disabled>Vectors (FFF8:8)</button>
+    </div>
+    <div id="download-status"></div>
+    <div class="help-text">
+      Download memory contents as Intel HEX file.<br>
+      Address and length in hexadecimal (no $ prefix).<br>
+      File will be saved as memory_ADDR_LEN.hex
     </div>
   </div>
 
@@ -1034,6 +1095,13 @@
         document.getElementById('rom-file').addEventListener('change', () => this.onFileSelected());
         document.getElementById('upload-btn').addEventListener('click', () => this.onUpload());
 
+        // ROM Download
+        document.getElementById('download-btn').addEventListener('click', () => this.onDownload());
+        document.getElementById('download-rom-btn').addEventListener('click', () => this.onDownloadPreset('5000', '3000'));
+        document.getElementById('download-ram-btn').addEventListener('click', () => this.onDownloadPreset('0000', '1400'));
+        document.getElementById('download-cmos-btn').addEventListener('click', () => this.onDownloadPreset('0100', '100'));
+        document.getElementById('download-vectors-btn').addEventListener('click', () => this.onDownloadPreset('FFF8', '8'));
+
         // Modal close handlers
         document.getElementById('command-modal').addEventListener('click', (e) => {
           if (e.target === document.getElementById('command-modal')) {
@@ -1130,6 +1198,15 @@
         document.getElementById('mem-read-btn').disabled = !enabled;
         document.getElementById('mem-write-btn').disabled = !enabled;
         document.getElementById('mem-checksum-btn').disabled = !enabled;
+
+        // ROM Download
+        document.getElementById('download-addr').disabled = !enabled;
+        document.getElementById('download-len').disabled = !enabled;
+        document.getElementById('download-btn').disabled = !enabled;
+        document.getElementById('download-rom-btn').disabled = !enabled;
+        document.getElementById('download-ram-btn').disabled = !enabled;
+        document.getElementById('download-cmos-btn').disabled = !enabled;
+        document.getElementById('download-vectors-btn').disabled = !enabled;
 
         // Debug Control
         document.getElementById('debug-on-btn').disabled = !enabled;
@@ -1636,6 +1713,154 @@
 
       showUploadStatus(message, type) {
         const statusDiv = document.getElementById('upload-status');
+        statusDiv.textContent = message;
+        statusDiv.className = type;
+
+        if (type === 'success' || type === 'error') {
+          setTimeout(() => {
+            statusDiv.style.display = 'none';
+          }, 5000);
+        }
+      }
+
+      // Download methods
+      async onDownload() {
+        const addrInput = document.getElementById('download-addr');
+        const lenInput = document.getElementById('download-len');
+
+        if (!addrInput.value || !lenInput.value) {
+          this.showDownloadStatus('Address and length required', 'error');
+          return;
+        }
+
+        const address = parseInt(addrInput.value, 16);
+        const length = parseInt(lenInput.value, 16);
+
+        if (isNaN(address) || isNaN(length)) {
+          this.showDownloadStatus('Invalid hex values', 'error');
+          return;
+        }
+
+        if (address > 0xFFFF || length < 1 || length > 0x10000) {
+          this.showDownloadStatus('Address/length out of range', 'error');
+          return;
+        }
+
+        if (address + length > 0x10000) {
+          this.showDownloadStatus('Range exceeds address space', 'error');
+          return;
+        }
+
+        try {
+          this.showDownloadStatus('Downloading memory...', 'progress');
+
+          const hexData = await this.downloadMemory(address, length);
+
+          // Create filename
+          const filename = `memory_${address.toString(16).toUpperCase().padStart(4, '0')}_${length.toString(16).toUpperCase().padStart(4, '0')}.hex`;
+
+          // Save to file
+          this.saveHexFile(hexData, filename);
+
+          this.showDownloadStatus(`Downloaded ${length} bytes to ${filename}`, 'success');
+          this.appendTerminal(`Memory downloaded: $${address.toString(16).toUpperCase()}:$${length.toString(16).toUpperCase()} → ${filename}`, 'response');
+        } catch (error) {
+          this.showDownloadStatus('Download failed: ' + error.message, 'error');
+          this.appendTerminal('Download error: ' + error.message, 'error');
+        }
+      }
+
+      async downloadMemory(address, length) {
+        const command = `download ${address.toString(16)} ${length.toString(16)}`;
+
+        return new Promise((resolve, reject) => {
+          let hexLines = [];
+          let collecting = false;
+          let timeoutId = null;
+
+          const dataHandler = (data) => {
+            const lines = data.split('\n');
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+
+              // Start collecting when we see "Downloading" message
+              if (trimmed.startsWith('Downloading $')) {
+                collecting = true;
+                hexLines = [];
+                continue;
+              }
+
+              // Collect Intel HEX records
+              if (collecting && trimmed.startsWith(':')) {
+                hexLines.push(trimmed);
+
+                // EOF record - we're done
+                if (trimmed === ':00000001FF') {
+                  clearTimeout(timeoutId);
+                  this.connection.removeDataCallback(dataHandler);
+
+                  if (hexLines.length > 0) {
+                    resolve(hexLines.join('\n'));
+                  } else {
+                    reject(new Error('No data received'));
+                  }
+                  return;
+                }
+              }
+
+              // Check for errors
+              if (trimmed.startsWith('ERROR:')) {
+                clearTimeout(timeoutId);
+                this.connection.removeDataCallback(dataHandler);
+                reject(new Error(trimmed.substring(7)));
+                return;
+              }
+            }
+          };
+
+          // Set timeout (30 seconds for large downloads)
+          timeoutId = setTimeout(() => {
+            this.connection.removeDataCallback(dataHandler);
+            reject(new Error('Download timeout'));
+          }, 30000);
+
+          // Register callback
+          this.connection.addDataCallback(dataHandler);
+
+          // Send command
+          this.connection.sendCommand(command);
+        });
+      }
+
+      saveHexFile(hexData, filename) {
+        // Create blob
+        const blob = new Blob([hexData], { type: 'text/plain' });
+
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+
+        document.body.appendChild(a);
+        a.click();
+
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      }
+
+      onDownloadPreset(addr, len) {
+        document.getElementById('download-addr').value = addr;
+        document.getElementById('download-len').value = len;
+      }
+
+      showDownloadStatus(message, type) {
+        const statusDiv = document.getElementById('download-status');
         statusDiv.textContent = message;
         statusDiv.className = type;
 

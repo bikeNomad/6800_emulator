@@ -970,6 +970,97 @@ static void cmd_map_clear(void)
 	send_command_to_emulator(EV_CMD_RESET);
 }
 
+// Helper function to generate a single Intel HEX record
+static void generate_ihex_record(uint16_t address, uint8_t *data, uint8_t byte_count, uint8_t record_type)
+{
+	// Calculate checksum (two's complement of sum of all bytes)
+	uint8_t checksum = byte_count;
+	checksum += (address >> 8) & 0xFF;
+	checksum += address & 0xFF;
+	checksum += record_type;
+	for (int i = 0; i < byte_count; i++) {
+		checksum += data[i];
+	}
+	checksum = (~checksum + 1) & 0xFF; // Two's complement
+
+	// Output record: :LLAAAATTDD...DDCC
+	usb_cdc_printf(":%02X%04X%02X", byte_count, address, record_type);
+	for (int i = 0; i < byte_count; i++) {
+		usb_cdc_printf("%02X", data[i]);
+	}
+	usb_cdc_printf("%02X\r\n", checksum);
+}
+
+static void cmd_download(void)
+{
+	// Download memory as Intel HEX: download <addr> <len>
+	// Expects tokens: [download] <addr> <len>
+	if (cmd_token_count < 2) {
+		usb_cdc_send("ERROR: Usage: download <addr_hex> <len_hex>\r\n");
+		return;
+	}
+
+	unsigned int addr, len;
+	if (sscanf(cmd_tokens[0], "%x", &addr) != 1 || sscanf(cmd_tokens[1], "%x", &len) != 1) {
+		usb_cdc_send("ERROR: Usage: download <addr_hex> <len_hex>\r\n");
+		return;
+	}
+
+	if (addr > MAX_ADDRESS) {
+		usb_cdc_send("ERROR: Address out of range\r\n");
+		return;
+	}
+	if (len == 0 || len > 65536) {
+		usb_cdc_send("ERROR: Length must be 1-65536\r\n");
+		return;
+	}
+	if (addr + len > MAX_ADDRESS + 1) {
+		usb_cdc_send("ERROR: Block exceeds address space\r\n");
+		return;
+	}
+
+	usb_cdc_printf("Downloading $%04X bytes from $%04X as Intel HEX:\r\n", len, addr);
+
+	bool started_eclock = false;
+	if (memory_range_has_unmapped(addr, len)) {
+		// Temporarily start E clock if needed for bus access
+		if (!eclock_is_running()) {
+			eclock_start();
+			started_eclock = true;
+		}
+	}
+
+	// Generate Intel HEX data records (16 bytes per record is standard)
+	#define BYTES_PER_RECORD 16
+	uint8_t buffer[BYTES_PER_RECORD];
+	uint32_t remaining = len;
+	uint16_t current_addr = addr;
+
+	while (remaining > 0) {
+		uint8_t bytes_this_record = (remaining >= BYTES_PER_RECORD) ? BYTES_PER_RECORD : remaining;
+
+		// Read data from memory
+		for (uint8_t i = 0; i < bytes_this_record; i++) {
+			buffer[i] = memory_read_fast(current_addr + i);
+		}
+
+		// Generate and output the record
+		generate_ihex_record(current_addr, buffer, bytes_this_record, IHEX_TYPE_DATA);
+
+		current_addr += bytes_this_record;
+		remaining -= bytes_this_record;
+	}
+
+	// Output EOF record
+	generate_ihex_record(0x0000, NULL, 0, IHEX_TYPE_EOF);
+
+	if (started_eclock) {
+		eclock_stop();
+	}
+
+	usb_cdc_printf("OK: Downloaded %d bytes\r\n", len);
+}
+
 static void cmd_checksum(void)
 {
 	// Checksum: checksum <addr> <len>
@@ -1064,6 +1155,7 @@ static void cmd_help(void)
 		     "  end                       - End Intel HEX\r\n"
 		     "  config                    - Show memory configuration\r\n"
 		     "  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
+		     "  download <addr> <len>     - Download memory as Intel HEX\r\n"
 		     "  read <addr> <len>         - Read memory from shadow or bus\r\n"
 		     "  readb <addr> <len>        - Read data from hardware bus\r\n"
 		     "  write <addr> <data>       - Write memory to shadow or bus\r\n"
@@ -1155,6 +1247,7 @@ static const command_entry_t command_table[] = {
 	{"end", cmd_end, false, false},
 	{"config", cmd_config_show, false, false},
 	{"checksum", cmd_checksum, true, true}, // needs <addr> <len>
+	{"download", cmd_download, true, true}, // needs <addr> <len>
 	{"read", cmd_read, true, true},         // needs <addr> <len>
 	{"write", cmd_write, true, true},       // needs <addr> <data...>
 	{"status", cmd_status, false, false},

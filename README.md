@@ -90,6 +90,7 @@ For detailed setup and usage instructions, see the documentation:
 - **[Web Interface Guide](doc/Web-Interface.md)** - Browser-based control panel (easiest method)
 - **[Hardware Connection](doc/Hardware-Connection.md)** - Pin assignments and wiring
 - **[USB Commands Reference](doc/USB-Commands.md)** - Command-line interface
+- **[Download Memory Guide](doc/Download-Memory-Guide.md)** - Backup and extract ROM/RAM contents
 - **[Memory Configuration](doc/Memory-Map.md)** - Memory layout and configuration
 - **[Architecture Overview](doc/Architecture.md)** - System design and implementation
 

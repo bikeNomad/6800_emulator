@@ -266,7 +266,86 @@ Binary files are automatically converted to Intel HEX format before upload:
 5. Sent via USB `load` command
 6. Emulator processes and verifies
 
-### 5. Terminal Panel
+### 5. ROM Download Panel
+
+Download (backup) memory contents from the emulator to your computer as Intel HEX files.
+
+**Controls**:
+
+- **Address (hex)** - Starting address in hexadecimal (e.g., 5000)
+- **Length (hex)** - Number of bytes to download in hexadecimal (e.g., 3000)
+- **Download Memory** - Perform the download and save to file
+
+**Quick Presets**:
+
+- **ROM (5000:3000)** - Download 12KB ROM region
+- **RAM (0000:1400)** - Download 5KB RAM region
+- **CMOS (0100:100)** - Download 256B CMOS settings
+- **Vectors (FFF8:8)** - Download reset/interrupt vectors
+
+**Download Process**:
+
+```
+1. Enter address and length (or use a preset button)
+2. Click "Download Memory"
+3. Browser saves file as memory_ADDR_LEN.hex
+4. File is in standard Intel HEX format
+```
+
+**Equivalent USB Command**:
+
+```
+download 5000 3000
+```
+
+**Output File Format**:
+
+- Standard Intel HEX format
+- 16 bytes per record
+- Proper checksums
+- EOF record included
+- Compatible with assemblers and EPROM programmers
+
+**Example Output Files**:
+
+- `memory_5000_3000.hex` - ROM from $5000, 12KB
+- `memory_0000_1400.hex` - RAM from $0000, 5KB
+- `memory_0100_0100.hex` - CMOS from $0100, 256B
+
+**Use Cases**:
+
+- **Backup ROM** before loading new code
+- **Extract code** for analysis or archival
+- **Verify uploads** by downloading and comparing
+- **Save CMOS** settings before power cycle
+- **Create snapshots** for version control
+
+**Status Messages**:
+
+- "Downloading memory..." - Download in progress
+- "Downloaded N bytes to filename.hex" - Success
+- "Download failed: error" - Error occurred
+
+**Notes**:
+
+- Files are saved directly to your browser's download folder
+- Address and length must be valid hexadecimal (no $ prefix)
+- Maximum download size: 64KB (full address space)
+- Download works with ROM, RAM, CMOS, and unmapped regions
+- Unmapped regions access physical bus (E clock auto-started)
+
+**Example Workflow - Backup Before Update**:
+
+```
+1. Click "ROM (5000:3000)" preset
+2. Click "Download Memory"
+3. File saved: memory_5000_3000.hex
+4. Upload new ROM
+5. Test new ROM
+6. If problems, re-upload the backup file
+```
+
+### 6. Terminal Panel
 
 Full command-line access for advanced operations.
 
@@ -383,7 +462,37 @@ cycletest         # Run cycle count test
 5. Click "Run" (auto-refresh resumes)
 ```
 
-### Example 4: CMOS Configuration
+### Example 4: Download ROM for Backup
+
+```
+1. Connect to emulator
+2. ROM Download → Click "ROM (5000:3000)" preset
+3. Click "Download Memory"
+4. Browser saves file: memory_5000_3000.hex
+5. File contains backup of 12KB ROM
+```
+
+**Or download manually**:
+```
+1. ROM Download → Enter address: "5000"
+2. Enter length: "3000"
+3. Click "Download Memory"
+4. memory_5000_3000.hex saved to Downloads
+```
+
+### Example 5: Development Cycle with Backup
+
+```
+1. Click "ROM (5000:3000)" preset
+2. Click "Download Memory" → Saves backup
+3. ROM Upload → Load new code
+4. Click "Reset" → Click "Run"
+5. Test the new code
+6. If problems: ROM Upload → Load backup file
+7. Click "Reset" → Click "Run" → Back to working state
+```
+
+### Example 6: CMOS Configuration
 
 ```
 1. Click "Halt" (if running)
@@ -395,7 +504,14 @@ cycletest         # Run cycle count test
 7. Terminal: "read 0100 4" (verify persistence)
 ```
 
-### Example 5: System 7 Multi-ROM Load
+**Backup CMOS settings**:
+```
+1. Click "CMOS (0100:100)" preset
+2. Click "Download Memory"
+3. memory_0100_0100.hex saved with settings
+```
+
+### Example 7: System 7 Multi-ROM Load
 
 ```
 1. Load IC26.bin → Auto-detected at $5800
