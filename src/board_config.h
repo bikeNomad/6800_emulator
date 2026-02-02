@@ -2,17 +2,17 @@
  * SPDX-License-Identifier: MIT
  *
  * Copyright 2026 Ned Konz <ned@metamagix.tech>
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -44,35 +44,35 @@
 // Full 16-bit address bus (64KB address space)
 // A0-A15 → GPIO 8-23 (contiguous mapping)
 
-#define BOARD_NAME          "Ned's System 7 Board"
-#define ADDR_LINES          16
-#define ADDR_MASK           0xFFFF   // 64KB address space
-#define ADDR_SPACE_SIZE     65536    // 2^16 = 64KB addresses
-#define ADDR_GPIO_MASK      0xFFFF00 // GPIO 8-23 for address bus
+#define BOARD_NAME      "Ned's System 7 Board"
+#define ADDR_LINES      16
+#define ADDR_MASK       0xFFFF   // 64KB address space
+#define ADDR_SPACE_SIZE 65536    // 2^16 = 64KB addresses
+#define ADDR_GPIO_MASK  0xFFFF00 // GPIO 8-23 for address bus
 
 // Control signal pins
-#define GPIO_ECLOCK         24       // E clock output (PIO, directly drives pin 37)
-#define GPIO_ECLOCK_IN      31       // E clock input for external clock (SPARE_IN)
-#define GPIO_VMA            25       // VMA (Valid Memory Address) output
-#define GPIO_RW             26       // R/W (Read/Write) output
+#define GPIO_ECLOCK    24 // E clock output (PIO, directly drives pin 37)
+#define GPIO_ECLOCK_IN 31 // E clock input for external clock (SPARE_IN)
+#define GPIO_VMA       25 // VMA (Valid Memory Address) output
+#define GPIO_RW        26 // R/W (Read/Write) output
 
 // SPI debug pins
-#define GPIO_SPI_CS         33
-#define GPIO_SPI_SCK        34
-#define GPIO_SPI_MOSI       35
-#define GPIO_SPI_MISO       36
+#define GPIO_SPI_CS   33
+#define GPIO_SPI_SCK  34
+#define GPIO_SPI_MOSI 35
+#define GPIO_SPI_MISO 36
 
 // UART debug pins defined in CMakeLists.txt
 // #define GPIO_UART_TX 40 // TX
 // #define GPIO_UART_RX 41 // RX
 
 // LED indicators (active low)
-#define GPIO_LED_ROM        37 // (GREEN) Indicates ROM access
-#define GPIO_LED_RAM        38 // (RED) Indicates RAM/CMOS access
-#define GPIO_LED_UNMAPPED   39 // (YELLOW) Indicates unmapped/bus access
+#define GPIO_LED_ROM      37 // (GREEN) Indicates ROM access
+#define GPIO_LED_RAM      38 // (RED) Indicates RAM/CMOS access
+#define GPIO_LED_UNMAPPED 39 // (YELLOW) Indicates unmapped/bus access
 
 // PSRAM chip select (shared QSPI interface)
-#define GPIO_PSRAM_CS       47 // PSRAM chip select
+#define GPIO_PSRAM_CS 47 // PSRAM chip select
 
 // Test pin for timing diagnostics (available on NED_SYS7 only)
 // Must be <32 for PIO use

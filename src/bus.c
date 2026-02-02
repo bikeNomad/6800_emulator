@@ -2,17 +2,17 @@
  * SPDX-License-Identifier: MIT
  *
  * Copyright 2026 Ned Konz <ned@metamagix.tech>
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -120,8 +120,8 @@ void bus_init(void)
 
 	printf("Bus interface initialized for %s\r\n", BOARD_NAME);
 	printf("  Data:  GPIO %d-%d\r\n", GPIO_DATA_BASE, GPIO_DATA_BASE + 7);
-	printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\r\n",
-	       ADDR_LINES, ADDR_SPACE_SIZE);
+	printf("  Addr:  GPIO 8-23 -> MC6800 A0-A15 (%d lines, %d addresses)\r\n", ADDR_LINES,
+	       ADDR_SPACE_SIZE);
 	printf("  Addr mask: 0x%04X (full address space)\r\n", ADDR_MASK);
 	printf("  VMA:   GPIO %d\r\n", GPIO_VMA);
 	printf("  R/W:   GPIO %d\r\n", GPIO_RW);
@@ -187,16 +187,17 @@ void __time_critical_func(bus_write_cycle_pio)(uint16_t address, uint8_t data)
 }
 
 // Helper macro to temporarily start E clock if needed, execute body, then restore
-#define WITH_ECLOCK(body) do { \
-	bool was_running = eclock_is_running(); \
-	if (!was_running) { \
-		eclock_start(); \
-	} \
-	body \
-	if (!was_running) { \
-		eclock_stop(); \
-	} \
-} while(0)
+#define WITH_ECLOCK(body)                                                                          \
+	do {                                                                                       \
+		bool was_running = eclock_is_running();                                            \
+		if (!was_running) {                                                                \
+			eclock_start();                                                            \
+		}                                                                                  \
+		body if (!was_running)                                                             \
+		{                                                                                  \
+			eclock_stop();                                                             \
+		}                                                                                  \
+	} while (0)
 
 // Helper functions for bus operations with E clock management
 void __time_critical_func(bus_read_block_with_eclock)(uint16_t address, uint16_t length,
