@@ -16,12 +16,14 @@ This document summarizes the implementation of a PIO-based MC6800 bus interface 
 #### 1. PIO Programs (Matching C Implementation)
 
 **Read Cycle Program (`pio_bus_read_cycle`)**
+
 - **Timing**: 40 cycles = 150.4ns @ 266MHz (matches C implementation)
 - **Behavior**: Identical to `bus_read_cycle` from `src/bus_cycle.pio`
 - **E Clock Sync**: Hardware WAIT instructions for precise synchronization
 - **Data Setup**: 40-cycle delay for reliable data sampling
 
 **Write Cycle Program (`pio_bus_write_cycle`)**
+
 - **Timing**: 40 cycles = 150.4ns @ 266MHz (matches C implementation)
 - **Behavior**: Identical to `bus_write_cycle` from `src/bus_cycle.pio`
 - **E Clock Sync**: Hardware WAIT instructions for precise synchronization
@@ -37,18 +39,15 @@ This document summarizes the implementation of a PIO-based MC6800 bus interface 
 #### 3. Board Support
 
 **NED_SYS7 Board (Default)**
+
 - Full 16-bit address bus (A0-A15)
 - Complete GPIO mapping matching `src/board_config.h`
 - LED indicators support
 
-**PICO2 Board**
-- 7-bit address bus (A0,A1,A10-A14)
-- Limited GPIO mapping for compact form factor
-- Reduced address space (128 bytes)
-
 #### 4. API Compatibility
 
 **Module-level Functions** (Compatible with `bus_test.py`)
+
 ```python
 import pio_bus_test
 
@@ -60,6 +59,7 @@ pio_bus_test.cleanup()
 ```
 
 **Class-based API**
+
 ```python
 from pio_bus_test import PIOBusTester
 
@@ -73,12 +73,14 @@ tester.cleanup()
 ## Technical Specifications
 
 ### Clock Configuration
+
 - **PIO Clock**: 266MHz (3.76ns resolution)
 - **E Clock Period**: ~1.117µs (895kHz)
 - **Data Setup Time**: 150.4ns (40 cycles)
 - **Data Hold Time**: 150.4ns (40 cycles)
 
 ### Timing Compliance
+
 - **MC6800 Data Setup**: ≥100ns (met with 150.4ns margin)
 - **MC6821 PIA Data Delay**: ≤290ns worst-case
 - **Safety Margin**: 10ns additional margin for PIA compatibility
@@ -188,6 +190,7 @@ mpremote run pio_bus_demo.py
 ```
 
 The demo includes:
+
 - Basic read/write operations
 - Block operations
 - Memory dumping
@@ -203,6 +206,7 @@ mpremote run test_pio_bus.py
 ```
 
 Tests verify:
+
 - Module imports
 - Board configuration
 - PIO program compilation
@@ -249,15 +253,10 @@ tester.cleanup()
 ### GPIO Pin Assignments
 
 **NED_SYS7 Board:**
+
 - Data Bus: GPIO 0-7 (D0-D7)
 - Address Bus: GPIO 8-23 (A0-A15)
 - Control: GPIO 24 (E), GPIO 25 (VMA), GPIO 26 (R/W)
-- Interrupts: GPIO 27 (/IRQ), GPIO 28 (/NMI), GPIO 29 (/RESET)
-
-**PICO2 Board:**
-- Data Bus: GPIO 0-7 (D0-D7)
-- Address Bus: GPIO 8-14 (A0,A1,A10-A14)
-- Control: GPIO 21 (E), GPIO 22 (VMA), GPIO 23 (R/W)
 - Interrupts: GPIO 27 (/IRQ), GPIO 28 (/NMI), GPIO 29 (/RESET)
 
 ### MicroPython Requirements
@@ -358,13 +357,13 @@ The PIO-based MC6800 bus test implementation successfully provides:
 ✅ **API compatibility** with existing `bus_test.py`
 ✅ **Performance improvements** of 5-10x over C implementation
 ✅ **Comprehensive testing** and documentation
-✅ **Multiple board support** (NED_SYS7, PICO2)
 ✅ **Easy integration** with existing codebase
 
 The implementation demonstrates the power of MicroPython's PIO capabilities for creating high-performance, cycle-accurate hardware interfaces that can run directly on the RP2350 board for testing and debugging MC6800 hardware.
 </file_content>
 
 <task_progress>
+
 - [x] Analyze requirements and existing code
 - [x] Create comprehensive plan
 - [x] Create PIO-based bus test module (pio_bus_test.py)

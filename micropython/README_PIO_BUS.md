@@ -120,29 +120,7 @@ The implementation supports two board configurations:
   - GPIO 28: /NMI (active low)
   - GPIO 29: /RESET (active low)
 
-#### PICO2 Board
-- **Data Bus**: GPIO 0-7 (D0-D7)
-- **Address Bus**: GPIO 8-14 (A0,A1,A10-A14) - 7-bit addressing
-- **Control Signals**:
-  - GPIO 21: E clock (Φ2)
-  - GPIO 22: VMA (Valid Memory Address)
-  - GPIO 23: R/W (Read/Write)
-- **Interrupts**:
-  - GPIO 27: /IRQ (active low)
-  - GPIO 28: /NMI (active low)
-  - GPIO 29: /RESET (active low)
-
-### Board Selection
-
-```python
-from pio_bus_test import set_board_type, BOARD_PICO2, BOARD_NED_SYS7
-
-# Set board type before initialization
-set_board_type(BOARD_PICO2)  # or BOARD_NED_SYS7
-
-# Then initialize
-pio_bus_test.init()
-```
+**Note**: Only the NED_SYS7 board is supported by this module.
 
 ## Installation and Usage
 

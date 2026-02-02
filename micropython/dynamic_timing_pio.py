@@ -8,49 +8,34 @@ import time
 from rp2 import PIO, asm_pio, StateMachine
 
 
-# Board configuration (matching board_config.h)
-BOARD_PICO2 = 1
-BOARD_NED_SYS7 = 2
-BOARD_TYPE = BOARD_NED_SYS7
-
 # GPIO pin mappings
 GPIO_DATA_BASE = 0
 GPIO_IRQ = 27
 GPIO_NMI = 28
 GPIO_RESET = 29
 
-def _get_board_config(board_type):
-    """Get board-specific configuration"""
-    if board_type == BOARD_PICO2:
-        return {
-            'name': 'Raspberry Pi Pico 2 W',
-            'addr_lines': 7,
-            'addr_mask': 0x7C03,
-            'max_address': 0x007F,
-            'gpio_vma': 22,
-            'gpio_rw': 23,
-            'gpio_e_clock': 21,
-            'addr_base': 8,
-        }
-    else:
-        return {
-            'name': 'Ned\'s System 7 Board',
-            'addr_lines': 16,
-            'addr_mask': 0xFFFF,
-            'max_address': 0xFFFF,
-            'gpio_vma': 25,
-            'gpio_rw': 26,
-            'gpio_e_clock': 24,
-            'addr_base': 8,
-        }
 
-_board_config = _get_board_config(BOARD_TYPE)
-GPIO_VMA = _board_config['gpio_vma']
-GPIO_RW = _board_config['gpio_rw']
-GPIO_E_CLOCK = _board_config['gpio_e_clock']
-GPIO_ADDR_BASE = _board_config['addr_base']
-ADDR_MASK = _board_config['addr_mask']
-MAX_ADDRESS = _board_config['max_address']
+def _get_board_config():
+    """Get board-specific configuration"""
+    return {
+        "name": "Ned's System 7 Board",
+        "addr_lines": 16,
+        "addr_mask": 0xFFFF,
+        "max_address": 0xFFFF,
+        "gpio_vma": 25,
+        "gpio_rw": 26,
+        "gpio_e_clock": 24,
+        "addr_base": 8,
+    }
+
+
+_board_config = _get_board_config()
+GPIO_VMA = _board_config["gpio_vma"]
+GPIO_RW = _board_config["gpio_rw"]
+GPIO_E_CLOCK = _board_config["gpio_e_clock"]
+GPIO_ADDR_BASE = _board_config["addr_base"]
+ADDR_MASK = _board_config["addr_mask"]
+MAX_ADDRESS = _board_config["max_address"]
 
 
 def calculate_loop_count(target_ns=300):
@@ -174,7 +159,9 @@ class DynamicPIOBusTester:
         self.initialized = False
 
         # Calculate timing based on current system clock
-        self.loop_iterations, self.sys_freq_hz, self.required_cycles = calculate_loop_count()
+        self.loop_iterations, self.sys_freq_hz, self.required_cycles = (
+            calculate_loop_count()
+        )
         self.cycle_time_ns = 1000000000.0 / self.sys_freq_hz
         self.actual_delay_ns = (1 + self.loop_iterations * 8) * self.cycle_time_ns
 
@@ -202,7 +189,7 @@ class DynamicPIOBusTester:
                 push_thresh=32,
                 autopull=False,
                 pull_thresh=32,
-                fifo_join=PIO.JOIN_NONE
+                fifo_join=PIO.JOIN_NONE,
             )(read_program_src)
 
             write_program = asm_pio(
@@ -214,7 +201,7 @@ class DynamicPIOBusTester:
                 push_thresh=32,
                 autopull=False,
                 pull_thresh=32,
-                fifo_join=PIO.JOIN_NONE
+                fifo_join=PIO.JOIN_NONE,
             )(write_program_src)
 
             # Initialize GPIO pins
@@ -228,7 +215,7 @@ class DynamicPIOBusTester:
                 set_base=machine.Pin(GPIO_ADDR_BASE),
                 sideset_base=machine.Pin(GPIO_VMA),
                 in_base=machine.Pin(GPIO_DATA_BASE),
-                out_base=machine.Pin(GPIO_DATA_BASE)
+                out_base=machine.Pin(GPIO_DATA_BASE),
             )
 
             self.write_sm = StateMachine(
@@ -237,7 +224,7 @@ class DynamicPIOBusTester:
                 freq=self.sys_freq_hz,  # Use actual system clock
                 set_base=machine.Pin(GPIO_ADDR_BASE),
                 sideset_base=machine.Pin(GPIO_VMA),
-                out_base=machine.Pin(GPIO_DATA_BASE)
+                out_base=machine.Pin(GPIO_DATA_BASE),
             )
 
             self.initialized = True
@@ -254,7 +241,7 @@ class DynamicPIOBusTester:
             self.data_pins.append(pin)
 
         # Initialize address bus pins
-        for i in range(_board_config['addr_lines']):
+        for i in range(_board_config["addr_lines"]):
             pin = machine.Pin(GPIO_ADDR_BASE + i, machine.Pin.OUT)
             pin.value(0)
             self.addr_pins.append(pin)
@@ -348,7 +335,7 @@ class DynamicPIOBusTester:
             "loop_iterations": self.loop_iterations,
             "actual_delay_ns": round(self.actual_delay_ns, 1),
             "target_delay_ns": 300,
-            "margin_ns": round(self.actual_delay_ns - 300, 1)
+            "margin_ns": round(self.actual_delay_ns - 300, 1),
         }
 
     def cleanup(self):
@@ -364,9 +351,9 @@ class DynamicPIOBusTester:
 # Example usage and testing
 def test_dynamic_timing():
     """Test the dynamic timing implementation"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Dynamic Timing Test")
-    print("="*60)
+    print("=" * 60)
 
     # Create tester (automatically calculates timing)
     tester = DynamicPIOBusTester()

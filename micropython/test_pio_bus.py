@@ -16,12 +16,8 @@ def test_imports():
         print("✓ hexdump imported successfully")
 
         # Test pio_bus_test import
-        from pio_bus_test import PIOBusTester, set_board_type, BOARD_NED_SYS7, BOARD_PICO2
+        from pio_bus_test import PIOBusTester, set_board_type
         print("✓ pio_bus_test imported successfully")
-
-        # Test constants
-        print("  - BOARD_NED_SYS7 = {}".format(BOARD_NED_SYS7))
-        print("  - BOARD_PICO2 = {}".format(BOARD_PICO2))
 
         return True
 
@@ -38,7 +34,7 @@ def test_board_configuration():
     print("\nTesting board configuration...")
 
     try:
-        from pio_bus_test import set_board_type, BOARD_NED_SYS7, BOARD_PICO2, get_bus_info
+        from pio_bus_test import set_board_type, get_bus_info
 
         # Test default configuration
         print("Default board configuration:")
@@ -49,13 +45,8 @@ def test_board_configuration():
         except Exception as e:
             print("  - Could not get bus info (expected without initialization): {}".format(e))
 
-        # Test board type setting
-        print("Setting board type to PICO2...")
-        set_board_type(BOARD_PICO2)
-        print("✓ Board type set to PICO2")
-
         print("Setting board type to NED_SYS7...")
-        set_board_type(BOARD_NED_SYS7)
+        set_board_type()
         print("✓ Board type set to NED_SYS7")
 
         return True

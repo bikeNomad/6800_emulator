@@ -51,6 +51,7 @@ This document verifies that the PIO-based MicroPython implementation matches the
 #### Timing Loop Implementation
 
 **C Implementation:**
+
 ```assembly
 ; Data setup delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
 set x, 9            side 0b11       ; Initialize loop counter (1 cycle)
@@ -59,6 +60,7 @@ jmp x-- read_delay [7] side 0b11   ; Loop 10 times x 8 cycles = 80 cycles
 ```
 
 **PIO Implementation:**
+
 ```python
 # Data setup delay: 1 + (10 x 8) = 81 cycles = 304.5ns @ 266MHz
 # Initialize loop counter (1 cycle)
@@ -120,6 +122,7 @@ def _init_read_sm(self):
 #### Read Cycle Flow
 
 **C Implementation Flow:**
+
 1. Wait for E clock low (sync)
 2. Set data bus to input mode
 3. Drive address bus
@@ -130,6 +133,7 @@ def _init_read_sm(self):
 8. De-assert VMA
 
 **PIO Implementation Flow:**
+
 1. Software: Set up address bus and data direction
 2. Clear RX FIFO
 3. Enable state machine
@@ -147,6 +151,7 @@ def _init_read_sm(self):
 #### Write Cycle Flow
 
 **C Implementation Flow:**
+
 1. Wait for E clock low (sync)
 2. Set data bus to output mode
 3. Drive address bus and data bus
@@ -157,6 +162,7 @@ def _init_read_sm(self):
 8. Return data bus to input mode
 
 **PIO Implementation Flow:**
+
 1. Software: Set up address bus, data bus, and direction
 2. Switch to write program
 3. Clear FIFOs and restart
@@ -186,21 +192,6 @@ def _init_read_sm(self):
 | /IRQ | GPIO 27 | GPIO 27 | ✅ Match |
 | /NMI | GPIO 28 | GPIO 28 | ✅ Match |
 | /RESET | GPIO 29 | GPIO 29 | ✅ Match |
-
-#### PICO2 Board Configuration
-
-| Signal | C Implementation | PIO Implementation | Status |
-|--------|------------------|-------------------|--------|
-| Data Bus | GPIO 0-7 | GPIO 0-7 | ✅ Match |
-| Address Bus | GPIO 8-14 | GPIO 8-14 | ✅ Match |
-| E Clock | GPIO 21 | GPIO 21 | ✅ Match |
-| VMA | GPIO 22 | GPIO 22 | ✅ Match |
-| R/W | GPIO 23 | GPIO 23 | ✅ Match |
-| /IRQ | GPIO 27 | GPIO 27 | ✅ Match |
-| /NMI | GPIO 28 | GPIO 28 | ✅ Match |
-| /RESET | GPIO 29 | GPIO 29 | ✅ Match |
-
-**Verification:** ✅ Complete GPIO pin compatibility
 
 ### 6. API Compatibility
 
@@ -280,7 +271,6 @@ pio_bus_test.cleanup()
 | Board | C Implementation | PIO Implementation | Status |
 |-------|------------------|-------------------|--------|
 | NED_SYS7 | `BOARD_TYPE == BOARD_NED_SYS7` | `set_board_type(BOARD_NED_SYS7)` | ✅ Compatible |
-| PICO2 | `BOARD_TYPE == BOARD_PICO2` | `set_board_type(BOARD_PICO2)` | ✅ Compatible |
 | Default | NED_SYS7 | NED_SYS7 | ✅ Match |
 
 #### Configuration Parameters
@@ -358,6 +348,7 @@ The implementation is ready for use and provides a drop-in replacement for the C
 </file_content>
 
 <task_progress>
+
 - [x] Analyze requirements and existing code
 - [x] Create comprehensive plan
 - [x] Create PIO-based bus test module (pio_bus_test.py)

@@ -10,7 +10,7 @@ and can be run independently to test the hardware connection.
 import machine
 import time
 import gc
-from pio_bus_test import PIOBusTester, set_board_type, BOARD_NED_SYS7, BOARD_PICO2
+from pio_bus_test import PIOBusTester, set_board_type, BOARD_NED_SYS7
 
 
 def print_banner():

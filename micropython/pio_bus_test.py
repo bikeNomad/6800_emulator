@@ -75,11 +75,10 @@ def _calculate_timing():
         }
 
 
-# Board types (matching board_config.h)
-BOARD_PICO2 = 1      # Raspberry Pi Pico 2 W - Limited GPIO (26 pins)
+# Board type (matching board_config.h)
 BOARD_NED_SYS7 = 2   # Ned's System 7 Board - Full GPIO (48 pins)
 
-# Default to NED_SYS7 if not specified
+# Using NED_SYS7 board
 BOARD_TYPE = BOARD_NED_SYS7
 
 # GPIO pin mappings - common across boards
@@ -90,37 +89,23 @@ GPIO_IRQ = 27        # /IRQ input (active low)
 GPIO_NMI = 28        # /NMI input (active low)
 GPIO_RESET = 29      # /RESET input (active low)
 
-# Board-specific configurations
+# Board configuration
 def _get_board_config(board_type):
-    """Get board-specific configuration"""
-    if board_type == BOARD_PICO2:
-        return {
-            'name': 'Raspberry Pi Pico 2 W',
-            'addr_lines': 7,
-            'addr_mask': 0x7C03,  # Bits 0,1,10-14
-            'addr_space_size': 128,
-            'max_address': 0x007F,
-            'addr_gpio_mask': 0x7F00,  # GPIO 8-14
-            'gpio_vma': 22,
-            'gpio_rw': 23,
-            'gpio_e_clock': 21,
-            'addr_base': 8,
-            'has_leds': False
-        }
-    else:  # BOARD_NED_SYS7 (default)
-        return {
-            'name': 'Ned\'s System 7 Board',
-            'addr_lines': 16,
-            'addr_mask': 0xFFFF,
-            'addr_space_size': 65536,
-            'max_address': 0xFFFF,
-            'addr_gpio_mask': 0xFFFF00,  # GPIO 8-23
-            'gpio_vma': 25,
-            'gpio_rw': 26,
-            'gpio_e_clock': 24,
-            'addr_base': 8,
-            'has_leds': True
-        }
+    """Get board configuration for NED_SYS7"""
+    # BOARD_NED_SYS7
+    return {
+        'name': 'Ned\'s System 7 Board',
+        'addr_lines': 16,
+        'addr_mask': 0xFFFF,
+        'addr_space_size': 65536,
+        'max_address': 0xFFFF,
+        'addr_gpio_mask': 0xFFFF00,  # GPIO 8-23
+        'gpio_vma': 25,
+        'gpio_rw': 26,
+        'gpio_e_clock': 24,
+        'addr_base': 8,
+        'has_leds': True
+    }
 
 # Get current board configuration
 _board_config = _get_board_config(BOARD_TYPE)
@@ -138,10 +123,10 @@ def set_board_type(board_type):
     Set the board type for the bus tester.
 
     Args:
-        board_type: BOARD_PICO2 or BOARD_NED_SYS7
+        board_type: BOARD_NED_SYS7 (only NED_SYS7 supported)
 
     Note:
-        Must be called before init() if using a different board type than default.
+        This function exists for compatibility but only NED_SYS7 is supported.
     """
     global BOARD_TYPE, _board_config, ADDR_LINES, ADDR_MASK, MAX_ADDRESS, ADDR_SPACE_SIZE
     global GPIO_ADDR_BASE, GPIO_VMA, GPIO_RW, GPIO_E_CLOCK
