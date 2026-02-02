@@ -1,25 +1,3 @@
-# SPDX-License-Identifier: MIT
-#
-# Copyright 2026 Ned Konz <ned@metamagix.tech>
-# 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-# 
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-# 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 """
 PIO-based MC6800 Bus Test Module for MicroPython
 Provides PIO-based read and write operations that match the behavior of src/bus_cycle.pio
@@ -40,6 +18,7 @@ import time
 import gc
 from rp2 import PIO, asm_pio, StateMachine
 from hexdump import hexdump
+
 
 # Dynamic timing calculation for MicroPython
 def _calculate_timing():
@@ -77,68 +56,71 @@ def _calculate_timing():
         actual_delay_ns = (1 + loop_iterations * 8) * cycle_time_ns
 
         return {
-            'pio_freq': pio_freq,
-            'loop_iterations': loop_iterations,
-            'sys_freq_mhz': sys_freq_hz // 1000000,
-            'cycle_time_ns': cycle_time_ns,
-            'actual_delay_ns': actual_delay_ns,
-            'target_delay_ns': target_ns
+            "pio_freq": pio_freq,
+            "loop_iterations": loop_iterations,
+            "sys_freq_mhz": sys_freq_hz // 1000000,
+            "cycle_time_ns": cycle_time_ns,
+            "actual_delay_ns": actual_delay_ns,
+            "target_delay_ns": target_ns,
         }
 
     except Exception as e:
         # Fallback to default values
         return {
-            'pio_freq': 266000000,
-            'loop_iterations': 81,
-            'sys_freq_mhz': 266,
-            'cycle_time_ns': 3.759,
-            'actual_delay_ns': 304.5,
-            'target_delay_ns': 300
+            "pio_freq": 266000000,
+            "loop_iterations": 81,
+            "sys_freq_mhz": 266,
+            "cycle_time_ns": 3.759,
+            "actual_delay_ns": 304.5,
+            "target_delay_ns": 300,
         }
 
 
 # Board type (matching board_config.h)
-BOARD_NED_SYS7 = 2   # Ned's System 7 Board - Full GPIO (48 pins)
+BOARD_NED_SYS7 = 2  # Ned's System 7 Board - Full GPIO (48 pins)
 
 # Using NED_SYS7 board
 BOARD_TYPE = BOARD_NED_SYS7
 
 # GPIO pin mappings - common across boards
-GPIO_DATA_BASE = 0   # GPIO 0-7: Data bus (bi-directional)
+GPIO_DATA_BASE = 0  # GPIO 0-7: Data bus (bi-directional)
 
 # Control signals - common across boards
-GPIO_IRQ = 27        # /IRQ input (active low)
-GPIO_NMI = 28        # /NMI input (active low)
-GPIO_RESET = 29      # /RESET input (active low)
+GPIO_IRQ = 27  # /IRQ input (active low)
+GPIO_NMI = 28  # /NMI input (active low)
+GPIO_RESET = 29  # /RESET input (active low)
+
 
 # Board configuration
 def _get_board_config(board_type):
     """Get board configuration for NED_SYS7"""
     # BOARD_NED_SYS7
     return {
-        'name': 'Ned\'s System 7 Board',
-        'addr_lines': 16,
-        'addr_mask': 0xFFFF,
-        'addr_space_size': 65536,
-        'max_address': 0xFFFF,
-        'addr_gpio_mask': 0xFFFF00,  # GPIO 8-23
-        'gpio_vma': 25,
-        'gpio_rw': 26,
-        'gpio_e_clock': 24,
-        'addr_base': 8,
-        'has_leds': True
+        "name": "Ned's System 7 Board",
+        "addr_lines": 16,
+        "addr_mask": 0xFFFF,
+        "addr_space_size": 65536,
+        "max_address": 0xFFFF,
+        "addr_gpio_mask": 0xFFFF00,  # GPIO 8-23
+        "gpio_vma": 25,
+        "gpio_rw": 26,
+        "gpio_e_clock": 24,
+        "addr_base": 8,
+        "has_leds": True,
     }
+
 
 # Get current board configuration
 _board_config = _get_board_config(BOARD_TYPE)
-ADDR_LINES = _board_config['addr_lines']
-ADDR_MASK = _board_config['addr_mask']
-MAX_ADDRESS = _board_config['max_address']
-ADDR_SPACE_SIZE = _board_config['addr_space_size']
-GPIO_ADDR_BASE = _board_config['addr_base']
-GPIO_VMA = _board_config['gpio_vma']
-GPIO_RW = _board_config['gpio_rw']
-GPIO_E_CLOCK = _board_config['gpio_e_clock']
+ADDR_LINES = _board_config["addr_lines"]
+ADDR_MASK = _board_config["addr_mask"]
+MAX_ADDRESS = _board_config["max_address"]
+ADDR_SPACE_SIZE = _board_config["addr_space_size"]
+GPIO_ADDR_BASE = _board_config["addr_base"]
+GPIO_VMA = _board_config["gpio_vma"]
+GPIO_RW = _board_config["gpio_rw"]
+GPIO_E_CLOCK = _board_config["gpio_e_clock"]
+
 
 def set_board_type(board_type):
     """
@@ -150,23 +132,30 @@ def set_board_type(board_type):
     Note:
         This function exists for compatibility but only NED_SYS7 is supported.
     """
-    global BOARD_TYPE, _board_config, ADDR_LINES, ADDR_MASK, MAX_ADDRESS, ADDR_SPACE_SIZE
+    global \
+        BOARD_TYPE, \
+        _board_config, \
+        ADDR_LINES, \
+        ADDR_MASK, \
+        MAX_ADDRESS, \
+        ADDR_SPACE_SIZE
     global GPIO_ADDR_BASE, GPIO_VMA, GPIO_RW, GPIO_E_CLOCK
 
     BOARD_TYPE = board_type
     _board_config = _get_board_config(BOARD_TYPE)
-    ADDR_LINES = _board_config['addr_lines']
-    ADDR_MASK = _board_config['addr_mask']
-    MAX_ADDRESS = _board_config['max_address']
-    ADDR_SPACE_SIZE = _board_config['addr_space_size']
-    GPIO_ADDR_BASE = _board_config['addr_base']
-    GPIO_VMA = _board_config['gpio_vma']
-    GPIO_RW = _board_config['gpio_rw']
-    GPIO_E_CLOCK = _board_config['gpio_e_clock']
+    ADDR_LINES = _board_config["addr_lines"]
+    ADDR_MASK = _board_config["addr_mask"]
+    MAX_ADDRESS = _board_config["max_address"]
+    ADDR_SPACE_SIZE = _board_config["addr_space_size"]
+    GPIO_ADDR_BASE = _board_config["addr_base"]
+    GPIO_VMA = _board_config["gpio_vma"]
+    GPIO_RW = _board_config["gpio_rw"]
+    GPIO_E_CLOCK = _board_config["gpio_e_clock"]
 
 
 class PIOBusError(Exception):
     """Exception raised for PIO bus communication errors"""
+
     pass
 
 
@@ -174,15 +163,15 @@ class PIOBusError(Exception):
 # Matches the behavior of bus_read_cycle from bus_cycle.pio
 @asm_pio(
     sideset_init=[PIO.OUT_LOW, PIO.OUT_LOW],  # VMA=0, R/W=1 (idle)
-    out_init=[PIO.IN_LOW] * 8,                 # Data bus inputs
-    set_init=[PIO.OUT_LOW] * 8,                # Address bus outputs
+    out_init=[PIO.IN_LOW] * 8,  # Data bus inputs
+    set_init=[PIO.OUT_LOW] * 8,  # Address bus outputs
     in_shiftdir=PIO.SHIFT_LEFT,
     out_shiftdir=PIO.SHIFT_LEFT,
     autopush=False,
     autopull=False,
     push_thresh=32,
     pull_thresh=32,
-    fifo_join=PIO.JOIN_NONE
+    fifo_join=PIO.JOIN_NONE,
 )
 def pio_bus_read_cycle():
     """
@@ -198,47 +187,47 @@ def pio_bus_read_cycle():
     # Returns: 8-bit data in RX FIFO
 
     # Sync: Wait for E low, VMA=0, R/W=1 (idle)
-    wait(0, gpio, GPIO_E_CLOCK)    .side(0b10)
+    wait(0, gpio, GPIO_E_CLOCK).side(0b10)
 
     # Assert VMA=1, R/W=1 (read mode)
-    set(pins, 1)                   .side(0b11)
+    set(pins, 1).side(0b11)
 
     # Wait for E high, keep signals
-    wait(1, gpio, GPIO_E_CLOCK)    .side(0b11)
+    wait(1, gpio, GPIO_E_CLOCK).side(0b11)
 
     # Data setup delay: Configurable based on system clock
     # Target: 300ns for MC6821 PIA worst-case data delay (290ns + margin)
     # Actual delay calculated at runtime based on system clock
     # Default: 81 cycles = 304.5ns @ 266MHz
-    set(x, 9)                      .side(0b11)
+    set(x, 9).side(0b11)
 
     # Loop 10 times x 8 cycles = 80 cycles
     label("read_delay")
-    jmp(x_dec, "read_delay") [7]   .side(0b11)
+    jmp(x_dec, "read_delay")[7].side(0b11)
 
     # Sample data (now stable!), keep signals
-    in_(pins, 8)                   .side(0b11)
+    in_(pins, 8).side(0b11)
 
     # Push to RX FIFO, keep signals
-    push(noblock)                  .side(0b11)
+    push(noblock).side(0b11)
 
     # Wait for E low, keep signals
-    wait(0, gpio, GPIO_E_CLOCK)    .side(0b11)
+    wait(0, gpio, GPIO_E_CLOCK).side(0b11)
 
     # Deassert VMA=0, R/W=1 (idle)
-    nop()                          .side(0b10)
+    nop().side(0b10)
 
 
 # PIO Program: Bus Write Cycle
 # Matches the behavior of bus_write_cycle from bus_cycle.pio
 @asm_pio(
     sideset_init=[PIO.OUT_LOW, PIO.OUT_LOW],  # VMA=0, R/W=1 (idle)
-    out_init=[PIO.OUT_LOW] * 8,                # Data bus outputs
-    set_init=[PIO.OUT_LOW] * 8,                # Address bus outputs
+    out_init=[PIO.OUT_LOW] * 8,  # Data bus outputs
+    set_init=[PIO.OUT_LOW] * 8,  # Address bus outputs
     out_shiftdir=PIO.SHIFT_LEFT,
     autopull=False,
     pull_thresh=32,
-    fifo_join=PIO.JOIN_NONE
+    fifo_join=PIO.JOIN_NONE,
 )
 def pio_bus_write_cycle():
     """
@@ -254,22 +243,22 @@ def pio_bus_write_cycle():
     # Write is triggered by pushing data to TX FIFO
 
     # Wait for E low, idle state
-    wait(0, gpio, GPIO_E_CLOCK)    .side(0b10)
+    wait(0, gpio, GPIO_E_CLOCK).side(0b10)
 
     # Pull data from TX FIFO (blocks if empty)
-    pull(block)                    .side(0b10)
+    pull(block).side(0b10)
 
     # Drive data bus, assert VMA=1, R/W=0 (write mode)
-    out(pins, 8)                   .side(0b01)
+    out(pins, 8).side(0b01)
 
     # Wait for E high (latch), keep signals
-    wait(1, gpio, GPIO_E_CLOCK)    .side(0b01)
+    wait(1, gpio, GPIO_E_CLOCK).side(0b01)
 
     # Wait for E low (end of cycle), keep signals
-    wait(0, gpio, GPIO_E_CLOCK)    .side(0b01)
+    wait(0, gpio, GPIO_E_CLOCK).side(0b01)
 
     # Deassert VMA=0, R/W=1 (idle), data bus returns to idle
-    nop()                          .side(0b10)
+    nop().side(0b10)
 
 
 class PIOBusTester:
@@ -308,13 +297,15 @@ class PIOBusTester:
             # Initialize data bus pins (GPIO 0-7) as inputs initially
             self.data_pins = []
             for i in range(8):
-                pin = machine.Pin(GPIO_DATA_BASE + i, machine.Pin.IN, machine.Pin.PULL_UP)
+                pin = machine.Pin(
+                    GPIO_DATA_BASE + i, machine.Pin.IN, machine.Pin.PULL_UP
+                )
                 self.data_pins.append(pin)
 
             # Initialize address bus pins (board-specific number)
             self.addr_pins = []
-            addr_gpio_end = GPIO_ADDR_BASE + _board_config['addr_lines'] - 1
-            for i in range(_board_config['addr_lines']):
+            addr_gpio_end = GPIO_ADDR_BASE + _board_config["addr_lines"] - 1
+            for i in range(_board_config["addr_lines"]):
                 pin = machine.Pin(GPIO_ADDR_BASE + i, machine.Pin.OUT)
                 pin.value(0)
                 self.addr_pins.append(pin)
@@ -324,12 +315,14 @@ class PIOBusTester:
             self.vma_pin.value(0)  # VMA inactive
 
             self.rw_pin = machine.Pin(GPIO_RW, machine.Pin.OUT)
-            self.rw_pin.value(1)   # Default to read
+            self.rw_pin.value(1)  # Default to read
 
             # Initialize interrupt inputs with pull-ups (active low)
             self.irq_pin = machine.Pin(GPIO_IRQ, machine.Pin.IN, machine.Pin.PULL_UP)
             self.nmi_pin = machine.Pin(GPIO_NMI, machine.Pin.IN, machine.Pin.PULL_UP)
-            self.reset_pin = machine.Pin(GPIO_RESET, machine.Pin.IN, machine.Pin.PULL_UP)
+            self.reset_pin = machine.Pin(
+                GPIO_RESET, machine.Pin.IN, machine.Pin.PULL_UP
+            )
 
             # Initialize E clock pin
             self.e_clock_pin = machine.Pin(GPIO_E_CLOCK, machine.Pin.OUT)
@@ -349,16 +342,28 @@ class PIOBusTester:
 
             self.initialized = True
 
-            print("PIO bus interface initialized for {} board".format(_board_config['name']))
+            print(
+                "PIO bus interface initialized for {} board".format(
+                    _board_config["name"]
+                )
+            )
             print("  Data: GPIO {}-{}".format(GPIO_DATA_BASE, GPIO_DATA_BASE + 7))
-            print("  Addr: GPIO {}-{} ({} lines)".format(GPIO_ADDR_BASE, addr_gpio_end, _board_config['addr_lines']))
+            print(
+                "  Addr: GPIO {}-{} ({} lines)".format(
+                    GPIO_ADDR_BASE, addr_gpio_end, _board_config["addr_lines"]
+                )
+            )
             print("  VMA: GPIO {}".format(GPIO_VMA))
             print("  R/W: GPIO {}".format(GPIO_RW))
             print("  E:   GPIO {}".format(GPIO_E_CLOCK))
             print("  /IRQ: GPIO {}".format(GPIO_IRQ))
             print("  /NMI: GPIO {}".format(GPIO_NMI))
             print("  /RESET: GPIO {}".format(GPIO_RESET))
-            print("  Address space: {} bytes (0x{:04X})".format(_board_config['addr_space_size'], _board_config['max_address']))
+            print(
+                "  Address space: {} bytes (0x{:04X})".format(
+                    _board_config["addr_space_size"], _board_config["max_address"]
+                )
+            )
             print("  PIO programs loaded: read_cycle, write_cycle")
             print("  Clock frequency: 266MHz (3.76ns resolution)")
             print("  State machines: SM0=E, SM1=Read, SM2=Write")
@@ -373,13 +378,15 @@ class PIOBusTester:
 
         # Create state machine for read operations (SM1)
         self.read_sm = StateMachine(
-            1,                           # State machine 1
-            pio_bus_read_cycle,          # Program
-            freq=266000000,              # 266MHz for 3.76ns resolution
+            1,  # State machine 1
+            pio_bus_read_cycle,  # Program
+            freq=266000000,  # 266MHz for 3.76ns resolution
             set_base=machine.Pin(GPIO_ADDR_BASE),  # Address bus base
-            sideset_base=machine.Pin(GPIO_VMA),    # VMA + R/W (2 bits consecutive)
-            in_base=machine.Pin(GPIO_DATA_BASE),   # Data bus base
-            out_base=machine.Pin(GPIO_DATA_BASE)   # Data bus base (for output during setup)
+            sideset_base=machine.Pin(GPIO_VMA),  # VMA + R/W (2 bits consecutive)
+            in_base=machine.Pin(GPIO_DATA_BASE),  # Data bus base
+            out_base=machine.Pin(
+                GPIO_DATA_BASE
+            ),  # Data bus base (for output during setup)
         )
 
     def _init_write_sm(self):
@@ -389,12 +396,12 @@ class PIOBusTester:
 
         # Create state machine for write operations (SM2)
         self.write_sm = StateMachine(
-            2,                           # State machine 2
-            pio_bus_write_cycle,         # Program
-            freq=266000000,              # 266MHz for 3.76ns resolution
+            2,  # State machine 2
+            pio_bus_write_cycle,  # Program
+            freq=266000000,  # 266MHz for 3.76ns resolution
             set_base=machine.Pin(GPIO_ADDR_BASE),  # Address bus base
-            sideset_base=machine.Pin(GPIO_VMA),    # VMA + R/W (2 bits consecutive)
-            out_base=machine.Pin(GPIO_DATA_BASE)   # Data bus base
+            sideset_base=machine.Pin(GPIO_VMA),  # VMA + R/W (2 bits consecutive)
+            out_base=machine.Pin(GPIO_DATA_BASE),  # Data bus base
         )
 
     def _addr_to_gpio_mask(self, address):
@@ -561,14 +568,14 @@ class PIOBusTester:
             Dictionary with bus information
         """
         return {
-            "board": _board_config['name'],
-            "address_lines": _board_config['addr_lines'],
-            "address_mask": "0x{:04X}".format(_board_config['addr_mask']),
-            "max_address": "0x{:04X}".format(_board_config['max_address']),
-            "address_space": "{} bytes".format(_board_config['addr_space_size']),
+            "board": _board_config["name"],
+            "address_lines": _board_config["addr_lines"],
+            "address_mask": "0x{:04X}".format(_board_config["addr_mask"]),
+            "max_address": "0x{:04X}".format(_board_config["max_address"]),
+            "address_space": "{} bytes".format(_board_config["addr_space_size"]),
             "interface": "PIO-based cycle-accurate E-clock synchronized",
             "pio_frequency": "266MHz",
-            "timing_resolution": "3.76ns"
+            "timing_resolution": "3.76ns",
         }
 
     def test_rom(self, address, expected_data):

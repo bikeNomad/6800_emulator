@@ -74,7 +74,7 @@ SPDX-License-Identifier: {SPDX_ID}
 
 # --- File Mappings ---
 FILE_MAPPINGS = {
-    ".c": C_HEADER,
+    # ".c": C_HEADER,   #  clang-format rules remove C headers
     ".h": C_HEADER,
     ".py": HASH_COMMENT_HEADER,
     "CMakeLists.txt": HASH_COMMENT_HEADER,

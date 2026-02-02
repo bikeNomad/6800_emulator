@@ -28,6 +28,10 @@ SOFTWARE.
 
 Welcome to the MC6800 Emulator documentation. This collection covers everything you need to know about using, connecting, and understanding the cycle-accurate MC6800 hardware emulator running on the NED_SYS7 board.
 
+## AI-Generated Content Warning
+
+Much of the documentation in this repository was created with the assistance of an LLM (Claude Code). While this has accelerated the development process, it also means that the content may contain subtle errors, inaccuracies, or may not be fully up-to-date. We encourage you to cross-reference with official documentation or source code where possible and report any issues you find.
+
 ## Documentation Guide
 
 ### 🚀 [Getting Started](Getting-Started.md)

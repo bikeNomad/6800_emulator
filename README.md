@@ -28,6 +28,10 @@ A cycle-accurate MC6800/MC6808 emulator running on the Raspberry Pi RP2350 micro
 Designed to replace the MC6800/MC6808 processor and EPROMs in early 1980s Williams, Stern and Bally pinball machines,
 providing hardware-level compatibility with vintage MC6800-based systems.
 
+## AI-Generated Content Warning
+
+Much of the documentation in this repository was created with the assistance of an LLM (Claude Code). While this has accelerated the development process, it also means that the content may contain subtle errors, inaccuracies, or may not be fully up-to-date. We encourage you to cross-reference with official documentation or source code where possible and report any issues you find.
+
 ## Key Features
 
 - **Cycle-Accurate Emulation**: Every MC6800 instruction executes in exactly the correct number of E clock cycles
