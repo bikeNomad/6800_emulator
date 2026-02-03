@@ -11,7 +11,9 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(ninja:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(arm-none-eabi-size:*)",
+      "Bash(arm-none-eabi-nm:*)"
     ],
     "deny": [],
     "ask": []
