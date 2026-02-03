@@ -419,7 +419,6 @@
   <div class="panel">
     <h2>Memory Configuration</h2>
     <button id="config-btn" disabled>Show Config</button>
-    <button id="cmos-dump-btn" disabled>Dump CMOS</button>
     <div style="margin-top:10px;">
       <label style="color:#9cdcfe;">ROM Region:</label>
       <input type="text" id="rom-base" placeholder="E000" maxlength="4" style="width:60px; margin:0 5px;">
@@ -560,9 +559,8 @@
     <button id="download-btn" disabled>Download Memory</button>
     <div style="margin-top: 10px; font-size: 12px; color: #808080;">
       <div>Quick presets:</div>
-      <button id="download-rom-btn" class="preset-btn" disabled>ROM (5000:3000)</button>
-      <button id="download-ram-btn" class="preset-btn" disabled>RAM (0000:1400)</button>
-      <button id="download-cmos-btn" class="preset-btn" disabled>CMOS (0100:100)</button>
+      <button id="download-rom-btn" class="preset-btn" disabled>System 11 ROM (4000:C000)</button>
+      <button id="download-ram-btn" class="preset-btn" disabled>System 11 RAM (0000:800)</button>
       <button id="download-vectors-btn" class="preset-btn" disabled>Vectors (FFF8:8)</button>
     </div>
     <div id="download-status"></div>
@@ -693,6 +691,17 @@
 
       onData(callback) {
         this.onDataCallbacks.push(callback);
+      }
+
+      addDataCallback(callback) {
+        this.onDataCallbacks.push(callback);
+      }
+
+      removeDataCallback(callback) {
+        const index = this.onDataCallbacks.indexOf(callback);
+        if (index > -1) {
+          this.onDataCallbacks.splice(index, 1);
+        }
       }
 
       isConnected() {
@@ -1053,7 +1062,6 @@
 
         // Memory Configuration
         document.getElementById('config-btn').addEventListener('click', () => this.onConfig());
-        document.getElementById('cmos-dump-btn').addEventListener('click', () => this.onCmosDump());
         document.getElementById('config-rom-btn').addEventListener('click', () => this.onConfigRom());
         document.getElementById('config-ram-btn').addEventListener('click', () => this.onConfigRam());
 
@@ -1097,9 +1105,8 @@
 
         // ROM Download
         document.getElementById('download-btn').addEventListener('click', () => this.onDownload());
-        document.getElementById('download-rom-btn').addEventListener('click', () => this.onDownloadPreset('5000', '3000'));
-        document.getElementById('download-ram-btn').addEventListener('click', () => this.onDownloadPreset('0000', '1400'));
-        document.getElementById('download-cmos-btn').addEventListener('click', () => this.onDownloadPreset('0100', '100'));
+        document.getElementById('download-rom-btn').addEventListener('click', () => this.onDownloadPreset('4000', 'C000'));
+        document.getElementById('download-ram-btn').addEventListener('click', () => this.onDownloadPreset('0000', '800'));
         document.getElementById('download-vectors-btn').addEventListener('click', () => this.onDownloadPreset('FFF8', '8'));
 
         // Modal close handlers
@@ -1190,7 +1197,6 @@
       enableAllControls(enabled) {
         // Memory Configuration
         document.getElementById('config-btn').disabled = !enabled;
-        document.getElementById('cmos-dump-btn').disabled = !enabled;
         document.getElementById('config-rom-btn').disabled = !enabled;
         document.getElementById('config-ram-btn').disabled = !enabled;
 
@@ -1205,7 +1211,6 @@
         document.getElementById('download-btn').disabled = !enabled;
         document.getElementById('download-rom-btn').disabled = !enabled;
         document.getElementById('download-ram-btn').disabled = !enabled;
-        document.getElementById('download-cmos-btn').disabled = !enabled;
         document.getElementById('download-vectors-btn').disabled = !enabled;
 
         // Debug Control
@@ -1251,10 +1256,6 @@
       // Memory Configuration Handlers
       async onConfig() {
         await this.sendCommandWithModal('config', 'Memory Configuration');
-      }
-
-      async onCmosDump() {
-        await this.sendCommandWithModal('cmos dump', 'CMOS RAM Contents');
       }
 
       async onConfigRom() {
