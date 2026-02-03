@@ -371,6 +371,13 @@ void map_as_ram(uint16_t address)
 
 void map_as_rom(uint16_t address)
 {
+	if (address < mem_config.rom_base ||
+	    (uint32_t)address >= (uint32_t)mem_config.rom_base + mem_config.rom_size) {
+		printf("map_as_rom: $%04X outside ROM range $%04X-$%04X\n",
+		       address, mem_config.rom_base,
+		       (uint16_t)(mem_config.rom_base + mem_config.rom_size - 1));
+		return;
+	}
 	uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
 	uint32_t shadow_addr = (uint32_t)(uintptr_t)&rom_shadow[address - mem_config.rom_base];
 	uint32_t table_entry = (shadow_addr & ENTRY_ADDR_MASK) | ENTRY_MAPPED_ROM;
