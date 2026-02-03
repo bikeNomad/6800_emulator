@@ -10,7 +10,8 @@
       "Bash(cmake:*)",
       "Bash(ls:*)",
       "Bash(grep:*)",
-      "Bash(ninja:*)"
+      "Bash(ninja:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []
