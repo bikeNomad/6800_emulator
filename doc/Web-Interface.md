@@ -28,7 +28,7 @@ SOFTWARE.
 
 The MC6800 Emulator includes a browser-based control interface that provides a graphical alternative to the command-line USB interface. This single-file HTML application runs entirely in your browser and communicates with the emulator over USB using the WebSerial API.
 
-![Web Interface Screenshot](web-interface/web-interface.png)
+![Web Interface Screenshot](web-interface.png)
 
 **Key Features**:
 
@@ -140,8 +140,8 @@ Direct control over CPU execution.
 **Buttons**:
 
 - **Run** - Start CPU execution from current PC
-- **Halt** - Stop CPU execution (auto-saves CMOS)
-- **Reset** - Reset CPU to initial state (auto-saves CMOS)
+- **Halt** - Stop CPU execution
+- **Reset** - Reset CPU to initial state
 
 **Equivalent USB Commands**:
 
@@ -213,7 +213,7 @@ CCR: $C0 [------]  Running: NO   Instructions: 13002922   Speed: 4.46x
 
 ### 4. ROM Upload Panel
 
-Load programs into the emulator's ROM or CMOS memory.
+Load programs into the emulator's ROM
 
 **File Format Support**:
 
@@ -304,7 +304,6 @@ Download (backup) memory contents from the emulator to your computer as Intel HE
 
 - **ROM (5000:3000)** - Download 12KB ROM region
 - **RAM (0000:1400)** - Download 5KB RAM region
-- **CMOS (0100:100)** - Download 256B CMOS settings
 - **Vectors (FFF8:8)** - Download reset/interrupt vectors
 
 **Download Process**:
@@ -341,7 +340,6 @@ download 5000 3000
 - **Backup ROM** before loading new code
 - **Extract code** for analysis or archival
 - **Verify uploads** by downloading and comparing
-- **Save CMOS** settings before power cycle
 - **Create snapshots** for version control
 
 **Status Messages**:
@@ -355,7 +353,7 @@ download 5000 3000
 - Files are saved directly to your browser's download folder
 - Address and length must be valid hexadecimal (no $ prefix)
 - Maximum download size: 64KB (full address space)
-- Download works with ROM, RAM, CMOS, and unmapped regions
+- Download works with ROM, RAM and unmapped regions
 - Unmapped regions access physical bus (E clock auto-started)
 
 **Example Workflow - Backup Before Update**:
@@ -392,8 +390,6 @@ status            # Display CPU status (same as panel)
 config            # Show memory configuration
 read 5000 20      # Read 32 bytes from $5000
 write 0100 AA 55  # Write bytes to memory
-cmos save         # Manually save CMOS
-cmos dump         # Display CMOS contents
 debug on/off      # Enable/disable SPI debug output
 cycletest         # Run cycle count test
 ```
@@ -435,6 +431,8 @@ cycletest         # Run cycle count test
 ```
 
 **Binary File (with IC number)**:
+
+NOTE: this only works for system 7 games right now.
 
 ```
 1. Connect to emulator
@@ -497,6 +495,7 @@ cycletest         # Run cycle count test
 ```
 
 **Or download manually**:
+
 ```
 1. ROM Download → Enter address: "5000"
 2. Enter length: "3000"
@@ -507,32 +506,13 @@ cycletest         # Run cycle count test
 ### Example 5: Development Cycle with Backup
 
 ```
-1. Click "ROM (5000:3000)" preset
+1. Click "ROM (4000:C000)" preset
 2. Click "Download Memory" → Saves backup
 3. ROM Upload → Load new code
 4. Click "Reset" → Click "Run"
 5. Test the new code
 6. If problems: ROM Upload → Load backup file
 7. Click "Reset" → Click "Run" → Back to working state
-```
-
-### Example 6: CMOS Configuration
-
-```
-1. Click "Halt" (if running)
-2. Terminal: "write 0100 DE AD BE EF"
-3. Click "Refresh Now" to update status
-4. Terminal: "cmos save" (manually save)
-5. Terminal: "cmos dump" (verify contents)
-6. Click "Reset" to reload
-7. Terminal: "read 0100 4" (verify persistence)
-```
-
-**Backup CMOS settings**:
-```
-1. Click "CMOS (0100:100)" preset
-2. Click "Download Memory"
-3. memory_0100_0100.hex saved with settings
 ```
 
 ### Example 7: System 7 Multi-ROM Load
