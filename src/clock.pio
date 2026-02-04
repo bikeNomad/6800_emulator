@@ -74,6 +74,9 @@ continue:
 
 % c-sdk {
 #include "hardware/clocks.h"
+#include "hardware/pio.h"
+#include "hardware/irq.h"
+#include "hardware/structs/scb.h"
 
 static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) {
     // Configure pin as PIO output
@@ -121,6 +124,19 @@ static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_p
 
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
+
+    // Setup for using WFE during wait for sync:
+    // 1. Allow "Pending" interrupts to wake the CPU from WFE
+    scb_hw->scr |= M33_SCR_SEVONPEND_BITS;
+
+    // 2. Use the SM's RX FIFO not-empty signal as the IRQ source.
+    //    This naturally asserts on push and deasserts on get, giving a
+    //    clean Not-Pending→Pending edge every cycle without needing to
+    //    clear any flags.
+    pio_set_irq0_source_enabled(pio, (enum pio_interrupt_source)(pis_sm0_rx_fifo_not_empty + sm), true);
+
+    // 3. Enable the IRQ in the NVIC (no ISR needed — SEVONPEND wakes WFE)
+    irq_set_enabled(PIO0_IRQ_0, true);
 }
 
 static inline void eclock_external_program_init(PIO pio, uint sm, uint offset, uint out_pin, uint in_pin) {

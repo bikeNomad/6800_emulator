@@ -132,8 +132,13 @@ static inline void eclock_wait_cycles(uint32_t cycles)
 	if (!cycles) {
 		return; // no cycles to wait for
 	}
-	pio_sm_put(ECLK_PIO, SYNC_SM, cycles - 1);    // push cycles to FIFO
-	(void)pio_sm_get_blocking(ECLK_PIO, SYNC_SM); // wait for completion
+	__sev();                                           // clear any stale event flag
+	__wfe();                                           // consume it so next WFE sleeps
+	pio_sm_put(ECLK_PIO, SYNC_SM, cycles - 1);        // push count; SM starts counting edges
+	while (pio_sm_is_rx_fifo_empty(ECLK_PIO, SYNC_SM)) {
+		__wfe();                                       // sleep until RX FIFO not-empty IRQ
+	}
+	(void)pio_sm_get(ECLK_PIO, SYNC_SM);              // drain FIFO (deasserts IRQ for next cycle)
 }
 
 // Get real elapsed E clock cycles from PIO
