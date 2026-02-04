@@ -148,16 +148,8 @@ void __time_critical_func(memory_write_fast)(uint16_t address, uint8_t data)
 // Print a summary of the various memory ranges defined in the memory_map
 void memory_print_summary(printf_func_t printf_func)
 {
-	printf_func("Memory Map Summary:\r\n");
-	printf_func("  ROM: $%04X-$%04X (%d bytes)\r\n", mem_config.rom_base,
-		    mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
-	printf_func("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
-		    mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
-	printf_func("  Flash offset: 0x%08lX, size: %u bytes\r\n",
-		    (unsigned long)FLASH_TARGET_OFFSET, (unsigned int)mem_config.rom_size);
-
-	// Count mapped vs unmapped pages
-	uint16_t mapped_pages = 0;
+	// Count mapped vs unmapped pages first so the ROM/RAM lines can
+	// reflect the actual map state rather than just mem_config.
 	uint16_t rom_pages = 0;
 	uint16_t ram_pages = 0;
 	uint16_t unmapped_pages = 0;
@@ -166,20 +158,40 @@ void memory_print_summary(printf_func_t printf_func)
 
 	for (uint16_t i = 0; i < total_pages; i++) {
 		memory_type_t type = memory_get_type(i * ENTRY_PAGE_SIZE);
-		if (type == MEM_TYPE_UNMAPPED) {
-			unmapped_pages++;
+		if (type == MEM_TYPE_ROM) {
+			rom_pages++;
+		} else if (type == MEM_TYPE_RAM) {
+			ram_pages++;
 		} else {
-			mapped_pages++;
-			if (type == MEM_TYPE_RAM) {
-				ram_pages++;
-			} else if (type == MEM_TYPE_ROM) {
-				rom_pages++;
-			}
+			unmapped_pages++;
 		}
 	}
 
-	printf_func("  Memory map: %u total pages (%u mapped pages (%u ROM, %u RAM), %u unmapped "
-		    "pages)\r\n",
+	uint16_t mapped_pages = rom_pages + ram_pages;
+
+	printf_func("Memory Map Summary:\r\n");
+
+	if (rom_pages > 0) {
+		printf_func("  ROM: $%04X-$%04X (%d bytes)\r\n", mem_config.rom_base,
+			    mem_config.rom_base + mem_config.rom_size - 1, mem_config.rom_size);
+	} else {
+		printf_func("  ROM: not mapped (configured $%04X-$%04X)\r\n",
+			    mem_config.rom_base,
+			    mem_config.rom_base + mem_config.rom_size - 1);
+	}
+
+	if (ram_pages > 0) {
+		printf_func("  RAM: $%04X-$%04X (%d bytes)\r\n", mem_config.ram_base,
+			    mem_config.ram_base + mem_config.ram_size - 1, mem_config.ram_size);
+	} else {
+		printf_func("  RAM: not mapped (configured $%04X-$%04X)\r\n",
+			    mem_config.ram_base,
+			    mem_config.ram_base + mem_config.ram_size - 1);
+	}
+
+	printf_func("  Flash offset: 0x%08lX, size: %u bytes\r\n",
+		    (unsigned long)FLASH_TARGET_OFFSET, (unsigned int)mem_config.rom_size);
+	printf_func("  Memory map: %u total pages (%u mapped (%u ROM, %u RAM), %u unmapped)\r\n",
 		    total_pages, mapped_pages, rom_pages, ram_pages, unmapped_pages);
 }
 
@@ -303,6 +315,12 @@ bool memory_load_memory_map_from_flash(void)
 		if (config_valid) {
 			memcpy(&mem_config, &loaded_config, FLASH_MEMORY_CONFIG_SIZE);
 			memcpy(memory_map, map_flash_ptr, FLASH_MEMORY_MAP_SIZE);
+
+			// Sanitise decoded_bits — old flash images may have 0
+			if (mem_config.decoded_bits == 0) {
+				mem_config.decoded_bits = 16;
+			}
+
 			printf("Memory config and map loaded from flash (%u + %u bytes)\n",
 			       FLASH_MEMORY_CONFIG_SIZE, FLASH_MEMORY_MAP_SIZE);
 		}
