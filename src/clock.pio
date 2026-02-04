@@ -109,6 +109,15 @@ static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) 
     pio_sm_set_enabled(pio, sm, false);
 }
 
+// ISR for PIO0_IRQ_0.  The IRQ source (SYNC_SM RX-FIFO not-empty) is
+// level-triggered: it stays asserted until the FIFO is drained.  A handler
+// that simply returns causes the NVIC to tail-chain back into itself
+// indefinitely, starving the main thread.  Disabling the IRQ here breaks the
+// loop; eclock_wait_cycles() re-arms it right before each __wfe().
+static void pio0_irq0_handler(void) {
+    irq_set_enabled(PIO0_IRQ_0, false);
+}
+
 static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_pin, uint test_pin) {
     pio_gpio_init(pio, test_pin); 
 
@@ -135,12 +144,12 @@ static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_p
     //    clear any flags.
     pio_set_irq0_source_enabled(pio, (enum pio_interrupt_source)(pis_sm0_rx_fifo_not_empty + sm), true);
 
-    // 3. Enable the IRQ in the NVIC.
-    //    SEVONPEND wakes WFE on the pending edge, but if the IRQ is still
-    //    asserted when the CPU isn't in WFE the NVIC will actually enter the
-    //    exception — so a handler must exist even if it does nothing.
-    irq_set_exclusive_handler(PIO0_IRQ_0, (irq_handler_t)NULL);
-    irq_set_enabled(PIO0_IRQ_0, true);
+    // 3. Register the handler but leave the IRQ disabled.
+    //    eclock_wait_cycles() arms it immediately before each __wfe() and
+    //    the ISR disables it again on entry, so exactly one exception fires
+    //    per sync-SM push.
+    irq_set_exclusive_handler(PIO0_IRQ_0, pio0_irq0_handler);
+    irq_set_enabled(PIO0_IRQ_0, false);
 }
 
 static inline void eclock_external_program_init(PIO pio, uint sm, uint offset, uint out_pin, uint in_pin) {
