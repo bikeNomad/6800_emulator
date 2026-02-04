@@ -110,6 +110,16 @@ message(STATUS "UART configuration: UART${UART_INSTANCE} on TX=GPIO${UART_TX_PIN
 # Create map/bin/hex/uf2 file etc.
 pico_add_extra_outputs(mc6800_emulator)
 
+# Core voltage configuration (can be overridden: -DCORE_VOLTAGE_V=1.15)
+# Valid values: 0.85 0.90 0.95 1.00 1.05 1.10 1.15 1.20 1.25 1.30 1.35 1.40
+#               1.50 1.60 1.65 1.70 1.80 1.90 2.00 2.35 2.50 2.65 2.80 3.00 3.15 3.30
+if(NOT DEFINED CORE_VOLTAGE_V)
+    set(CORE_VOLTAGE_V "1.30") # Default: 1.30V
+endif()
+# Convert "1.30" → "1_30" so the C side can token-paste VREG_VOLTAGE_1_30
+string(REPLACE "." "_" CORE_VOLTAGE ${CORE_VOLTAGE_V})
+message(STATUS "Core voltage: ${CORE_VOLTAGE_V}V (VREG_VOLTAGE_${CORE_VOLTAGE})")
+
 # System clock configuration (can be overridden from command line)
 # Options: 150-300 MHz (safe range for RP2350 with proper voltage)
 if(NOT DEFINED SYS_CLOCK_MHZ)
@@ -138,6 +148,7 @@ target_compile_definitions(mc6800_emulator PRIVATE
     PICO_DEFAULT_UART=${UART_INSTANCE}
     PICO_DEFAULT_UART_TX_PIN=${UART_TX_PIN}
     PICO_DEFAULT_UART_RX_PIN=${UART_RX_PIN}
+    CORE_VOLTAGE=${CORE_VOLTAGE}
     SYS_CLOCK_MHZ=${SYS_CLOCK_MHZ}
     QSPI_CLOCK_DIVISOR=${QSPI_CLOCK_DIVISOR}
     DEBUG_INTERRUPTS=${DEBUG_INTERRUPTS} # Set to 0 to disable interrupt debug output

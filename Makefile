@@ -3,7 +3,7 @@
 
 AS6800 ?= $(PWD)/../motorola-6800-assembler/bin/as0
 
-.PHONY: all clean images build_pico2 build_ned_sys7
+.PHONY: all clean images build_ned_sys7
 
 # Output directory for .uf2 files
 IMAGES_DIR = images
@@ -12,12 +12,17 @@ IMAGES_DIR = images
 BUILD_NED_SYS7_DIR = build_ned_sys7
 
 # System clock speed (can be overridden from command line)
-# Options: 150-300 MHz (safe range for RP2350 with proper voltage)
-SYS_CLOCK_MHZ ?= 266  # Default: 266MHz (optimized for 133MHz QSPI flash)
+# Options: 150-366 MHz (safe range for RP2350 with proper voltage)
+SYS_CLOCK_MHZ ?= 366
 
 # QSPI clock divisor (can be overridden from command line)
 # Options: 1 (full speed), 2 (half speed), 3, 4, etc.
-QSPI_CLOCK_DIVISOR ?= 2  # Default: 133MHz with 266MHz system clock (flash chip max rating)
+QSPI_CLOCK_DIVISOR ?= 4
+
+# Core voltage (can be overridden from command line)
+# Valid values: 0.85 0.90 0.95 1.00 1.05 1.10 1.15 1.20 1.25 1.30 1.35 1.40
+#               1.50 1.60 1.65 1.70 1.80 1.90 2.00 2.35 2.50 2.65 2.80 3.00 3.15 3.30
+CORE_VOLTAGE_V ?= 1.30  # Default: 1.30V
 
 DEBUG_INTERRUPTS ?= 0
 
@@ -32,6 +37,7 @@ CMAKE_ARGS = \
 	-DBOARD_TYPE=$(BOARD_TYPE) \
 	-DSYS_CLOCK_MHZ=$(SYS_CLOCK_MHZ) \
 	-DQSPI_CLOCK_DIVISOR=$(QSPI_CLOCK_DIVISOR) \
+	-DCORE_VOLTAGE_V=$(CORE_VOLTAGE_V) \
 	-DDEBUG_INTERRUPTS=$(DEBUG_INTERRUPTS)
 
 C_SOURCES = $(wildcard src/*.c src/*.h)
@@ -46,7 +52,7 @@ $(IMAGES_DIR):
 # Build for Ned's System 7 Board
 build_ned_sys7: BOARD_TYPE=BOARD_NED_SYS7 
 build_ned_sys7: $(IMAGES_DIR)
-	@echo "Building for $(BOARD_TYPE) (SYS: $(SYS_CLOCK_MHZ)MHz, QSPI divisor: $(QSPI_CLOCK_DIVISOR))..."
+	@echo "Building for $(BOARD_TYPE) (SYS: $(SYS_CLOCK_MHZ)MHz, QSPI divisor: $(QSPI_CLOCK_DIVISOR), VREG: $(CORE_VOLTAGE_V)V)..."
 	mkdir -p $(BUILD_NED_SYS7_DIR)
 	cd $(BUILD_NED_SYS7_DIR) && cmake .. $(CMAKE_ARGS)
 	cd $(BUILD_NED_SYS7_DIR) && make V=$(V) -j$(shell nproc 2>/dev/null || echo 4)
@@ -104,9 +110,14 @@ help:
 	@echo "                         With 266MHz sys clock: 1=266MHz, 2=133MHz, 3=88MHz, 4=66MHz"
 	@echo "                         Flash chip rated at 133MHz maximum"
 	@echo "                         Use: make QSPI_CLOCK_DIVISOR=4"
+	@echo "  CORE_VOLTAGE_V=X.XX - Set core voltage (default: 1.30)"
+	@echo "                         Valid: 0.85 0.90 0.95 1.00 1.05 1.10 1.15 1.20 1.25 1.30"
+	@echo "                                1.35 1.40 1.50 1.60 1.65 1.70 1.80 1.90 2.00"
+	@echo "                         Use: make CORE_VOLTAGE_V=1.15"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make SYS_CLOCK_MHZ=250 QSPI_CLOCK_DIVISOR=2  # 250MHz sys, 125MHz QSPI"
+	@echo "  make CORE_VOLTAGE_V=1.15                       # lower voltage"
 	@echo ""
 	@echo "Output files will be placed in $(IMAGES_DIR)/"
 	@echo "  - $(IMAGES_DIR)/BOARD_NED_SYS7.uf2"

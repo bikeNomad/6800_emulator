@@ -30,19 +30,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a MC6808 emulator for the Raspberry Pi 2350 (RP2350), designed to replace the MC6808 processor in early 1980s Williams and Bally pinball machines. The emulator is instruction-compatible with the MC6800 and replaces both the processor and EPROMs.
 
-**Critical Constraint**: Each MC6808 instruction MUST execute within 1.12µs (the period of the E clock at 3.579545/4 MHz).
-
 ## Build System
 
 This project uses the Raspberry Pi Pico SDK for RP2350 development:
+
 - `PICO_SDK_PATH`: /Users/ned/src/Micropython/micropython/lib/pico-sdk
 - TinyUSB path: /Users/ned/src/Micropython/micropython/lib/tinyusb/src/portable/raspberrypi/rp2040
 
-Standard Pico SDK build commands:
+To build, use the Makefile (which calls Cmake):
+
 ```bash
-mkdir build
-cd build
-cmake ..
 make
 ```
 
@@ -65,8 +62,7 @@ make
 
 2. **Hardware Interface Layer (GPIO/PIO)**
    - **Data Bus**: 8 bi-directional data lines + R/W output for level translator control
-   - **Address Bus**: UP TO 16 output lines + VMA (valid memory address) strobe
-     - But: we can save pins by only using address lines A0, A1, and A10-A14 
+   - **Address Bus**: 16 output lines + VMA (valid memory address) strobe
    - **E Clock**: 3.579545/4 MHz clock output for synchronization
    - **Control Inputs**: /IRQ, /NMI, /RESET (vector the PC to specific addresses)
 
@@ -96,5 +92,5 @@ make
 - It is not necessary to drive the bus for ROM and RAM accesses but it must be cycle accurate anyway.
 - I want to use a dev board for testing at first.
 - On system 7 games, the RAM space 0000-00FF is mirrored at 1000-10FF. And there could be RAM all the way up to 13FF.
-- There could be ROM down to D000
+- There could be ROM down to 0x4000
 - We don't have any physical hardware other than the PIAs to worry about. They use only A10-A14 for address decoding and A0 and A1 for register select. We are emulating all the ROM and RAM.

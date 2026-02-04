@@ -87,32 +87,50 @@ void core1_entry()
 	}
 }
 
+#define VREG_PASTE2(a, b) a##b
+#define VREG_PASTE(a, b)  VREG_PASTE2(a, b)
+#define VREG_QUOTE(a)     #a
+
 int main()
 {
 	// Set system clock based on build-time configuration
 	// Default is 266MHz for better emulation performance (>2x speedup over
 	// default 150MHz) RP2350 can safely run at 300MHz with proper voltage
-	vreg_set_voltage(VREG_VOLTAGE_1_15);
-	sleep_ms(10);
-	set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, true);
+	// Token-paste VREG_VOLTAGE_ + CORE_VOLTAGE (e.g. 1_30) → VREG_VOLTAGE_1_30
+	// CORE_VOLTAGE is set by CMake from -DCORE_VOLTAGE_V (default 1.30)
+	enum vreg_voltage core_v = VREG_PASTE(VREG_VOLTAGE_, CORE_VOLTAGE);
+	if (core_v > VREG_VOLTAGE_MAX) {
+		vreg_disable_voltage_limit();
+	}
+	vreg_set_voltage(core_v);
 
-	// Report QSPI bus speed configuration (read-only, safe to call)
-	qspi_report_speed();
+	sleep_ms(100);
 
-	// Initialize Pico SDK's UART
+	// Initialize Pico SDK's UART to see the next printf
+	stdio_init_all();
+
+	// set required=false to avoid panic.
+	if (!set_sys_clock_khz(SYS_CLOCK_MHZ * 1000, false)) {
+		printf("Can't set system clock to %d MHz\r\n", SYS_CLOCK_MHZ);
+	}
+	qspi_configure_clock();
+
+	// Re-initialize UART because system clock may have changed
 	stdio_init_all();
 
 	// Small delay for USB to enumerate
-	sleep_ms(1000);
+	sleep_ms(500);
 
 	uint32_t sys_clock_hz = clock_get_hz(clk_sys);
 
 	printf("\r\n\n========================================\n");
 	printf("MC6800 Emulator Starting...\r\n");
-	printf("Version 1.0\r\n");
-	printf("Target: RP2350 (Pico 2 W)\r\n");
+	printf("Version 1.3.0\r\n");
+	printf("Target: RP2350 (Pico 2)\r\n");
 	printf("System Clock: %lu MHz\r\n", sys_clock_hz / 1000000);
-	printf("UART Debug Output Active\r\n");
+	// calculation works OK up to 1.45V
+	printf("Core voltage: %.2f\r\n", 0.55 + (core_v * 0.05));
+	qspi_report_speed();
 	printf("========================================\r\n\n");
 
 	// Initialize all subsystems
