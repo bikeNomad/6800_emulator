@@ -147,8 +147,8 @@ bool ihex_load_data(const char *hex_data, uint32_t length)
 					return false;
 				}
 
-				printf("Record address %08lx length %d\n", full_address,
-				       record.byte_count);
+				// printf("Record address %08lx length %d\n", full_address,
+				//       record.byte_count);
 				bytes_loaded += record.byte_count;
 				break;
 			}
