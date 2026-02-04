@@ -121,8 +121,25 @@ bool ihex_load_data(const char *hex_data, uint32_t length)
 		if (result == IHEX_OK) {
 			uint32_t full_address;
 			switch (record.record_type) {
-			case IHEX_TYPE_DATA:
+			case IHEX_TYPE_DATA: {
 				full_address = base_address + record.address;
+
+				// Map any unmapped pages BEFORE writing data —
+				// memory_load_data checks the map to decide
+				// ROM vs RAM vs fail.
+				uint start_page = full_address & ENTRY_ADDRESS_MASK;
+				uint end_page =
+					(full_address + record.byte_count - 1) & ENTRY_ADDRESS_MASK;
+				for (uint page_addr = start_page; page_addr <= end_page;
+				     page_addr += ENTRY_PAGE_SIZE) {
+					if (memory_get_type((uint16_t)page_addr) ==
+					    MEM_TYPE_UNMAPPED) {
+						printf("Mapping ROM page from hex $%04X\n",
+						       (uint16_t)page_addr);
+						map_as_rom((uint16_t)page_addr);
+					}
+				}
+
 				if (!memory_load_data(full_address, record.data,
 						      record.byte_count)) {
 					printf("Failed to load data at address $%04lX\n",
@@ -132,26 +149,9 @@ bool ihex_load_data(const char *hex_data, uint32_t length)
 
 				printf("Record address %08lx length %d\n", full_address,
 				       record.byte_count);
-
-				uint start_addr = full_address;
-				uint end_addr = (full_address + record.byte_count - 1);
-
-				// Mark all pages that contain this data as mapped
-				uint start_page = start_addr & ENTRY_ADDRESS_MASK;
-				uint end_page = end_addr & ENTRY_ADDRESS_MASK;
-
-				for (uint page_addr = start_page; page_addr <= end_page;
-				     page_addr += ENTRY_PAGE_SIZE) {
-					memory_type_t type = memory_get_type((uint16_t)page_addr);
-					if (type == MEM_TYPE_UNMAPPED) {
-						printf("Mapping ROM page from hex $%04X\n",
-						       (uint16_t)page_addr);
-						map_as_rom((uint16_t)page_addr);
-					}
-				}
-
 				bytes_loaded += record.byte_count;
 				break;
+			}
 
 			case IHEX_TYPE_EOF:
 				printf("End of HEX file reached\n");

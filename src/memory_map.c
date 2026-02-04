@@ -86,6 +86,7 @@ void memory_initialize_map(void)
 	mem_config.rom_size = MAX_ROM_SIZE;    // 48KB (4000-FFFF)
 	mem_config.ram_base = 0x0000;
 	mem_config.ram_size = 0x0800; // 2KB (0000-07FF)
+	mem_config.decoded_bits = 16; // full 64KB address space
 
 	memory_update_map();
 }
@@ -373,8 +374,8 @@ void map_as_rom(uint16_t address)
 {
 	if (address < mem_config.rom_base ||
 	    (uint32_t)address >= (uint32_t)mem_config.rom_base + mem_config.rom_size) {
-		printf("map_as_rom: $%04X outside ROM range $%04X-$%04X\n",
-		       address, mem_config.rom_base,
+		printf("map_as_rom: $%04X outside ROM range $%04X-$%04X\n", address,
+		       mem_config.rom_base,
 		       (uint16_t)(mem_config.rom_base + mem_config.rom_size - 1));
 		return;
 	}
