@@ -135,7 +135,11 @@ static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_p
     //    clear any flags.
     pio_set_irq0_source_enabled(pio, (enum pio_interrupt_source)(pis_sm0_rx_fifo_not_empty + sm), true);
 
-    // 3. Enable the IRQ in the NVIC (no ISR needed — SEVONPEND wakes WFE)
+    // 3. Enable the IRQ in the NVIC.
+    //    SEVONPEND wakes WFE on the pending edge, but if the IRQ is still
+    //    asserted when the CPU isn't in WFE the NVIC will actually enter the
+    //    exception — so a handler must exist even if it does nothing.
+    irq_set_exclusive_handler(PIO0_IRQ_0, (irq_handler_t)NULL);
     irq_set_enabled(PIO0_IRQ_0, true);
 }
 
