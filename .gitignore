@@ -5,3 +5,10 @@ __pycache__/*
 Programmable IO — MicroPython latest documentation*
 rp2 — functionality specific to the RP2040 — MicroPython latest documentation*
 .cache/
+*.db
+*.jdebug*
+# Don't share pinball hex files
+f14.hex
+*.lst
+session_artifacts/
+prj.conf
