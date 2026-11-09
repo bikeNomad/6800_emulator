@@ -26,7 +26,7 @@
 #endif
 
 // Public function to turn off all LEDs (for use outside memory.c)
-void led_all_off(void)
+void __time_critical_func(led_all_off)(void)
 {
 #if BOARD_TYPE == BOARD_NED_SYS7
 	gpio_put_masked64(LED_MASK, LED_ALL_OFF);

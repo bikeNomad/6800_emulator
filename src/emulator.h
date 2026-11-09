@@ -27,7 +27,8 @@
 #include "pico.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
-#include "pico/util/queue.h"
+#include "emu_api.h"
+#include "emu_ring.h"
 #include "simple_fsm.h" // for EVT_USER_START
 #include <stdarg.h>
 #include <stdbool.h>
@@ -59,35 +60,52 @@ typedef int (*printf_func_t)(const char *__restrict, ...)
 #define QSPI_CLOCK_DIVISOR 2 // Default: system clock / 2 (133MHz with 266MHz sys clock)
 #endif
 
-// SM Events
-typedef enum sm_event_t {
-	// Commands from USB CDC
-	EV_CMD_RUN = EVT_USER_START,
-	EV_CMD_HALT,
-	EV_CMD_RESET,
-	EV_CMD_LOAD,
-	EV_PAUSE_EMULATOR, // freeze emulation
-	EV_RESUME_EMULATOR,
-} sm_event_t;
+// ---------------------------------------------------------------------------
+// Internal interface between the host-side API (emu_api.c) and the emulator
+// core state machine (emulator.c). Front ends use emu_api.h instead.
 
-extern const char *event_names[];
+// Commands, host core -> emulator core
+typedef enum emu_cmd_t {
+	EMU_CMD_RUN = EVT_USER_START,
+	EMU_CMD_HALT,
+	EMU_CMD_RESET,
+	EMU_CMD_LOAD,
+	EMU_CMD_PAUSE, // park the emulator core until EMU_CMD_RESUME
+	EMU_CMD_RESUME,
+	EMU_CMD_STEP, // arg = instruction count
+} emu_cmd_t;
 
-// Notifications to USB CDC
-typedef enum sm_notification_t {
-	NOTIF_OK,
-	NOTIF_ERROR,
-} sm_notification_t;
+typedef struct emu_cmd_msg_t {
+	uint8_t cmd; // emu_cmd_t
+	uint8_t seq; // echoed in the reply
+	uint16_t _pad;
+	uint32_t arg;
+} emu_cmd_msg_t;
 
-// Returns false if the queue is full
-bool post_sm_event(sm_event_t event);
+// Replies, emulator core -> host core (one per command)
+typedef struct emu_reply_msg_t {
+	uint8_t seq;
+	uint8_t result; // emu_result_t
+} emu_reply_msg_t;
 
-// Returns false if no notification in queue (yet)
-bool receive_sm_notification(sm_notification_t *notification);
+EMU_RING_DECLARE(emu_cmd_ring, emu_cmd_msg_t, 8)
+EMU_RING_DECLARE(emu_reply_ring, emu_reply_msg_t, 8)
+EMU_RING_DECLARE(emu_event_ring, emu_event_t, 64)
 
-// Runs until an exception of some sort
+// Ring instances (defined in emulator.c)
+extern emu_cmd_ring_t emu_cmd_q;     // host -> core
+extern emu_reply_ring_t emu_reply_q; // core -> host
+extern emu_event_ring_t emu_event_q; // core -> host
+extern volatile uint32_t emu_event_drops;
+
+// Current state, written only by the emulator core
+extern volatile emu_state_t emu_core_state;
+
+// Emulator core main loop. Runs until the state machine terminates.
 bool run_emulator_sm(void);
 
-const char *sm_current_state_name(void);
+// Number of single steps still to execute (0 when not stepping)
+extern volatile uint32_t emu_steps_pending;
 
 // Call this from where you want the debugger to start
 // Change the JLink reset type to 12

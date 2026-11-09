@@ -8,6 +8,7 @@
 #include "clock.h"
 #include "hardware/gpio.h"
 #include "hardware/sync.h"
+#include "instructions.h"
 #include "interrupts.h"
 #include "memory.h"
 #include "memory_fingerprint.h"
@@ -37,53 +38,18 @@ void cpu_init(void)
 	for (int i = 0; i < MAX_BREAKPOINTS; i++) {
 		cpu.breakpoints[i] = 0xFFFF; // Invalid address
 	}
-	cpu.stopped_at_breakpoint = false;
+	cpu.stop_requested = false;
+	cpu.stop_reason = 0;
+	cpu.stop_opcode = 0;
 
 	// Turn off all LEDs at startup
 	led_all_off();
-
-	if (memory_is_address_mapped(VECTOR_RESET)) {
-		// ROM is loaded, perform reset to load vector into PC
-		printf("CPU initialized\n");
-	} else {
-		printf("CPU initialized: PC=$%04X SP=$%04X CCR=$%02X (no ROM)\n", cpu.pc, cpu.sp,
-		       cpu.ccr);
-	}
 }
 
 // Check if CPU is running
 bool cpu_is_running(void)
 {
 	return cpu.running && !cpu.halted;
-}
-
-// Start CPU execution
-void cpu_start(void)
-{
-	// Check if /RESET is asserted (bus_read_reset() returns true when LOW)
-	if (bus_read_reset()) {
-		printf("WARNING: Cannot start CPU while /RESET is asserted\n");
-		return; // Don't start
-	}
-
-	cpu.running = true;
-	cpu.halted = false;
-	eclock_start(); // Start E clock PIO (also resets PIO counter)
-	printf("CPU started: PC=$%04X\n", cpu.pc);
-}
-
-// Halt CPU execution
-void cpu_halt(void)
-{
-	cpu.halted = true;
-	__mem_fence_release(); // Memory barrier - ensure Core 0 sees halt flag
-			       // immediately
-	eclock_stop();         // Stop E clock PIO
-
-	// Turn off all LEDs when halted
-	led_all_off();
-
-	printf("CPU halted at PC=$%04X\n", cpu.pc);
 }
 
 // Breakpoint functions
@@ -139,13 +105,27 @@ const uint16_t *cpu_get_breakpoints(void)
 	return cpu.breakpoints;
 }
 
+// Mnemonic of the opcode at addr if it is in ROM or RAM (no bus cycle).
+const char *cpu_mnemonic_at(uint16_t addr)
+{
+	memory_type_t type = memory_get_type(addr);
+	if (type == MEM_TYPE_UNMAPPED) {
+		return "?";
+	}
+	return instruction_get_mnemonic(memory_read_fast(addr));
+}
+
 // Note: cpu_get_flag, cpu_set_flag, cpu_update_nz, cpu_update_nzv,
 // cpu_push, cpu_pull, cpu_push16, cpu_pull16 are now inline in cpu_state.h
 
+// Print registers. Call only while the emulator core is parked.
 void cpu_print_state(printf_func_t printf_func)
 {
-	printf_func("  PC: $%04X  (%s)\r\n", cpu.last_opcode_address,
-		    instruction_get_mnemonic(memory_read_rom_shadow(cpu.last_opcode_address)));
+	// PC is the next instruction to execute; "Last" is the one just executed.
+	// The web interface parses "PC: $xxxx", "A: $xx", etc.
+	printf_func("  PC: $%04X  (%s)\r\n", cpu.pc, cpu_mnemonic_at(cpu.pc));
+	printf_func("  Last: $%04X  (%s)\r\n", cpu.last_opcode_address,
+		    cpu_mnemonic_at(cpu.last_opcode_address));
 	printf_func("  A:  $%02X\r\n", cpu.a);
 	printf_func("  B:  $%02X\r\n", cpu.b);
 	printf_func("  X:  $%04X\r\n", cpu.x);

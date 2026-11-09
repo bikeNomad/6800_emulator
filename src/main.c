@@ -11,6 +11,7 @@
 #include "clock.h"
 #include "cpu_state.h"
 #include "debug_spi.h"
+#include "emu_api.h"
 #include "emulator.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
@@ -151,6 +152,9 @@ int main()
 
 	printf("Initializing debug SPI...\r\n");
 	debug_spi_init();
+
+	printf("Initializing emulator control API...\r\n");
+	emu_api_init();
 
 	printf("Initializing USB CDC...\r\n");
 	usb_cdc_init();

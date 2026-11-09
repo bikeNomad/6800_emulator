@@ -76,6 +76,7 @@ continue:
 #include "hardware/clocks.h"
 #include "hardware/pio.h"
 #include "hardware/irq.h"
+#include "hardware/structs/nvic.h"
 #include "hardware/structs/scb.h"
 
 static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) {
@@ -114,8 +115,10 @@ static inline void eclock_program_init(PIO pio, uint sm, uint offset, uint pin) 
 // that simply returns causes the NVIC to tail-chain back into itself
 // indefinitely, starving the main thread.  Disabling the IRQ here breaks the
 // loop; eclock_wait_cycles() re-arms it right before each __wfe().
-static void pio0_irq0_handler(void) {
-    irq_set_enabled(PIO0_IRQ_0, false);
+// Runs on the emulator core, so it must live in SRAM; it writes the NVIC
+// directly because irq_set_enabled() is in flash.
+static void __not_in_flash_func(pio0_irq0_handler)(void) {
+    nvic_hw->icer[PIO0_IRQ_0 / 32] = 1u << (PIO0_IRQ_0 % 32);
 }
 
 static inline void sync_program_init(PIO pio, uint sm, uint offset, uint clock_pin, uint test_pin) {

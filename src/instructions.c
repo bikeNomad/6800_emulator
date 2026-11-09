@@ -18,7 +18,7 @@
 volatile instruction_count_info instruction_counts[256];
 volatile bool instruction_counting = false;
 
-void instruction_count_initialize(void)
+void __time_critical_func(instruction_count_initialize)(void)
 {
 	bool was_enabled = instruction_count_enable(false);
 	for (int i = 0; i < 256; i++) {
@@ -1908,7 +1908,9 @@ void __time_critical_func(instruction_execute)(void)
 	// HCF (inherent): Halt and Catch Fire
 	case 0xDD: {
 		// For emulation purposes, we'll just halt the CPU
-		cpu.halted = true;
+		cpu.stop_requested = true;
+		cpu.stop_reason = EMU_HALT_HCF;
+		cpu.stop_opcode = opcode;
 		break;
 	}
 
@@ -2233,9 +2235,11 @@ void __time_critical_func(instruction_execute)(void)
 	}
 
 	// Unimplemented instruction
+	// Reported to the host as an EMU_EV_HALTED event by the state machine.
 	default:
-		printf("*** UNIMPLEMENTED OPCODE: $%02X at PC=$%04X ***\n", opcode, cpu.pc - 1);
-		cpu.halted = true;
+		cpu.stop_requested = true;
+		cpu.stop_reason = EMU_HALT_ILLEGAL;
+		cpu.stop_opcode = opcode;
 		return;
 	}
 

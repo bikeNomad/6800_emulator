@@ -67,7 +67,7 @@ interrupt_t __time_critical_func(interrupt_check)(void)
 }
 
 // Service RESET interrupt
-void interrupt_service_reset(void)
+void __time_critical_func(interrupt_service_reset)(void)
 {
 	DEBUG_INT_PRINTF("\n*** RESET ***\n");
 
@@ -111,7 +111,7 @@ void interrupt_service_reset(void)
 }
 
 // Service NMI interrupt
-void interrupt_service_nmi(void)
+void __time_critical_func(interrupt_service_nmi)(void)
 {
 	DEBUG_INT_PRINTF("*** NMI at PC=$%04X ***\n", cpu.pc);
 
@@ -127,7 +127,7 @@ void interrupt_service_nmi(void)
 }
 
 // Service IRQ interrupt
-void interrupt_service_irq(void)
+void __time_critical_func(interrupt_service_irq)(void)
 {
 	DEBUG_INT_PRINTF("*** IRQ at PC=$%04X ***\n", cpu.pc);
 

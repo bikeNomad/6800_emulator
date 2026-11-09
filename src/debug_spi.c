@@ -31,7 +31,7 @@ void debug_spi_init(void)
 }
 
 // Log instruction execution
-void debug_spi_log(void)
+void __time_critical_func(debug_spi_log)(void)
 {
 	if (!debug_enabled) {
 		return;
@@ -52,7 +52,7 @@ void debug_spi_log(void)
 }
 
 // Log external bus access (unmapped addresses)
-void debug_spi_log_bus(uint16_t address, bool is_read, uint8_t data)
+void __time_critical_func(debug_spi_log_bus)(uint16_t address, bool is_read, uint8_t data)
 {
 	if (!debug_enabled) {
 		return;

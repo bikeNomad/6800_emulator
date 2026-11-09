@@ -33,7 +33,7 @@ So the bottom 3 bits are encoded like this:
 // Memory map array
 uint32_t memory_map[NUM_PAGES];
 
-memory_type_t memory_get_type(uint16_t address)
+memory_type_t __time_critical_func(memory_get_type)(uint16_t address)
 {
 	uint8_t table_index = ADDR_TO_TABLE_INDEX(address);
 	uint32_t table_entry = memory_map[table_index];

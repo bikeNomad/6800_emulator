@@ -98,6 +98,8 @@ tio /dev/tty.usbmodem14201
 | `status` | none | Display CPU status |
 | `run` | none | Start CPU execution |
 | `halt` | none | Stop CPU execution |
+| `step` | [count] | Execute instructions while halted (default 1) |
+| `regs` | none | Show CPU registers |
 | `reset` | none | Reset CPU |
 | `debug on` | none | Enable SPI debug output |
 | `debug off` | none | Disable SPI debug output |
@@ -626,9 +628,10 @@ status
 
 ```
 > status
-Emulator State: RUNNING
+Emulator State: s_running
 CPU Status:
-  PC: $F000 (SEI (INH))
+  PC: $F001  (LDS (IMM))
+  Last: $F000  (SEI (INH))
   A:  $42
   B:  $55
   X:  $0100
@@ -646,6 +649,13 @@ CPU Status:
   QSPI Bus: 133 MHz (divisor: 2)
   E Clock: running (internal)
 ```
+
+`PC` is the next instruction to execute; `Last` is the instruction that was
+executed most recently. When halted at a breakpoint, `PC` is the breakpoint
+address (not yet executed).
+
+`Emulator State` is one of `s_initializing`, `s_resetting`, `s_running`,
+`s_waiting_for_interrupt` (after `WAI`), `s_halted` or `s_loading`.
 
 **CCR Flags**:
 
@@ -723,12 +733,54 @@ halt
 OK: CPU halted, CMOS saved
 ```
 
+Followed by the asynchronous message `CPU halted at PC=$xxxx`.
+
 **Notes**:
 
-- Automatically saves CMOS to flash
+- The E clock stops while halted
 - CPU state preserved (PC, registers)
-- Use `run` to resume execution
-- Use `status` to inspect state
+- Use `run` to resume execution, or `step` to execute one instruction at a time
+- Use `status` or `regs` to inspect state
+
+### step
+
+Execute one or more instructions, then halt again. Only valid while halted.
+
+**Syntax**:
+
+```
+step [count_hex]
+```
+
+**Example**:
+
+```
+> step
+  PC=$F004 (LDX (IMM)) A=$00 B=$00 X=$0000 SP=$01FF CCR=$D0
+> step 10
+  PC=$F02A (BNE (REL)) A=$03 B=$00 X=$0123 SP=$01FF CCR=$D0
+```
+
+**Notes**:
+
+- The E clock runs while stepping, so bus cycles to peripherals are real
+- Pending interrupts are taken, as when running
+- A step sequence stops early at a breakpoint (other than one at the starting
+  PC), an unimplemented opcode, `HCF` or `/RESET`
+- While in `WAI` with no interrupt pending, a step executes nothing
+- `halt` or `run` cancels an unfinished step sequence
+
+### regs
+
+Show the CPU registers (same format as in `status`).
+
+```
+> regs
+  PC: $F004  (LDX (IMM))
+  Last: $F001  (LDS (IMM))
+  A:  $00
+  ...
+```
 
 ### reset
 
@@ -917,13 +969,23 @@ break <addr_hex>
 OK: Breakpoint set at $5000
 
 > break F000
-ERROR: Failed to set breakpoint at $F000 (max 8 breakpoints)
+ERROR: Failed to set breakpoint at $F000 (max 16 breakpoints)
+```
+
+When the CPU reaches it:
+
+```
+CPU halted at breakpoint at PC=$5000 Prior PC=$4FFD
+  PC=$5000 (LDAA (EXT)) A=$12 B=$00 X=$0200 SP=$01F0 CCR=$C4
 ```
 
 **Notes**:
 
-- Maximum of 8 breakpoints supported
-- CPU will halt when PC reaches the breakpoint address
+- Maximum of 16 breakpoints supported
+- The CPU halts *before* executing the instruction at the breakpoint address
+- `run` or `step` from a breakpoint executes that instruction; the
+  breakpoint triggers again the next time execution reaches it
+- Breakpoints can be set or cleared while running
 - Use `break list` to see all active breakpoints
 
 ### break clear
@@ -1463,6 +1525,20 @@ Memory Map ($0000-$1FFF, 13 bits decoded):
 - For 13-bit decoding: shows $0000-$1FFF (8KB unique)
 - UNMAPPED regions route to the physical bus (for PIAs, external peripherals)
 - RAM and ROM are handled internally by the emulator for fast access
+
+## Asynchronous Messages
+
+The emulator reports these on its own, between command responses:
+
+| Message | Meaning |
+|---------|---------|
+| `CPU halted at breakpoint at PC=$xxxx Prior PC=$yyyy` | Breakpoint hit (followed by a register line) |
+| `CPU halted at PC=$xxxx` | Stopped by `halt` |
+| `*** UNIMPLEMENTED OPCODE: $oo at PC=$xxxx *** CPU halted` | Illegal instruction |
+| `HCF ($DD) at PC=$xxxx: CPU halted` | `HCF` executed |
+| `  PC=$xxxx (...) A=... B=... X=... SP=... CCR=...` | A `step` sequence finished |
+| `CPU reset: PC=$xxxx` | Reset (command, `/RESET` pin, or after loading) |
+| `(n emulator events dropped)` | The event queue overflowed |
 
 ## Command Line Editing
 

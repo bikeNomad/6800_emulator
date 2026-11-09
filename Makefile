@@ -3,7 +3,14 @@
 
 AS6800 ?= $(PWD)/../motorola-6800-assembler/bin/as0
 
-.PHONY: all clean images build_ned_sys7
+.PHONY: all clean images build_ned_sys7 check-ram test-host
+
+# Functions the emulator core runs once started; all must be in SRAM.
+# fsm_run calls the state handlers and receive_event through pointers, so
+# they are listed as roots too.
+RAM_ROOTS = fsm_run receive_event s_resetting s_running s_halted s_loading \
+	s_waiting_for_interrupt pio0_irq0_handler
+CHECK_RAM ?= 1
 
 # Output directory for .uf2 files
 IMAGES_DIR = images
@@ -57,7 +64,19 @@ build_ned_sys7: $(IMAGES_DIR)
 	cd $(BUILD_NED_SYS7_DIR) && cmake .. $(CMAKE_ARGS)
 	cd $(BUILD_NED_SYS7_DIR) && make V=$(V) -j$(shell nproc 2>/dev/null || echo 4)
 	cp $(BUILD_NED_SYS7_DIR)/$(UF2_NAME) $(IMAGES_DIR)/BOARD_NED_SYS7.uf2
+ifeq ($(CHECK_RAM),1)
+	python3 tools/check_ram_hotpath.py $(BUILD_NED_SYS7_DIR)/mc6800_emulator.elf $(RAM_ROOTS)
+endif
 	@echo "BOARD_NED_SYS7 build complete"
+
+# Verify the emulator core never executes from flash (also run after each build;
+# disable that with CHECK_RAM=0)
+check-ram:
+	python3 tools/check_ram_hotpath.py $(BUILD_NED_SYS7_DIR)/mc6800_emulator.elf $(RAM_ROOTS)
+
+# Host-side tests of the emulator control API and state machine (no hardware)
+test-host:
+	$(MAKE) -C tests/host
 
 # Individual board targets (for convenience)
 ned_sys7: build_ned_sys7
@@ -100,9 +119,12 @@ help:
 	@echo "  clean-images - Remove only images directory"
 	@echo "  micropython-pio - Copy Micropython code to board"
 	@echo "  format-code  - Run clang-format on all source files"
+	@echo "  check-ram    - Verify the emulator core's code paths are all in SRAM"
+	@echo "  test-host    - Run host-side tests of the emulator API (no hardware needed)"
 	@echo "  help         - Show this help"
 	@echo ""
 	@echo "Build options:"
+	@echo "  CHECK_RAM=0          - Skip the post-build SRAM check"
 	@echo "  SYS_CLOCK_MHZ=N      - Set system clock speed in MHz (default: 266)"
 	@echo "                         Safe range: 150-300 MHz (RP2350 with proper voltage)"
 	@echo "                         Use: make SYS_CLOCK_MHZ=250"

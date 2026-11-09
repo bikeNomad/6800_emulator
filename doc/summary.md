@@ -31,6 +31,7 @@ SOFTWARE.
   - [Web Interface](Web-Interface.md)
 - Architecture
   - [System Architecture](Architecture.md)
+  - [Emulator Control API](Emulator-API.md)
   - [Bus Interface](Hardware-Connection.md)
   - [PIO Usage](PIO-Bus-Cycles.md)
 - Debugging

@@ -70,7 +70,7 @@ void eclock_init(void)
 }
 
 // Start E clock generation
-void eclock_start(void)
+void __time_critical_func(eclock_start)(void)
 {
 	// Reset PIO cycle counter before starting
 	eclock_reset_pio_counter();
@@ -83,7 +83,7 @@ void eclock_start(void)
 }
 
 // Stop E clock generation
-bool eclock_stop(void)
+bool __time_critical_func(eclock_stop)(void)
 {
 	if (!eclock_is_running()) {
 		return false; // already stopped

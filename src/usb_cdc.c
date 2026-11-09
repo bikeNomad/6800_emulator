@@ -7,6 +7,7 @@
 #include "clock.h"
 #include "cpu_state.h"
 #include "debug_spi.h"
+#include "emu_api.h"
 #include "emulator.h"
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
@@ -60,55 +61,19 @@ typedef void (*cmd_handler_fn)(void);
 typedef struct command_entry_t {
 	const char *name;
 	cmd_handler_fn handler;
-	bool needs_args;     // True if command needs remaining tokens as arguments
-	bool pause_emulator; // True if we must pause the emulator while running the handler
+	bool needs_args;    // True if command needs remaining tokens as arguments
+	bool lock_emulator; // True if the emulator core must be parked (emu_lock) during the
+			    // handler
 } command_entry_t;
 
-bool send_command_to_emulator(sm_event_t event)
+// Report an API error (if any) to the console. Returns true on success.
+static bool check(emu_result_t r)
 {
-	sm_notification_t notification;
-	printf("sending event %d (%s) to emulator\r\n", event, event_names[event]);
-	if (!post_sm_event(event)) {
-		usb_cdc_send("ERROR: Failed to send command to emulator\r\n");
-		return false; // queue full
+	if (r != EMU_OK) {
+		usb_cdc_printf("ERROR: %s\r\n", emu_result_str(r));
+		return false;
 	}
-	uint32_t tries = 0;
-	while (!receive_sm_notification(&notification)) {
-		sleep_ms(1);
-		tries++;
-		if (tries > 100) {
-			usb_cdc_printf("Timeout waiting for notification after event %d\r\n",
-				       event);
-			return false;
-		}
-	}
-	printf("Got notification %s after %ld tries\r\n", notification == NOTIF_OK ? "OK" : "ERROR",
-	       tries);
-	return notification == NOTIF_OK;
-}
-
-static inline bool pause_emulator(void)
-{
-	return send_command_to_emulator(EV_PAUSE_EMULATOR);
-}
-
-static inline bool resume_emulator(void)
-{
-	return send_command_to_emulator(EV_RESUME_EMULATOR);
-}
-
-static uint8_t bus_read_with_eclock(uint16_t address)
-{
-	// Implement single-byte read using block version for consistency
-	uint8_t buffer[1];
-	bus_read_block_with_eclock(address, 1, buffer);
-	return buffer[0];
-}
-
-static void bus_write_with_eclock(uint16_t address, uint8_t value)
-{
-	// Implement single-byte write using block version for consistency
-	bus_write_block_with_eclock(address, &value, 1);
+	return true;
 }
 
 /* References for this implementation:
@@ -155,7 +120,7 @@ void init_temperature_sensor(void)
 
 static void cmd_load(void)
 {
-	if (!send_command_to_emulator(EV_CMD_LOAD)) {
+	if (!check(emu_load_begin())) {
 		return;
 	}
 	// Enter HEX load mode
@@ -180,7 +145,7 @@ static void cmd_end(void)
 	in_hex_mode = false;
 	hex_pos = 0;
 
-	send_command_to_emulator(EV_CMD_RESET);
+	check(emu_reset());
 }
 
 static void cmd_config_show(void)
@@ -232,7 +197,7 @@ static void cmd_map_ram(void)
 static void cmd_run(void)
 {
 	// Start CPU execution
-	if (!send_command_to_emulator(EV_CMD_RUN)) {
+	if (!check(emu_run())) {
 		return;
 	}
 	usb_cdc_send("OK: CPU started\r\n");
@@ -241,7 +206,7 @@ static void cmd_run(void)
 static void cmd_halt(void)
 {
 	// Stop CPU execution
-	if (!send_command_to_emulator(EV_CMD_HALT)) {
+	if (!check(emu_halt())) {
 		return;
 	}
 	usb_cdc_send("OK: CPU halted\r\n");
@@ -249,7 +214,7 @@ static void cmd_halt(void)
 
 static void cmd_reset(void)
 {
-	if (!send_command_to_emulator(EV_CMD_RESET)) {
+	if (!check(emu_reset())) {
 		return;
 	}
 	usb_cdc_send("OK: CPU reset\r\n");
@@ -405,6 +370,42 @@ static void cmd_bus_info(void)
 	usb_cdc_send("Bus Interface: Cycle-accurate E-clock synchronized\r\n");
 }
 
+// Print registers in the format the web interface parses ("PC: $xxxx", ...).
+// PC is the next instruction to execute; "Last" is the one just executed.
+static void print_regs(const emu_regs_t *r)
+{
+	usb_cdc_printf("  PC: $%04X  (%s)\r\n", r->pc, cpu_mnemonic_at(r->pc));
+	usb_cdc_printf("  Last: $%04X  (%s)\r\n", r->prev_pc, cpu_mnemonic_at(r->prev_pc));
+	usb_cdc_printf("  A:  $%02X\r\n", r->a);
+	usb_cdc_printf("  B:  $%02X\r\n", r->b);
+	usb_cdc_printf("  X:  $%04X\r\n", r->x);
+	usb_cdc_printf("  SP: $%04X\r\n", r->sp);
+	usb_cdc_printf("  CCR: $%02X [%c%c%c%c%c%c]\r\n", r->ccr, (r->ccr & CCR_H) ? 'H' : '-',
+		       (r->ccr & CCR_I) ? 'I' : '-', (r->ccr & CCR_N) ? 'N' : '-',
+		       (r->ccr & CCR_Z) ? 'Z' : '-', (r->ccr & CCR_V) ? 'V' : '-',
+		       (r->ccr & CCR_C) ? 'C' : '-');
+}
+
+static void cmd_regs(void)
+{
+	emu_regs_t regs;
+	if (check(emu_get_regs(&regs))) {
+		print_regs(&regs);
+	}
+}
+
+static void cmd_step(void)
+{
+	// step [count]
+	unsigned int count = 1;
+	if (cmd_token_count >= 1 && (sscanf(cmd_tokens[0], "%x", &count) != 1 || count == 0)) {
+		usb_cdc_send("ERROR: Usage: step [count_hex]\r\n");
+		return;
+	}
+	// Completion is reported by the HALTED/STEP_DONE event
+	check(emu_step(count));
+}
+
 static void cmd_status(void)
 {
 	// Display startup warnings if any
@@ -430,23 +431,30 @@ static void cmd_status(void)
 		usb_cdc_printf("=======================\r\n\r\n");
 	}
 
-	usb_cdc_printf("Emulator State: %s\r\n", sm_current_state_name());
-	// Get CPU status
-	usb_cdc_printf("CPU Status:\r\n");
-	cpu_print_state(usb_cdc_printf);
-	uint32_t cycle_cnt = eclock_get_count();
-	uint32_t eclock_pio_cycles =
-		eclock_is_running() ? eclock_get_pio_cycles() : last_pio_cycles;
+	// Take a consistent snapshot first, then print (printing is slow and
+	// the emulator should not stay parked for it).
+	emu_status_t st;
+	if (!check(emu_get_status(&st))) {
+		return;
+	}
+	uint32_t cycle_cnt = st.cycle_count;
+	uint32_t eclock_pio_cycles = st.pio_cycles;
 
-	usb_cdc_printf("  Running: %s\r\n", cpu_is_running() ? "YES" : "NO");
-	usb_cdc_printf("  Halted: %s\r\n", cpu.halted ? "YES" : "NO");
-	usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)cpu.instruction_count);
+	usb_cdc_printf("Emulator State: %s\r\n", emu_state_name(st.state));
+	usb_cdc_printf("CPU Status:\r\n");
+	print_regs(&st.regs);
+	usb_cdc_printf("  Running: %s\r\n", st.running ? "YES" : "NO");
+	usb_cdc_printf("  Halted: %s\r\n", st.halted ? "YES" : "NO");
+	if (st.steps_pending) {
+		usb_cdc_printf("  Steps pending: %lu\r\n", st.steps_pending);
+	}
+	usb_cdc_printf("  Instructions: %llu\r\n", (unsigned long long)st.instruction_count);
 	usb_cdc_printf("  Cycle Count: %lu\r\n", cycle_cnt);
 	usb_cdc_printf("  PIO Cycles: %lu\r\n", eclock_pio_cycles);
-	usb_cdc_printf("  Overage: %ld\r\n", (long)cycle_overage);
-	usb_cdc_printf("  Underage: %ld\r\n", (long)cycle_underage);
+	usb_cdc_printf("  Overage: %ld\r\n", (long)st.cycle_overage);
+	usb_cdc_printf("  Underage: %ld\r\n", (long)st.cycle_underage);
 	usb_cdc_printf("  Speed ratio: %fx\r\n",
-		       (cycle_cnt + (int32_t)cycle_underage) /
+		       (cycle_cnt + (int32_t)st.cycle_underage) /
 			       (eclock_pio_cycles > 0 ? (float)eclock_pio_cycles : 1.0f));
 
 	// Calculate and display speed ratio
@@ -475,8 +483,25 @@ static void cmd_status(void)
 	if (bus_read_irq()) {
 		usb_cdc_printf("  /IRQ Pin asserted\r\n");
 	}
-	usb_cdc_printf("  E Clock: %s (%s)\r\n", eclock_is_running() ? "running" : "stopped",
-		       eclock_get_mode() == ECLOCK_INTERNAL ? "internal" : "external");
+	usb_cdc_printf("  E Clock: %s (%s)\r\n", st.eclock_running ? "running" : "stopped",
+		       st.eclock_external ? "external" : "internal");
+	uint32_t drops = emu_events_dropped();
+	if (drops) {
+		usb_cdc_printf("  Events dropped: %lu\r\n", drops);
+	}
+}
+
+static void hex_dump(uint16_t addr, const uint8_t *buf, uint32_t len)
+{
+	for (uint32_t i = 0; i < len; i++) {
+		if (i % 16 == 0) {
+			usb_cdc_printf("%04X: ", (unsigned)(addr + i));
+		}
+		usb_cdc_printf("%02X ", buf[i]);
+		if (i % 16 == 15 || i == len - 1) {
+			usb_cdc_send("\r\n");
+		}
+	}
 }
 
 static void cmd_read(void)
@@ -501,31 +526,13 @@ static void cmd_read(void)
 	} else if (addr + len > MAX_ADDRESS + 1) {
 		usb_cdc_send("ERROR: Block exceeds address space\r\n");
 	} else {
+		// static: core 1 has only a 2 KiB stack
+		static uint8_t buffer[1024];
+		if (!check(emu_mem_read((uint16_t)addr, buffer, len))) {
+			return;
+		}
 		usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", len, addr);
-
-		bool started_eclock = false;
-		if (memory_range_has_unmapped(addr, len)) {
-			// Temporarily start E clock if needed
-			if (!eclock_is_running()) {
-				eclock_start();
-				started_eclock = true;
-			}
-		}
-
-		for (uint32_t i = 0; i < len; i++) {
-			if (i % 16 == 0) {
-				usb_cdc_printf("%04X: ", addr + i);
-			}
-			uint8_t value = memory_read_fast(addr + i);
-			usb_cdc_printf("%02X ", value);
-			if (i % 16 == 15 || i == len - 1) {
-				usb_cdc_send("\r\n");
-			}
-		}
-
-		if (started_eclock) {
-			eclock_stop();
-		}
+		hex_dump((uint16_t)addr, buffer, len);
 	}
 }
 
@@ -550,7 +557,8 @@ static void cmd_write(void)
 	}
 
 	// Parse data bytes from remaining tokens
-	uint8_t buffer[1024]; // Max block size
+	// static: core 1 has only a 2 KiB stack
+	static uint8_t buffer[1024]; // Max block size
 	uint32_t count = 0;
 	for (int i = 1; i < cmd_token_count && count < 1024; i++) {
 		unsigned int value;
@@ -571,180 +579,142 @@ static void cmd_write(void)
 		return;
 	}
 
-	for (uint32_t i = 0; i < count; i++) {
-		memory_write_fast(addr + i, buffer[i]);
+	if (check(emu_mem_write((uint16_t)addr, buffer, count))) {
+		usb_cdc_send("OK\r\n");
 	}
-
-	usb_cdc_send("OK\r\n");
 }
 
 static void cmd_break_set(void)
 {
 	// Set breakpoint: break <addr>
 	// Expects tokens: [break] <addr>
-	if (cmd_token_count < 1) {
+	unsigned int addr;
+	if (cmd_token_count < 1 || sscanf(cmd_tokens[0], "%x", &addr) != 1 || addr > MAX_ADDRESS) {
 		usb_cdc_send("ERROR: Usage: break <addr_hex>\r\n");
 		return;
 	}
-
-	unsigned int addr;
-	if (sscanf(cmd_tokens[0], "%x", &addr) == 1) {
-		if (cpu_add_breakpoint((uint16_t)addr)) {
-			usb_cdc_printf("OK: Breakpoint set at $%04X\r\n", addr);
-		} else {
-			usb_cdc_printf("ERROR: Failed to set breakpoint at $%04X (max %d "
-				       "breakpoints)\r\n",
-				       addr, MAX_BREAKPOINTS);
-		}
+	emu_result_t r = emu_bp_add((uint16_t)addr);
+	if (r == EMU_OK) {
+		usb_cdc_printf("OK: Breakpoint set at $%04X\r\n", addr);
+	} else if (r == EMU_ERR_FULL) {
+		usb_cdc_printf("ERROR: Failed to set breakpoint at $%04X (max %u breakpoints)\r\n",
+			       addr, (unsigned)emu_bp_max());
+	} else if (r == EMU_ERR_EXISTS) {
+		usb_cdc_printf("ERROR: Breakpoint already set at $%04X\r\n", addr);
 	} else {
-		usb_cdc_send("ERROR: Usage: break <addr_hex>\r\n");
+		check(r);
 	}
 }
 
 static void cmd_break_clear(void)
 {
 	// Clear breakpoint(s): break clear [<addr>]
-	// Expects tokens: [break] [clear] [<addr>]
+	// Expects tokens: [<addr>]
 	if (cmd_token_count == 0) {
-		// Clear all breakpoints
-		cpu_clear_breakpoints();
-		usb_cdc_send("OK: All breakpoints cleared\r\n");
-	} else {
-		// Clear specific breakpoint
-		unsigned int addr;
-		if (sscanf(cmd_tokens[0], "%x", &addr) == 1) {
-			if (cpu_remove_breakpoint((uint16_t)addr)) {
-				usb_cdc_printf("OK: Breakpoint at $%04X cleared\r\n", addr);
-			} else {
-				usb_cdc_printf("ERROR: No breakpoint at $%04X\r\n", addr);
-			}
-		} else {
-			usb_cdc_send("ERROR: Usage: break clear <addr_hex>\r\n");
+		if (check(emu_bp_clear())) {
+			usb_cdc_send("OK: All breakpoints cleared\r\n");
 		}
+		return;
+	}
+	unsigned int addr;
+	if (sscanf(cmd_tokens[0], "%x", &addr) != 1 || addr > MAX_ADDRESS) {
+		usb_cdc_send("ERROR: Usage: break clear <addr_hex>\r\n");
+		return;
+	}
+	emu_result_t r = emu_bp_remove((uint16_t)addr);
+	if (r == EMU_OK) {
+		usb_cdc_printf("OK: Breakpoint at $%04X cleared\r\n", addr);
+	} else if (r == EMU_ERR_NOT_FOUND) {
+		usb_cdc_printf("ERROR: No breakpoint at $%04X\r\n", addr);
+	} else {
+		check(r);
 	}
 }
 
 static void cmd_break_list(void)
 {
-	// List all breakpoints
-	uint8_t count = cpu_get_breakpoint_count();
+	uint16_t bps[MAX_BREAKPOINTS];
+	size_t count = emu_bp_list(bps, MAX_BREAKPOINTS);
 	if (count == 0) {
 		usb_cdc_send("No breakpoints set\r\n");
-	} else {
-		usb_cdc_send("Breakpoints:\r\n");
-		const uint16_t *breakpoints = cpu_get_breakpoints();
-		for (uint8_t i = 0; i < count; i++) {
-			usb_cdc_printf("  $%04X\r\n", breakpoints[i]);
-		}
+		return;
+	}
+	usb_cdc_send("Breakpoints:\r\n");
+	for (size_t i = 0; i < count; i++) {
+		usb_cdc_printf("  $%04X\r\n", bps[i]);
+	}
+}
+
+// reg <name> <value>: the register name is consumed by the command table
+static void set_reg_cmd(emu_reg_t reg)
+{
+	unsigned int value;
+	if (cmd_token_count < 1 || sscanf(cmd_tokens[0], "%x", &value) != 1 || value > 0xFFFF) {
+		usb_cdc_printf("ERROR: Usage: reg %s <value_hex>\r\n", emu_reg_name(reg));
+		return;
+	}
+	emu_result_t r = emu_set_reg(reg, (uint16_t)value);
+	if (r == EMU_ERR_RANGE) {
+		usb_cdc_send("ERROR: Invalid register value\r\n");
+		return;
+	}
+	if (!check(r)) {
+		return;
+	}
+	emu_regs_t regs;
+	if (!check(emu_get_regs(&regs))) {
+		return;
+	}
+	switch (reg) {
+	case EMU_REG_PC:
+		usb_cdc_printf("OK: PC set to $%04X\r\n", regs.pc);
+		break;
+	case EMU_REG_A:
+		usb_cdc_printf("OK: A set to $%02X\r\n", regs.a);
+		break;
+	case EMU_REG_B:
+		usb_cdc_printf("OK: B set to $%02X\r\n", regs.b);
+		break;
+	case EMU_REG_X:
+		usb_cdc_printf("OK: X set to $%04X\r\n", regs.x);
+		break;
+	case EMU_REG_SP:
+		usb_cdc_printf("OK: SP set to $%04X\r\n", regs.sp);
+		break;
+	case EMU_REG_CCR:
+		usb_cdc_printf("OK: CCR set to $%02X\r\n", regs.ccr);
+		break;
 	}
 }
 
 static void cmd_reg_pc(void)
 {
-	// Set program counter: reg pc <val>
-	// Expects tokens: [reg] [pc] <val>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: reg pc <value_hex>\r\n");
-		return;
-	}
-
-	unsigned int value;
-	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		cpu.pc = (uint16_t)value;
-		usb_cdc_printf("OK: PC set to $%04X\r\n", cpu.pc);
-	} else {
-		usb_cdc_send("ERROR: Invalid register value\r\n");
-	}
+	set_reg_cmd(EMU_REG_PC);
 }
 
 static void cmd_reg_a(void)
 {
-	// Set accumulator A: reg a <val>
-	// Expects tokens: [reg] [a] <val>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: reg a <value_hex>\r\n");
-		return;
-	}
-
-	unsigned int value;
-	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		cpu.a = (uint8_t)value;
-		usb_cdc_printf("OK: A set to $%02X\r\n", cpu.a);
-	} else {
-		usb_cdc_send("ERROR: Invalid register value\r\n");
-	}
+	set_reg_cmd(EMU_REG_A);
 }
 
 static void cmd_reg_b(void)
 {
-	// Set accumulator B: reg b <val>
-	// Expects tokens: [reg] [b] <val>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: reg b <value_hex>\r\n");
-		return;
-	}
-
-	unsigned int value;
-	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		cpu.b = (uint8_t)value;
-		usb_cdc_printf("OK: B set to $%02X\r\n", cpu.b);
-	} else {
-		usb_cdc_send("ERROR: Invalid register value\r\n");
-	}
+	set_reg_cmd(EMU_REG_B);
 }
 
 static void cmd_reg_x(void)
 {
-	// Set index register X: reg x <val>
-	// Expects tokens: [reg] [x] <val>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: reg x <value_hex>\r\n");
-		return;
-	}
-
-	unsigned int value;
-	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		cpu.x = (uint16_t)value;
-		usb_cdc_printf("OK: X set to $%04X\r\n", cpu.x);
-	} else {
-		usb_cdc_send("ERROR: Invalid register value\r\n");
-	}
+	set_reg_cmd(EMU_REG_X);
 }
 
 static void cmd_reg_sp(void)
 {
-	// Set stack pointer: reg sp <val>
-	// Expects tokens: [reg] [sp] <val>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: reg sp <value_hex>\r\n");
-		return;
-	}
-
-	unsigned int value;
-	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		cpu.sp = (uint16_t)value;
-		usb_cdc_printf("OK: SP set to $%04X\r\n", cpu.sp);
-	} else {
-		usb_cdc_send("ERROR: Invalid register value\r\n");
-	}
+	set_reg_cmd(EMU_REG_SP);
 }
 
 static void cmd_reg_ccr(void)
 {
-	// Set condition code register: reg ccr <val>
-	// Expects tokens: [reg] [ccr] <val>
-	if (cmd_token_count < 1) {
-		usb_cdc_send("ERROR: Usage: reg ccr <value_hex>\r\n");
-		return;
-	}
-
-	unsigned int value;
-	if (sscanf(cmd_tokens[0], "%x", &value) == 1) {
-		cpu.ccr = ((uint8_t)value & 0x3F) | CCR_FIXED; // Preserve bits 7-6
-		usb_cdc_printf("OK: CCR set to $%02X\r\n", cpu.ccr);
-	} else {
-		usb_cdc_send("ERROR: Invalid register value\r\n");
-	}
+	set_reg_cmd(EMU_REG_CCR);
 }
 
 static void cmd_bus_read(void)
@@ -761,8 +731,10 @@ static void cmd_bus_read(void)
 		if (address > MAX_ADDRESS) {
 			usb_cdc_send("ERROR: Address out of range\r\n");
 		} else {
-			uint8_t data = bus_read_with_eclock((uint16_t)address);
-			usb_cdc_printf("%02X\r\n", data);
+			uint8_t data;
+			if (check(emu_bus_read((uint16_t)address, &data, 1))) {
+				usb_cdc_printf("%02X\r\n", data);
+			}
 		}
 	} else {
 		usb_cdc_send("ERROR: Usage: bus_read <address_hex>\r\n");
@@ -789,8 +761,10 @@ static void cmd_bus_write(void)
 	} else if (data > 255) {
 		usb_cdc_send("ERROR: Data must be 0-255\r\n");
 	} else {
-		bus_write_with_eclock((uint16_t)address, (uint8_t)data);
-		usb_cdc_send("OK\r\n");
+		uint8_t byte = (uint8_t)data;
+		if (check(emu_bus_write((uint16_t)address, &byte, 1))) {
+			usb_cdc_send("OK\r\n");
+		}
 	}
 }
 
@@ -818,20 +792,13 @@ static void cmd_bus_read_block(void)
 		usb_cdc_send("ERROR: Block exceeds address space\r\n");
 	} else {
 		// Read block and format output like the 'read' command
-		uint8_t buffer[1024]; // Max block size
-		bus_read_block_with_eclock((uint16_t)address, (uint16_t)length, buffer);
-
-		usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", length, address);
-
-		for (uint32_t i = 0; i < length; i++) {
-			if (i % 16 == 0) {
-				usb_cdc_printf("%04X: ", address + i);
-			}
-			usb_cdc_printf("%02X ", buffer[i]);
-			if (i % 16 == 15 || i == length - 1) {
-				usb_cdc_send("\r\n");
-			}
+		// static: core 1 has only a 2 KiB stack
+		static uint8_t buffer[1024]; // Max block size
+		if (!check(emu_bus_read((uint16_t)address, buffer, length))) {
+			return;
 		}
+		usb_cdc_printf("Reading $%04X bytes from $%04X:\r\n", length, address);
+		hex_dump((uint16_t)address, buffer, length);
 	}
 }
 
@@ -856,7 +823,8 @@ static void cmd_bus_write_block(void)
 	}
 
 	// Parse data bytes from remaining tokens
-	uint8_t buffer[1024]; // Max block size
+	// static: core 1 has only a 2 KiB stack
+	static uint8_t buffer[1024]; // Max block size
 	uint32_t count = 0;
 	for (int i = 1; i < cmd_token_count && count < 1024; i++) {
 		unsigned int value;
@@ -877,9 +845,9 @@ static void cmd_bus_write_block(void)
 		return;
 	}
 
-	// Write block using helper function
-	bus_write_block_with_eclock((uint16_t)address, buffer, (uint16_t)count);
-	usb_cdc_send("OK\r\n");
+	if (check(emu_bus_write((uint16_t)address, buffer, count))) {
+		usb_cdc_send("OK\r\n");
+	}
 }
 
 #if COUNT_INSTRUCTIONS
@@ -964,10 +932,10 @@ static void cmd_map_show(void)
 
 static void cmd_map_clear(void)
 {
-	send_command_to_emulator(EV_CMD_HALT);
+	check(emu_halt());
 	memory_clear_map();
 	usb_cdc_send("OK: All memory pages unmapped\r\n");
-	send_command_to_emulator(EV_CMD_RESET);
+	check(emu_reset());
 }
 
 // Helper function to generate a single Intel HEX record
@@ -1103,7 +1071,7 @@ static void cmd_scan_memory(void)
 	// Scan memory and auto-configure memory map
 	usb_cdc_send("Scanning target system memory...\r\n");
 
-	send_command_to_emulator(EV_CMD_HALT);
+	check(emu_halt());
 	if (memory_scan_and_build_map(printf)) {
 		// Show configuration
 		usb_cdc_printf("\r\nMemory Configuration:\r\n");
@@ -1119,7 +1087,7 @@ static void cmd_scan_memory(void)
 		usb_cdc_send("Target system can now be removed - emulator will run from stored "
 			     "ROM.\r\n");
 
-		send_command_to_emulator(EV_CMD_RESET);
+		check(emu_reset());
 	} else {
 		usb_cdc_send("ERROR: Failed to scan memory\r\n");
 	}
@@ -1152,50 +1120,53 @@ static void cmd_verify_memory(void)
 static void cmd_help(void)
 {
 	// Send as single string to avoid buffer overflow
-	usb_cdc_send("MC6800 Emulator Commands (all numbers in hex):\r\n"
-		     "  load                      - Load Intel HEX\r\n"
-		     "  end                       - End Intel HEX\r\n"
-		     "  config                    - Show memory configuration\r\n"
-		     "  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
-		     "  download <addr> <len>     - Download memory as Intel HEX\r\n"
-		     "  read <addr> <len>         - Read memory from shadow or bus\r\n"
-		     "  readb <addr> <len>        - Read data from hardware bus\r\n"
-		     "  write <addr> <data>       - Write memory to shadow or bus\r\n"
-		     "  writeb <addr> <data...>   - Write data to hardware bus\r\n"
-		     "  status                    - Display CPU status\r\n"
-		     "  run                       - Start CPU execution\r\n"
-		     "  halt                      - Stop CPU execution\r\n"
-		     "  reset                     - Reset CPU\r\n"
-		     "  map show                  - Show ROM/RAM mapping state\r\n"
-		     "  map clear                 - Clear all ROM/RAM mappings\r\n"
-		     "  map rom <b> <s>           - Configure ROM region\r\n"
-		     "  map ram <b> <s>           - Configure RAM region\r\n"
-		     "  scan_memory               - Auto-detect and configure memory map\r\n"
-		     "  verify_memory             - Verify memory configuration\r\n"
+	usb_cdc_send(
+		"MC6800 Emulator Commands (all numbers in hex):\r\n"
+		"  load                      - Load Intel HEX\r\n"
+		"  end                       - End Intel HEX\r\n"
+		"  config                    - Show memory configuration\r\n"
+		"  checksum <addr> <len>     - Calculate checksum of memory range\r\n"
+		"  download <addr> <len>     - Download memory as Intel HEX\r\n"
+		"  read <addr> <len>         - Read memory from shadow or bus\r\n"
+		"  readb <addr> <len>        - Read data from hardware bus\r\n"
+		"  write <addr> <data>       - Write memory to shadow or bus\r\n"
+		"  writeb <addr> <data...>   - Write data to hardware bus\r\n"
+		"  status                    - Display CPU status\r\n"
+		"  run                       - Start CPU execution\r\n"
+		"  halt                      - Stop CPU execution\r\n"
+		"  step [n]                  - Execute n instructions (default 1) while halted\r\n"
+		"  regs                      - Show CPU registers\r\n"
+		"  reset                     - Reset CPU\r\n"
+		"  map show                  - Show ROM/RAM mapping state\r\n"
+		"  map clear                 - Clear all ROM/RAM mappings\r\n"
+		"  map rom <b> <s>           - Configure ROM region\r\n"
+		"  map ram <b> <s>           - Configure RAM region\r\n"
+		"  scan_memory               - Auto-detect and configure memory map\r\n"
+		"  verify_memory             - Verify memory configuration\r\n"
 #if COUNT_INSTRUCTIONS
-		     "  count print               - Print instruction execution counts\r\n"
-		     "  count reset               - Reset instruction execution counts\r\n"
-		     "  count on                  - Enable instruction counting\r\n"
-		     "  count off                 - Disable instruction counting\r\n"
+		"  count print               - Print instruction execution counts\r\n"
+		"  count reset               - Reset instruction execution counts\r\n"
+		"  count on                  - Enable instruction counting\r\n"
+		"  count off                 - Disable instruction counting\r\n"
 #endif
-		     "  debug on/off              - Enable/disable SPI debug output\r\n"
-		     "  clock internal            - Use PIO-generated E clock (default)\r\n"
-		     "  clock external            - Use external E clock input\r\n"
-		     "  break <addr>              - Set breakpoint at address\r\n"
-		     "  break clear               - Clear all breakpoints\r\n"
-		     "  break clear <addr>        - Clear specific breakpoint\r\n"
-		     "  break list                - List all breakpoints\r\n"
-		     "  reg pc <val>              - Set program counter\r\n"
-		     "  reg a <val>               - Set accumulator A\r\n"
-		     "  reg b <val>               - Set accumulator B\r\n"
-		     "  reg x <val>               - Set index register X\r\n"
-		     "  reg sp <val>              - Set stack pointer\r\n"
-		     "  reg ccr <val>             - Set condition code register\r\n"
-		     "  bus_read <addr>           - Read byte from hardware bus\r\n"
-		     "  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
-		     "  bus_info                  - Show bus configuration\r\n"
-		     "  bootloader                - Enter bootloader mode\r\n"
-		     "  help                      - Show this help\r\n");
+		"  debug on/off              - Enable/disable SPI debug output\r\n"
+		"  clock internal            - Use PIO-generated E clock (default)\r\n"
+		"  clock external            - Use external E clock input\r\n"
+		"  break <addr>              - Set breakpoint at address\r\n"
+		"  break clear               - Clear all breakpoints\r\n"
+		"  break clear <addr>        - Clear specific breakpoint\r\n"
+		"  break list                - List all breakpoints\r\n"
+		"  reg pc <val>              - Set program counter\r\n"
+		"  reg a <val>               - Set accumulator A\r\n"
+		"  reg b <val>               - Set accumulator B\r\n"
+		"  reg x <val>               - Set index register X\r\n"
+		"  reg sp <val>              - Set stack pointer\r\n"
+		"  reg ccr <val>             - Set condition code register\r\n"
+		"  bus_read <addr>           - Read byte from hardware bus\r\n"
+		"  bus_write <addr> <data>   - Write byte to hardware bus\r\n"
+		"  bus_info                  - Show bus configuration\r\n"
+		"  bootloader                - Enter bootloader mode\r\n"
+		"  help                      - Show this help\r\n");
 }
 
 //--------------------------------------------------------------------+
@@ -1239,7 +1210,7 @@ static const command_entry_t command_table[] = {
 
 #if COUNT_INSTRUCTIONS
 	{"count print", cmd_print_instruction_counts, false, false},
-	{"count reset", cmd_reset_instruction_counts, false, false},
+	{"count reset", cmd_reset_instruction_counts, false, true},
 	{"count on", cmd_count_on, false, false},
 	{"count off", cmd_count_off, false, false},
 #endif
@@ -1255,6 +1226,8 @@ static const command_entry_t command_table[] = {
 	{"status", cmd_status, false, false},
 	{"run", cmd_run, false, false},
 	{"halt", cmd_halt, false, false},
+	{"step", cmd_step, true, false}, // optional <count>
+	{"regs", cmd_regs, false, false},
 	{"reset", cmd_reset, false, false},
 	{"bootloader", cmd_bootloader, false, false},
 	{"boot", cmd_bootloader, false, false},      // Alias for bootloader
@@ -1314,8 +1287,8 @@ static void dispatch_command(void)
 			}
 
 			printf("--- Start Command %s\r\n", command_table[i].name);
-			if (command_table[i].pause_emulator) {
-				if (!pause_emulator()) {
+			if (command_table[i].lock_emulator) {
+				if (!check(emu_lock())) {
 					return;
 				}
 			}
@@ -1328,8 +1301,8 @@ static void dispatch_command(void)
 			// Call the handler
 			command_table[i].handler();
 
-			if (command_table[i].pause_emulator) {
-				resume_emulator();
+			if (command_table[i].lock_emulator) {
+				emu_unlock();
 			}
 			printf("--- End Command %s\r\n", command_table[i].name);
 			return;
@@ -1371,11 +1344,72 @@ void usb_cdc_init(void)
 	printf("USB CDC interface initialized\n");
 }
 
+// Print one-line register summary (used after a step or breakpoint)
+static void print_regs_line(void)
+{
+	emu_regs_t r;
+	if (emu_get_regs(&r) != EMU_OK) {
+		return;
+	}
+	usb_cdc_printf("  PC=$%04X (%s) A=$%02X B=$%02X X=$%04X SP=$%04X CCR=$%02X\r\n", r.pc,
+		       cpu_mnemonic_at(r.pc), r.a, r.b, r.x, r.sp, r.ccr);
+}
+
+// Report asynchronous events from the emulator core (breakpoints, illegal
+// opcodes, completed steps, resets).
+static void drain_emulator_events(void)
+{
+	static uint32_t reported_drops;
+	emu_event_t ev;
+
+	while (emu_poll_event(&ev)) {
+		if (ev.type == EMU_EV_RESET) {
+			usb_cdc_printf("CPU reset: PC=$%04X\r\n", ev.pc);
+			continue;
+		}
+		if (ev.type != EMU_EV_HALTED) {
+			continue;
+		}
+		switch ((emu_halt_reason_t)ev.reason) {
+		case EMU_HALT_BREAKPOINT:
+			usb_cdc_printf("CPU halted at breakpoint at PC=$%04X Prior PC=$%04X\r\n",
+				       ev.pc, ev.prev_pc);
+			print_regs_line();
+			break;
+		case EMU_HALT_ILLEGAL:
+			usb_cdc_printf(
+				"*** UNIMPLEMENTED OPCODE: $%02X at PC=$%04X *** CPU halted\r\n",
+				ev.opcode, ev.prev_pc);
+			break;
+		case EMU_HALT_HCF:
+			usb_cdc_printf("HCF ($%02X) at PC=$%04X: CPU halted\r\n", ev.opcode,
+				       ev.prev_pc);
+			break;
+		case EMU_HALT_STEP_DONE:
+			print_regs_line();
+			break;
+		case EMU_HALT_USER:
+			usb_cdc_printf("CPU halted at PC=$%04X\r\n", ev.pc);
+			break;
+		}
+	}
+
+	uint32_t drops = emu_events_dropped();
+	if (drops != reported_drops) {
+		usb_cdc_printf("(%lu emulator events dropped)\r\n", drops - reported_drops);
+		reported_drops = drops;
+	}
+}
+
 // Process USB events
 void usb_cdc_task(void)
 {
 	// Process TinyUSB events
 	tud_task();
+
+	if (!in_hex_mode) {
+		drain_emulator_events();
+	}
 
 	// Process available characters in batches to prevent buffer overflow
 	// Call tud_task() periodically to keep USB stack responsive
@@ -1418,7 +1452,7 @@ void usb_cdc_task(void)
 					}
 					in_hex_mode = false;
 					hex_pos = 0;
-					send_command_to_emulator(EV_CMD_RESET);
+					check(emu_reset());
 				}
 			}
 		} else {

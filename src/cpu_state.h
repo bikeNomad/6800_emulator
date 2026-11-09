@@ -56,11 +56,15 @@ typedef struct {
 	uint64_t instruction_count;            // Total instructions executed since reset
 	volatile uint16_t last_opcode_address; // address of last opcode fetched
 
+	// Set by an instruction that stops the CPU (HCF, unimplemented opcode).
+	// Consumed by the emulator state machine.
+	bool stop_requested;
+	uint8_t stop_reason; // emu_halt_reason_t
+	uint8_t stop_opcode; // opcode that caused the stop
+
 	// Breakpoint system
 	uint16_t breakpoints[MAX_BREAKPOINTS];
 	uint8_t breakpoint_count;
-	bool stopped_at_breakpoint; // True when halted at breakpoint, skip next
-				    // breakpoint check
 } cpu_state_t;
 
 // Global CPU state (defined in cpu_state.c)
@@ -72,20 +76,15 @@ void cpu_init(void);
 // Check if CPU is running
 bool cpu_is_running(void);
 
-// Start CPU execution
-void cpu_start(void);
-
-// Halt CPU execution
-void cpu_halt(void);
-
-// Breakpoint functions
+// Breakpoint functions. Only call these while the emulator core is parked
+// (see emu_lock() in emu_api.h) or from the emulator core itself.
 bool cpu_add_breakpoint(uint16_t address);
 bool cpu_remove_breakpoint(uint16_t address);
 void cpu_clear_breakpoints(void);
 uint8_t cpu_get_breakpoint_count(void);
 const uint16_t *cpu_get_breakpoints(void);
 
-static inline bool cpu_check_breakpoint(uint16_t address)
+static __force_inline bool cpu_check_breakpoint(uint16_t address)
 {
 	for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
 		if (cpu.breakpoints[i] == address) {
@@ -96,13 +95,13 @@ static inline bool cpu_check_breakpoint(uint16_t address)
 }
 
 // Get CCR flag (inline for performance)
-static inline bool cpu_get_flag(uint8_t flag)
+static __force_inline bool cpu_get_flag(uint8_t flag)
 {
 	return (cpu.ccr & flag) != 0;
 }
 
 // Set CCR flag (inline for performance)
-static inline void cpu_set_flag(uint8_t flag, bool value)
+static __force_inline void cpu_set_flag(uint8_t flag, bool value)
 {
 	if (value) {
 		cpu.ccr |= flag;
@@ -114,15 +113,15 @@ static inline void cpu_set_flag(uint8_t flag, bool value)
 }
 
 // Update N and Z flags based on result (inline for performance)
-static inline void cpu_update_nz(uint8_t result)
+static __force_inline void cpu_update_nz(uint8_t result)
 {
 	cpu_set_flag(CCR_Z, result == 0);
 	cpu_set_flag(CCR_N, (result & 0x80) != 0);
 }
 
 // Update N, Z, V flags for arithmetic operations (inline for performance)
-static inline void cpu_update_nzv(uint8_t result, uint8_t operand1, uint8_t operand2,
-				  bool subtraction)
+static __force_inline void cpu_update_nzv(uint8_t result, uint8_t operand1, uint8_t operand2,
+					  bool subtraction)
 {
 	cpu_update_nz(result);
 
@@ -139,25 +138,25 @@ static inline void cpu_update_nzv(uint8_t result, uint8_t operand1, uint8_t oper
 }
 
 // Stack operations (inline for performance)
-static inline void cpu_push(uint8_t value)
+static __force_inline void cpu_push(uint8_t value)
 {
 	memory_write_fast(cpu.sp, value); // Fast-path for stack RAM
 	cpu.sp--;
 }
 
-static inline uint8_t cpu_pull(void)
+static __force_inline uint8_t cpu_pull(void)
 {
 	cpu.sp++;
 	return memory_read_fast(cpu.sp); // Fast-path for stack RAM
 }
 
-static inline void cpu_push16(uint16_t value)
+static __force_inline void cpu_push16(uint16_t value)
 {
 	cpu_push(value & 0xFF);        // Low byte first
 	cpu_push((value >> 8) & 0xFF); // High byte second
 }
 
-static inline uint16_t cpu_pull16(void)
+static __force_inline uint16_t cpu_pull16(void)
 {
 	uint16_t high = cpu_pull();
 	uint16_t low = cpu_pull();
@@ -165,7 +164,7 @@ static inline uint16_t cpu_pull16(void)
 }
 
 // Push registers onto stack (7 cycles total)
-static inline void cpu_stack_registers(void)
+static __force_inline void cpu_stack_registers(void)
 {
 	cpu_push16(cpu.pc); // Push PC
 	cpu_push16(cpu.x);  // Push X
@@ -175,7 +174,7 @@ static inline void cpu_stack_registers(void)
 }
 
 // Set PC from vector (2 cycles total)
-static inline void cpu_load_pc_from_vector(uint16_t address)
+static __force_inline void cpu_load_pc_from_vector(uint16_t address)
 {
 	uint8_t pch = memory_read_fast(address);
 	uint8_t pcl = memory_read_fast(address + 1);
@@ -183,5 +182,8 @@ static inline void cpu_load_pc_from_vector(uint16_t address)
 }
 
 void cpu_print_state(printf_func_t printf_func);
+
+// Mnemonic of the opcode at addr if it is in ROM or RAM (no bus cycle).
+const char *cpu_mnemonic_at(uint16_t addr);
 
 #endif // CPU_STATE_H

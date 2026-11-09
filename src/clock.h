@@ -34,6 +34,7 @@
 #include "hardware/pio.h"
 #include "hardware/pio_instructions.h"
 #include "hardware/structs/iobank0.h"
+#include "hardware/structs/nvic.h"
 #include "instructions.h"
 #include "pico.h"
 #include <stdbool.h>
@@ -126,6 +127,15 @@ static inline uint32_t eclock_get_pending(void)
 	return pending_cycles;
 }
 
+// Enable PIO0_IRQ_0 (clearing any stale pending state first). Same as
+// irq_set_enabled(PIO0_IRQ_0, true), but inline so the emulator core does not
+// call into flash.
+static __force_inline void eclock_sync_irq_arm(void)
+{
+	nvic_hw->icpr[PIO0_IRQ_0 / 32] = 1u << (PIO0_IRQ_0 % 32);
+	nvic_hw->iser[PIO0_IRQ_0 / 32] = 1u << (PIO0_IRQ_0 % 32);
+}
+
 static inline void eclock_wait_cycles(uint32_t cycles)
 {
 	// Wait for the specified number of E clock cycles
@@ -139,7 +149,7 @@ static inline void eclock_wait_cycles(uint32_t cycles)
 		// If the IRQ fires in the window between the enable and WFE,
 		// the ISR runs, SEVONPEND sets the event flag, and WFE returns
 		// immediately — so the race is safe.
-		irq_set_enabled(PIO0_IRQ_0, true);
+		eclock_sync_irq_arm();
 		if (!pio_sm_is_rx_fifo_empty(ECLK_PIO, SYNC_SM)) break; // recheck after arm
 		__wfe();                                       // sleep until SEVONPEND + ISR wake
 	}
