@@ -22,9 +22,18 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-# Set the PICO_SDK_PATH if not already set
+# Use the Pico SDK and TinyUSB bundled with MicroPython, so this firmware and
+# the MicroPython build share one SDK (currently pico-sdk 2.3.1, TinyUSB 0.21).
+# Override with the PICO_SDK_PATH / PICO_TINYUSB_PATH environment variables.
 if(NOT DEFINED ENV{PICO_SDK_PATH})
-    set(ENV{PICO_SDK_PATH} "/Users/ned/src/Micropython/micropython/lib/pico-sdk")
+    set(ENV{PICO_SDK_PATH} "/Users/ned/src/micropython/lib/pico-sdk")
+endif()
+
+# MicroPython doesn't initialise the SDK's own lib/tinyusb submodule; use its
+# top-level lib/tinyusb (a sibling of lib/pico-sdk) when present.
+if(NOT DEFINED PICO_TINYUSB_PATH AND NOT DEFINED ENV{PICO_TINYUSB_PATH}
+   AND EXISTS "$ENV{PICO_SDK_PATH}/../tinyusb/hw/bsp/rp2040")
+    get_filename_component(PICO_TINYUSB_PATH "$ENV{PICO_SDK_PATH}/../tinyusb" ABSOLUTE)
 endif()
 
 # Set board type to Pico 2 (RP2350) - MUST be before pico_sdk_import

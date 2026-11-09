@@ -34,8 +34,10 @@ This is a MC6808 emulator for the Raspberry Pi 2350 (RP2350), designed to replac
 
 This project uses the Raspberry Pi Pico SDK for RP2350 development:
 
-- `PICO_SDK_PATH`: /Users/ned/src/Micropython/micropython/lib/pico-sdk
-- TinyUSB path: /Users/ned/src/Micropython/micropython/lib/tinyusb/src/portable/raspberrypi/rp2040
+- `PICO_SDK_PATH`: /Users/ned/src/micropython/lib/pico-sdk (pico-sdk 2.3.1, from MicroPython)
+- TinyUSB: /Users/ned/src/micropython/lib/tinyusb (0.21, MicroPython's fork; picked up automatically as a sibling of the SDK)
+- picotool 2.3.x must be installed (SDK 2.3 requires it for UF2 generation)
+- MicroPython's submodules: `make -C ports/rp2 BOARD=WAVESHARE_RP2350B_CORE submodules` in /Users/ned/src/micropython
 
 To build, use the Makefile (which calls Cmake):
 
