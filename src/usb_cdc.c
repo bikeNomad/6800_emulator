@@ -24,6 +24,7 @@
 #include "tusb.h"
 #include "hardware/adc.h"
 #include "hardware/vreg.h"
+#include <stdlib.h>
 
 // Command buffer
 #define CMD_BUFFER_SIZE 4096
@@ -230,15 +231,21 @@ static void cmd_bootloader(void)
 
 static void cmd_debug_on(void)
 {
-	// Enable debug SPI output
-	debug_spi_enable(true);
-	usb_cdc_send("OK: Debug SPI enabled\r\n");
+	// Enable debug SPI output (not while trig actions use its pins)
+	emu_result_t r = emu_debug_spi_enable(true);
+	if (r == EMU_ERR_BUSY) {
+		usb_cdc_send("ERROR: trig actions use GPIO 33-36; remove them first ('trig list')\r\n");
+		return;
+	}
+	if (check(r)) {
+		usb_cdc_send("OK: Debug SPI enabled\r\n");
+	}
 }
 
 static void cmd_debug_off(void)
 {
 	// Disable debug SPI output
-	debug_spi_enable(false);
+	(void)emu_debug_spi_enable(false);
 	usb_cdc_send("OK: Debug SPI disabled\r\n");
 }
 
@@ -633,8 +640,11 @@ static void cmd_break_clear(void)
 
 static void cmd_break_list(void)
 {
-	uint16_t bps[MAX_BREAKPOINTS];
-	size_t count = emu_bp_list(bps, MAX_BREAKPOINTS);
+	static uint16_t bps[64];
+	size_t count = emu_bp_list(bps, sizeof(bps) / sizeof(bps[0]));
+	if (count > sizeof(bps) / sizeof(bps[0])) {
+		count = sizeof(bps) / sizeof(bps[0]);
+	}
 	if (count == 0) {
 		usb_cdc_send("No breakpoints set\r\n");
 		return;
@@ -642,6 +652,299 @@ static void cmd_break_list(void)
 	usb_cdc_send("Breakpoints:\r\n");
 	for (size_t i = 0; i < count; i++) {
 		usb_cdc_printf("  $%04X\r\n", bps[i]);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// PC actions: trig, hits, next, until
+
+// Strict number parsing: the whole token must be a number <= max.
+static bool parse_num(const char *tok, int base, uint32_t max, uint32_t *out)
+{
+	char *end;
+	if (tok == NULL || *tok == '\0') {
+		return false;
+	}
+	unsigned long v = strtoul(tok, &end, base);
+	if (*end != '\0' || v > max) {
+		return false;
+	}
+	*out = (uint32_t)v;
+	return true;
+}
+
+static bool parse_addr(const char *tok, uint16_t *addr)
+{
+	uint32_t v;
+	if (!parse_num(tok, 16, MAX_ADDRESS, &v)) {
+		return false;
+	}
+	*addr = (uint16_t)v;
+	return true;
+}
+
+static void print_trigger_pins(void)
+{
+	uint8_t pins[32];
+	size_t n = emu_trigger_pins(pins, sizeof(pins));
+	usb_cdc_send("Trigger pins (GPIO, decimal):");
+	for (size_t i = 0; i < n && i < sizeof(pins); i++) {
+		usb_cdc_printf(" %u%s", pins[i], emu_trigger_pin_is_spi_debug(pins[i]) ? "*" : "");
+	}
+	usb_cdc_printf("\r\n  * shared with the SPI debug output (J3); usable while 'debug off'"
+		       " (now %s)\r\n",
+		       emu_debug_spi_is_enabled() ? "ON" : "off");
+}
+
+static const char trig_usage[] =
+	"ERROR: Usage: trig <addr> set|clr|tog <pin> | trig <addr> pulse <pin> [width]"
+	" | trig <addr> count|notify\r\n";
+
+static void cmd_trig_add(void)
+{
+	// trig <addr> <action> [<pin> [<width>]]   (addr, width hex; pin decimal)
+	emu_action_t a = {0};
+	emu_action_type_t type;
+	if (cmd_token_count < 2 || !parse_addr(cmd_tokens[0], &a.addr) ||
+	    !emu_action_from_name(cmd_tokens[1], &type) || type == EMU_ACT_BREAK) {
+		usb_cdc_send(trig_usage);
+		return;
+	}
+	a.type = (uint8_t)type;
+	bool gpio = (type == EMU_ACT_SET || type == EMU_ACT_CLR || type == EMU_ACT_TOGGLE ||
+		     type == EMU_ACT_PULSE);
+	int expected = gpio ? 3 : 2;
+	uint32_t v;
+	if (gpio) {
+		if (cmd_token_count < 3 || !parse_num(cmd_tokens[2], 10, 255, &v)) {
+			usb_cdc_send(trig_usage);
+			return;
+		}
+		a.pin = (uint8_t)v;
+	}
+	if (type == EMU_ACT_PULSE) {
+		a.width = 1;
+		if (cmd_token_count >= 4) {
+			if (!parse_num(cmd_tokens[3], 16, 0xFFFF, &v) || v == 0) {
+				usb_cdc_send("ERROR: pulse width is 1-FFFF E cycles (hex)\r\n");
+				return;
+			}
+			a.width = (uint16_t)v;
+			expected = 4;
+		}
+	}
+	if (cmd_token_count > expected) {
+		usb_cdc_send(trig_usage);
+		return;
+	}
+
+	emu_result_t r = emu_action_add(&a);
+	switch (r) {
+	case EMU_OK:
+		if (type == EMU_ACT_PULSE) {
+			usb_cdc_printf("OK: $%04X pulse GPIO %u for $%X E cycles\r\n", a.addr, a.pin,
+				       a.width);
+		} else if (gpio) {
+			usb_cdc_printf("OK: $%04X %s GPIO %u\r\n", a.addr, emu_action_name(type),
+				       a.pin);
+		} else {
+			usb_cdc_printf("OK: $%04X %s\r\n", a.addr, emu_action_name(type));
+		}
+		break;
+	case EMU_ERR_RANGE:
+		usb_cdc_printf("ERROR: GPIO %u is not a trigger pin\r\n", a.pin);
+		print_trigger_pins();
+		break;
+	case EMU_ERR_BUSY:
+		usb_cdc_printf("ERROR: GPIO %u belongs to the SPI debug output; 'debug off' first\r\n",
+			       a.pin);
+		break;
+	case EMU_ERR_EXISTS:
+		if (gpio) {
+			usb_cdc_printf("ERROR: $%04X already has an action on GPIO %u\r\n", a.addr,
+				       a.pin);
+		} else {
+			usb_cdc_printf("ERROR: $%04X already has %s\r\n", a.addr,
+				       emu_action_name(type));
+		}
+		break;
+	case EMU_ERR_FULL:
+		usb_cdc_printf("ERROR: action table full (%u actions, %u addresses)\r\n",
+			       (unsigned)emu_action_max(), (unsigned)emu_bp_max());
+		break;
+	default:
+		check(r);
+		break;
+	}
+}
+
+static void cmd_trig_del(void)
+{
+	// trig del <addr> <action> [<pin>]
+	emu_action_t a = {0};
+	emu_action_type_t type;
+	uint32_t v;
+	if (cmd_token_count < 2 || !parse_addr(cmd_tokens[0], &a.addr) ||
+	    !emu_action_from_name(cmd_tokens[1], &type) || type == EMU_ACT_BREAK) {
+		usb_cdc_send("ERROR: Usage: trig del <addr> set|clr|tog|pulse <pin> | "
+			     "trig del <addr> count|notify\r\n");
+		return;
+	}
+	a.type = (uint8_t)type;
+	if (type == EMU_ACT_SET || type == EMU_ACT_CLR || type == EMU_ACT_TOGGLE ||
+	    type == EMU_ACT_PULSE) {
+		if (cmd_token_count < 3 || !parse_num(cmd_tokens[2], 10, 255, &v)) {
+			usb_cdc_send("ERROR: GPIO actions need a pin: trig del <addr> <action> <pin>\r\n");
+			return;
+		}
+		a.pin = (uint8_t)v;
+	}
+	emu_result_t r = emu_action_remove(&a);
+	if (r == EMU_OK) {
+		usb_cdc_send("OK: Action removed\r\n");
+	} else if (r == EMU_ERR_NOT_FOUND) {
+		usb_cdc_send("ERROR: No such action\r\n");
+	} else {
+		check(r);
+	}
+}
+
+static void cmd_trig_clear(void)
+{
+	// trig clear [<addr>]: all actions except breakpoints
+	int32_t addr = -1;
+	if (cmd_token_count >= 1) {
+		uint16_t a16;
+		if (!parse_addr(cmd_tokens[0], &a16)) {
+			usb_cdc_send("ERROR: Usage: trig clear [<addr>]\r\n");
+			return;
+		}
+		addr = a16;
+	}
+	emu_result_t r = emu_action_clear(addr);
+	if (r == EMU_OK || r == EMU_ERR_NOT_FOUND) {
+		if (addr < 0) {
+			usb_cdc_send("OK: All trigger actions cleared (breakpoints kept)\r\n");
+		} else {
+			usb_cdc_printf("OK: Trigger actions at $%04X cleared (breakpoint kept)\r\n",
+				       (unsigned)addr);
+		}
+	} else {
+		check(r);
+	}
+}
+
+static void cmd_trig_list(void)
+{
+	static emu_action_t acts[128];
+	size_t n = emu_action_list(acts, sizeof(acts) / sizeof(acts[0]));
+	if (n > sizeof(acts) / sizeof(acts[0])) {
+		n = sizeof(acts) / sizeof(acts[0]);
+	}
+	if (n == 0) {
+		usb_cdc_send("No PC actions set\r\n");
+		return;
+	}
+	usb_cdc_printf("PC actions (%u of %u):\r\n", (unsigned)n, (unsigned)emu_action_max());
+	for (size_t i = 0; i < n;) {
+		uint16_t addr = acts[i].addr;
+		uint32_t hits = 0;
+		(void)emu_hits_get(addr, &hits);
+		usb_cdc_printf("  $%04X  hits=%-10lu", addr, (unsigned long)hits);
+		for (; i < n && acts[i].addr == addr; i++) {
+			const emu_action_t *a = &acts[i];
+			if (a->type == EMU_ACT_PULSE) {
+				usb_cdc_printf(" pulse:%u/$%X", a->pin, a->width);
+			} else if (a->type == EMU_ACT_SET || a->type == EMU_ACT_CLR ||
+				   a->type == EMU_ACT_TOGGLE) {
+				usb_cdc_printf(" %s:%u", emu_action_name(a->type), a->pin);
+			} else {
+				usb_cdc_printf(" %s", emu_action_name(a->type));
+			}
+		}
+		usb_cdc_send("\r\n");
+	}
+}
+
+static void cmd_trig_pins(void)
+{
+	print_trigger_pins();
+}
+
+static void cmd_hits(void)
+{
+	// hits [<addr>]
+	if (cmd_token_count >= 1) {
+		uint16_t addr;
+		uint32_t hits;
+		if (!parse_addr(cmd_tokens[0], &addr)) {
+			usb_cdc_send("ERROR: Usage: hits [<addr>]\r\n");
+			return;
+		}
+		if (emu_hits_get(addr, &hits) != EMU_OK) {
+			usb_cdc_printf("ERROR: No action at $%04X (use 'trig %04X count')\r\n", addr,
+				       addr);
+			return;
+		}
+		usb_cdc_printf("$%04X hits=%lu\r\n", addr, (unsigned long)hits);
+		return;
+	}
+	static emu_action_t acts[128];
+	size_t n = emu_action_list(acts, sizeof(acts) / sizeof(acts[0]));
+	if (n > sizeof(acts) / sizeof(acts[0])) {
+		n = sizeof(acts) / sizeof(acts[0]);
+	}
+	if (n == 0) {
+		usb_cdc_send("No PC actions set\r\n");
+		return;
+	}
+	for (size_t i = 0; i < n; i++) {
+		if (i > 0 && acts[i].addr == acts[i - 1].addr) {
+			continue;
+		}
+		uint32_t hits = 0;
+		(void)emu_hits_get(acts[i].addr, &hits);
+		usb_cdc_printf("$%04X hits=%lu\r\n", acts[i].addr, (unsigned long)hits);
+	}
+}
+
+static void cmd_hits_reset(void)
+{
+	// hits reset [<addr>]
+	int32_t addr = -1;
+	if (cmd_token_count >= 1) {
+		uint16_t a16;
+		if (!parse_addr(cmd_tokens[0], &a16)) {
+			usb_cdc_send("ERROR: Usage: hits reset [<addr>]\r\n");
+			return;
+		}
+		addr = a16;
+	}
+	emu_result_t r = emu_hits_reset(addr);
+	if (r == EMU_OK) {
+		usb_cdc_send("OK: Hit counts reset\r\n");
+	} else if (r == EMU_ERR_NOT_FOUND) {
+		usb_cdc_printf("ERROR: No action at $%04X\r\n", (unsigned)addr);
+	} else {
+		check(r);
+	}
+}
+
+static void cmd_next(void)
+{
+	// Step over a JSR/BSR/SWI; completion is reported by the HALTED event
+	check(emu_step_over());
+}
+
+static void cmd_until(void)
+{
+	uint16_t addr;
+	if (cmd_token_count != 1 || !parse_addr(cmd_tokens[0], &addr)) {
+		usb_cdc_send("ERROR: Usage: until <addr_hex>\r\n");
+		return;
+	}
+	if (check(emu_run_until(addr))) {
+		usb_cdc_printf("OK: Running until $%04X\r\n", addr);
 	}
 }
 
@@ -1156,6 +1459,17 @@ static void cmd_help(void)
 		"  break clear               - Clear all breakpoints\r\n"
 		"  break clear <addr>        - Clear specific breakpoint\r\n"
 		"  break list                - List all breakpoints\r\n"
+		"  trig <a> set|clr|tog <p>  - At PC=a, set/clear/toggle GPIO p (decimal)\r\n"
+		"  trig <a> pulse <p> [w]    - At PC=a, pulse GPIO p high for w E cycles (hex, default 1)\r\n"
+		"  trig <a> count|notify     - At PC=a, just count hits / report each hit\r\n"
+		"  trig del <a> <act> [p]    - Remove one action\r\n"
+		"  trig clear [<a>]          - Remove trig actions (all, or at a); keeps breakpoints\r\n"
+		"  trig list                 - List all PC actions with hit counts\r\n"
+		"  trig pins                 - List usable trigger pins\r\n"
+		"  hits [<a>]                - Show hit counts\r\n"
+		"  hits reset [<a>]          - Reset hit counts\r\n"
+		"  next                      - Step over JSR/BSR/SWI (else step 1)\r\n"
+		"  until <a>                 - Run until PC=a\r\n"
 		"  reg pc <val>              - Set program counter\r\n"
 		"  reg a <val>               - Set accumulator A\r\n"
 		"  reg b <val>               - Set accumulator B\r\n"
@@ -1197,6 +1511,11 @@ static const command_entry_t command_table[] = {
 	{"clock test", cmd_clock_test, false, false},
 	{"break clear", cmd_break_clear, true, false}, // needs optional <addr>
 	{"break list", cmd_break_list, false, false},
+	{"trig del", cmd_trig_del, true, false},     // needs <addr> <action> [pin]
+	{"trig clear", cmd_trig_clear, true, false}, // optional <addr>
+	{"trig list", cmd_trig_list, false, false},
+	{"trig pins", cmd_trig_pins, false, false},
+	{"hits reset", cmd_hits_reset, true, false}, // optional <addr>
 	{"reg pc", cmd_reg_pc, true, true},   // needs <value>
 	{"reg a", cmd_reg_a, true, true},     // needs <value>
 	{"reg b", cmd_reg_b, true, true},     // needs <value>
@@ -1232,6 +1551,10 @@ static const command_entry_t command_table[] = {
 	{"bootloader", cmd_bootloader, false, false},
 	{"boot", cmd_bootloader, false, false},      // Alias for bootloader
 	{"break", cmd_break_set, true, false},       // needs <addr>
+	{"trig", cmd_trig_add, true, false},         // needs <addr> <action> ...
+	{"hits", cmd_hits, true, false},             // optional <addr>
+	{"next", cmd_next, false, false},
+	{"until", cmd_until, true, false},           // needs <addr>
 	{"readb", cmd_bus_read_block, true, true},   // needs <addr> <len>
 	{"writeb", cmd_bus_write_block, true, true}, // needs <addr> <data...>
 	{"bus_write", cmd_bus_write, true, true},    // needs <addr> <data>
@@ -1367,6 +1690,11 @@ static void drain_emulator_events(void)
 			usb_cdc_printf("CPU reset: PC=$%04X\r\n", ev.pc);
 			continue;
 		}
+		if (ev.type == EMU_EV_PC_HIT) {
+			usb_cdc_printf("HIT: PC=$%04X hits=%lu Prior PC=$%04X\r\n", ev.pc,
+				       (unsigned long)ev.hits, ev.prev_pc);
+			continue;
+		}
 		if (ev.type != EMU_EV_HALTED) {
 			continue;
 		}
@@ -1386,6 +1714,10 @@ static void drain_emulator_events(void)
 				       ev.prev_pc);
 			break;
 		case EMU_HALT_STEP_DONE:
+			print_regs_line();
+			break;
+		case EMU_HALT_UNTIL:
+			usb_cdc_printf("CPU stopped at PC=$%04X\r\n", ev.pc);
 			print_regs_line();
 			break;
 		case EMU_HALT_USER:

@@ -5,9 +5,12 @@
 #include "emulator.h"
 #include "memory.h"
 #include "memory_map.h"
+#include "debug_spi.h"
+#include "pc_actions.h"
 #include "pico/time.h"
 #include <ctype.h>
 #include <string.h>
+#include <strings.h>
 
 // Host-core side of the emulator control API. See emu_api.h.
 
@@ -45,6 +48,8 @@ const char *emu_result_str(emu_result_t r)
 		return "not found";
 	case EMU_ERR_ARG:
 		return "invalid argument";
+	case EMU_ERR_BUSY:
+		return "in use";
 	}
 	return "unknown error";
 }
@@ -105,6 +110,7 @@ void emu_api_init(void)
 	emu_event_drops = 0;
 	emu_steps_pending = 0;
 	lock_depth = 0;
+	pc_actions_init();
 }
 
 __attribute__((weak)) void emu_host_idle(void)
@@ -236,7 +242,13 @@ bool emu_is_locked(void)
 
 bool emu_poll_event(emu_event_t *ev)
 {
-	return emu_event_ring_pop(&emu_event_q, ev);
+	if (!emu_event_ring_pop(&emu_event_q, ev)) {
+		return false;
+	}
+	if (ev->type == EMU_EV_PC_HIT) {
+		pc_actions_host_rearm(ev->pc); // allow the next NOTIFY from this address
+	}
+	return true;
 }
 
 uint32_t emu_events_dropped(void)
@@ -399,34 +411,161 @@ emu_result_t emu_bus_write(uint16_t addr, const uint8_t *buf, size_t len)
 }
 
 // ---------------------------------------------------------------------------
-// Breakpoints
+// PC actions
 
-emu_result_t emu_bp_add(uint16_t addr)
+static const char *const action_names[] = {
+	[EMU_ACT_BREAK] = "break", [EMU_ACT_SET] = "set",     [EMU_ACT_CLR] = "clr",
+	[EMU_ACT_TOGGLE] = "tog",  [EMU_ACT_PULSE] = "pulse", [EMU_ACT_COUNT] = "count",
+	[EMU_ACT_NOTIFY] = "notify",
+};
+
+const char *emu_action_name(emu_action_type_t type)
 {
+	return (type <= EMU_ACT_NOTIFY) ? action_names[type] : "?";
+}
+
+bool emu_action_from_name(const char *name, emu_action_type_t *type)
+{
+	for (int i = 0; i <= EMU_ACT_NOTIFY; i++) {
+		if (strcasecmp(name, action_names[i]) == 0) {
+			*type = (emu_action_type_t)i;
+			return true;
+		}
+	}
+	if (strcasecmp(name, "toggle") == 0) {
+		*type = EMU_ACT_TOGGLE;
+		return true;
+	}
+	return false;
+}
+
+static bool is_gpio_action(uint8_t type)
+{
+	return type == EMU_ACT_SET || type == EMU_ACT_CLR || type == EMU_ACT_TOGGLE ||
+	       type == EMU_ACT_PULSE;
+}
+
+emu_result_t emu_action_add(const emu_action_t *a)
+{
+	if (a->type > EMU_ACT_NOTIFY) {
+		return EMU_ERR_ARG;
+	}
+	if (is_gpio_action(a->type)) {
+		if (!pc_pin_allowed(a->pin)) {
+			return EMU_ERR_RANGE;
+		}
+		if (pc_pin_is_spi_debug(a->pin) && debug_spi_is_enabled()) {
+			return EMU_ERR_BUSY;
+		}
+	}
 	emu_result_t r = emu_lock();
 	if (r != EMU_OK) {
 		return r;
 	}
-	if (cpu_check_breakpoint(addr)) {
-		r = EMU_ERR_EXISTS;
-	} else if (!cpu_add_breakpoint(addr)) {
-		r = EMU_ERR_FULL;
-	}
+	r = pc_actions_host_add(a);
 	emu_unlock();
 	return r;
 }
 
-emu_result_t emu_bp_remove(uint16_t addr)
+emu_result_t emu_action_remove(const emu_action_t *a)
 {
 	emu_result_t r = emu_lock();
 	if (r != EMU_OK) {
 		return r;
 	}
-	if (!cpu_remove_breakpoint(addr)) {
-		r = EMU_ERR_NOT_FOUND;
-	}
+	r = pc_actions_host_remove(a);
 	emu_unlock();
 	return r;
+}
+
+emu_result_t emu_action_clear(int32_t addr)
+{
+	if (addr > 0xFFFF) {
+		return EMU_ERR_RANGE;
+	}
+	emu_result_t r = emu_lock();
+	if (r != EMU_OK) {
+		return r;
+	}
+	r = pc_actions_host_clear(addr, false, false);
+	emu_unlock();
+	return r;
+}
+
+// The action list only changes through this API, on this core, so reading it
+// needs no lock.
+size_t emu_action_list(emu_action_t *out, size_t max)
+{
+	return pc_actions_host_list(out, max);
+}
+
+size_t emu_action_max(void)
+{
+	return PC_MAX_ACTIONS;
+}
+
+emu_result_t emu_hits_get(uint16_t addr, uint32_t *hits)
+{
+	// The table only changes on this core; a 32-bit counter read is atomic.
+	const pc_entry_t *e = pc_actions_host_find(addr);
+	if (!e) {
+		return EMU_ERR_NOT_FOUND;
+	}
+	*hits = e->hits;
+	return EMU_OK;
+}
+
+emu_result_t emu_hits_reset(int32_t addr)
+{
+	if (addr > 0xFFFF) {
+		return EMU_ERR_RANGE;
+	}
+	emu_result_t r = emu_lock();
+	if (r != EMU_OK) {
+		return r;
+	}
+	r = pc_actions_host_hits_reset(addr);
+	emu_unlock();
+	return r;
+}
+
+size_t emu_trigger_pins(uint8_t *out, size_t max)
+{
+	return pc_trigger_pins(out, max);
+}
+
+bool emu_trigger_pin_is_spi_debug(uint8_t pin)
+{
+	return pc_pin_is_spi_debug(pin);
+}
+
+emu_result_t emu_debug_spi_enable(bool on)
+{
+	if (on && pc_spi_debug_pins_claimed()) {
+		return EMU_ERR_BUSY;
+	}
+	debug_spi_enable(on);
+	return EMU_OK;
+}
+
+bool emu_debug_spi_is_enabled(void)
+{
+	return debug_spi_is_enabled();
+}
+
+// ---------------------------------------------------------------------------
+// Breakpoints
+
+emu_result_t emu_bp_add(uint16_t addr)
+{
+	emu_action_t a = {.addr = addr, .type = EMU_ACT_BREAK};
+	return emu_action_add(&a);
+}
+
+emu_result_t emu_bp_remove(uint16_t addr)
+{
+	emu_action_t a = {.addr = addr, .type = EMU_ACT_BREAK};
+	return emu_action_remove(&a);
 }
 
 emu_result_t emu_bp_clear(void)
@@ -435,26 +574,124 @@ emu_result_t emu_bp_clear(void)
 	if (r != EMU_OK) {
 		return r;
 	}
-	cpu_clear_breakpoints();
+	(void)pc_actions_host_clear(-1, true, true); // NOT_FOUND (none set) is fine
 	emu_unlock();
 	return EMU_OK;
 }
 
 size_t emu_bp_list(uint16_t *out, size_t max)
 {
-	// The list only changes through this API, on this core, so no lock is
-	// needed to read it.
-	size_t n = cpu_get_breakpoint_count();
-	const uint16_t *bps = cpu_get_breakpoints();
-	for (size_t i = 0; i < n && i < max; i++) {
-		out[i] = bps[i];
+	static emu_action_t all[PC_MAX_ACTIONS];
+	size_t n = pc_actions_host_list(all, PC_MAX_ACTIONS);
+	size_t count = 0;
+	for (size_t i = 0; i < n; i++) {
+		if (all[i].type == EMU_ACT_BREAK) {
+			if (count < max) {
+				out[count] = all[i].addr;
+			}
+			count++;
+		}
 	}
-	return n;
+	return count;
 }
 
 size_t emu_bp_max(void)
 {
-	return MAX_BREAKPOINTS;
+	return PC_MAX_ADDRS;
+}
+
+// ---------------------------------------------------------------------------
+// Step over / run until
+
+// Length of a call instruction at the start of op[], or 0 if it isn't one.
+static uint16_t call_length(const uint8_t *op)
+{
+	switch (op[0]) {
+	case 0x8D: // BSR rel
+	case 0xAD: // JSR ind,X
+		return 2;
+	case 0xBD: // JSR ext
+		return 3;
+	case 0x3F: // SWI (returns with RTI)
+		return 1;
+	default:
+		return 0;
+	}
+}
+
+emu_result_t emu_step_over(void)
+{
+	if (lock_depth) {
+		return EMU_ERR_LOCKED;
+	}
+	if (emu_core_state != EMU_STATE_HALTED || emu_steps_pending) {
+		return EMU_ERR_STATE;
+	}
+	emu_result_t r = emu_lock();
+	if (r != EMU_OK) {
+		return r;
+	}
+	if (emu_core_state != EMU_STATE_HALTED) { // e.g. /RESET asserted meanwhile
+		emu_unlock();
+		return EMU_ERR_STATE;
+	}
+	uint16_t pc = cpu.pc;
+	uint16_t sp = cpu.sp;
+	uint8_t op[1];
+	r = emu_mem_read(pc, op, 1);
+	uint16_t len = (r == EMU_OK) ? call_length(op) : 0;
+	if (len) {
+		pc_temp_set((uint16_t)(pc + len), true, sp);
+	}
+	emu_unlock();
+	if (r != EMU_OK) {
+		return r;
+	}
+	if (!len) {
+		return emu_step(1);
+	}
+	r = emu_run();
+	if (r != EMU_OK && emu_lock() == EMU_OK) {
+		pc_temp_cancel();
+		emu_unlock();
+	}
+	return r;
+}
+
+emu_result_t emu_run_until(uint16_t addr)
+{
+	if (lock_depth) {
+		return EMU_ERR_LOCKED;
+	}
+	emu_state_t st = emu_core_state;
+	if (st != EMU_STATE_HALTED && st != EMU_STATE_RUNNING && st != EMU_STATE_WAITING) {
+		return EMU_ERR_STATE;
+	}
+	if (st == EMU_STATE_HALTED && emu_steps_pending) {
+		return EMU_ERR_STATE;
+	}
+	emu_result_t r = emu_lock();
+	if (r != EMU_OK) {
+		return r;
+	}
+	// Check again now the core is parked and the state can't change.
+	st = emu_core_state;
+	if (st != EMU_STATE_HALTED && st != EMU_STATE_RUNNING && st != EMU_STATE_WAITING) {
+		emu_unlock();
+		return EMU_ERR_STATE;
+	}
+	bool halted = (st == EMU_STATE_HALTED);
+	pc_temp_set(addr, false, 0);
+	emu_unlock();
+	if (!halted) {
+		return EMU_OK;
+	}
+	r = emu_run();
+	if (r != EMU_OK && emu_lock() == EMU_OK) {
+		pc_temp_cancel();
+		emu_unlock();
+	}
+	return r;
 }
 
 // ---------------------------------------------------------------------------

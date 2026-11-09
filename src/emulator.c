@@ -7,6 +7,7 @@
 #include "instructions.h"
 #include "interrupts.h"
 #include "memory.h"
+#include "pc_actions.h"
 
 // Emulator core state machine.
 //
@@ -35,14 +36,16 @@ static FSM emulator_fsm;
 static uint8_t current_cmd_seq;
 static uint32_t current_cmd_arg;
 
-// When resuming from HALTED, don't immediately re-hit a breakpoint at the
-// instruction we stopped on.
-static bool skip_bp_valid;
-static uint16_t skip_bp_pc;
+// Resuming (run or step) from a halt at resume_pc: don't stop there again,
+// and if the PC actions there already fired before the halt, don't repeat
+// them. Applies to the first instruction only.
+static bool resume_valid;
+static uint16_t resume_pc;
+static bool resume_skip_actions;
 
-// True for the first instruction of a step sequence (breakpoints at the
-// starting PC are ignored, as above).
-static bool step_first;
+// The current halt happened after firing the PC actions at cpu.pc
+// (BREAK or the temporary stop).
+static bool halt_fired;
 
 static void s_initializing(FSM *fsm, uint8_t event);
 static void s_resetting(FSM *fsm, uint8_t event);
@@ -79,6 +82,7 @@ void EMU_CORE_FUNC(emu_core_post_event)(const emu_event_t *ev)
 
 static void EMU_CORE_FUNC(post_halted)(emu_halt_reason_t reason)
 {
+	halt_fired = (reason == EMU_HALT_BREAKPOINT || reason == EMU_HALT_UNTIL);
 	emu_event_t ev = {
 		.type = EMU_EV_HALTED,
 		.reason = (uint8_t)reason,
@@ -174,15 +178,40 @@ static bool EMU_CORE_FUNC(execute_one)(void)
 	return false;
 }
 
-static inline bool breakpoint_hit(uint16_t pc)
+// Fire the PC actions (if any) for the instruction about to execute.
+// Returns EMU_HALT_BREAKPOINT or EMU_HALT_UNTIL if the CPU must halt before
+// executing it, or -1 to go on. Cost with nothing at PC: one bitmap test.
+static __force_inline int check_pc_actions(void)
 {
-	if (cpu.breakpoint_count == 0) {
-		return false;
+	uint16_t pc = cpu.pc;
+	bool resuming = resume_valid && pc == resume_pc;
+	resume_valid = false;
+	if (__builtin_expect(!pc_actions_at(pc), 1)) {
+		return -1;
 	}
-	if (skip_bp_valid && pc == skip_bp_pc) {
-		return false;
+	switch (pc_actions_fire(pc, resuming && resume_skip_actions, resuming)) {
+	case PC_HIT_BREAK:
+		return EMU_HALT_BREAKPOINT;
+	case PC_HIT_UNTIL:
+		return EMU_HALT_UNTIL;
+	default:
+		return -1;
 	}
-	return cpu_check_breakpoint(pc);
+}
+
+static __force_inline void set_resume_point(void)
+{
+	resume_valid = true;
+	resume_pc = cpu.pc;
+	resume_skip_actions = halt_fired;
+}
+
+// The E clock is stopping (or the CPU is being reset/loaded): end pulses and
+// drop a pending step-over/run-until stop.
+static __force_inline void stop_pc_activity(void)
+{
+	pc_pulse_end_all();
+	pc_temp.active = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +239,9 @@ static void EMU_CORE_FUNC(s_resetting)(FSM *fsm, uint8_t event)
 	case EVT_ENTER:
 		set_state(EMU_STATE_RESETTING);
 		emu_steps_pending = 0;
-		skip_bp_valid = false;
+		resume_valid = false;
+		halt_fired = false;
+		stop_pc_activity();
 		interrupt_service_reset();
 		eclock_stop();
 		post_reset();
@@ -254,13 +285,14 @@ static void EMU_CORE_FUNC(s_running)(FSM *fsm, uint8_t event)
 			fsm_change_state(fsm, &s_resetting);
 			break;
 		}
-		// Check for breakpoints before executing the instruction at PC
-		if (breakpoint_hit(cpu.pc)) {
-			post_halted(EMU_HALT_BREAKPOINT);
+		pc_pulse_service();
+		// PC actions (breakpoints, triggers) before executing the instruction at PC
+		int stop = check_pc_actions();
+		if (stop >= 0) {
+			post_halted((emu_halt_reason_t)stop);
 			fsm_change_state(fsm, &s_halted);
 			break;
 		}
-		skip_bp_valid = false;
 
 		if (execute_one()) {
 			post_halted((emu_halt_reason_t)cpu.stop_reason);
@@ -315,6 +347,7 @@ static void EMU_CORE_FUNC(step_finish)(emu_halt_reason_t reason)
 	emu_steps_pending = 0;
 	bus_sync();
 	eclock_stop();
+	pc_pulse_end_all();
 	post_halted(reason);
 }
 
@@ -329,14 +362,15 @@ static bool EMU_CORE_FUNC(step_one)(FSM *fsm)
 		return false;
 	}
 
-	if (!step_first && interrupt == INT_NONE && cpu_check_breakpoint(cpu.pc)) {
-		step_finish(EMU_HALT_BREAKPOINT);
-		return true;
-	}
-	step_first = false;
+	pc_pulse_service();
 
 	// While in WAI with no interrupt pending, a step executes nothing.
 	if (!(cpu.wai_state && interrupt == INT_NONE)) {
+		int stop = check_pc_actions();
+		if (stop >= 0) {
+			step_finish((emu_halt_reason_t)stop);
+			return true;
+		}
 		if (execute_one()) {
 			step_finish((emu_halt_reason_t)cpu.stop_reason);
 			return true;
@@ -357,12 +391,12 @@ static void EMU_CORE_FUNC(s_halted)(FSM *fsm, uint8_t event)
 	case EVT_ENTER:
 		set_state(EMU_STATE_HALTED);
 		eclock_stop(); // E clock OFF
+		stop_pc_activity();
 		cpu.halted = true;
 		break;
 	case EVT_EXIT:
 		cpu.halted = false;
-		skip_bp_valid = true;
-		skip_bp_pc = cpu.pc;
+		set_resume_point();
 		break;
 	case EVT_POLL:
 		if (emu_steps_pending) {
@@ -388,7 +422,7 @@ static void EMU_CORE_FUNC(s_halted)(FSM *fsm, uint8_t event)
 			break;
 		}
 		if (!emu_steps_pending) {
-			step_first = true;
+			set_resume_point();
 			eclock_start();
 		}
 		emu_steps_pending = current_cmd_arg;
@@ -417,6 +451,7 @@ static void EMU_CORE_FUNC(s_loading)(FSM *fsm, uint8_t event)
 	case EVT_ENTER:
 		set_state(EMU_STATE_LOADING);
 		eclock_stop(); // E clock OFF
+		stop_pc_activity();
 		break;
 	case EMU_CMD_LOAD:
 		reply(EMU_OK);
@@ -444,6 +479,7 @@ static void EMU_CORE_FUNC(s_waiting_for_interrupt)(FSM *fsm, uint8_t event)
 		eclock_start();
 		break;
 	case EVT_POLL: {
+		pc_pulse_service();
 		interrupt_t interrupt = interrupt_check();
 		if (interrupt == INT_RESET) {
 			fsm_change_state(fsm, &s_resetting);

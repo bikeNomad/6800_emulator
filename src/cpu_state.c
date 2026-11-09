@@ -33,11 +33,6 @@ void cpu_init(void)
 	cpu.wai_state = false; // Not waiting for interrupt
 	cpu.instruction_count = 0;
 
-	// Initialize breakpoints
-	cpu.breakpoint_count = 0;
-	for (int i = 0; i < MAX_BREAKPOINTS; i++) {
-		cpu.breakpoints[i] = 0xFFFF; // Invalid address
-	}
 	cpu.stop_requested = false;
 	cpu.stop_reason = 0;
 	cpu.stop_opcode = 0;
@@ -50,59 +45,6 @@ void cpu_init(void)
 bool cpu_is_running(void)
 {
 	return cpu.running && !cpu.halted;
-}
-
-// Breakpoint functions
-bool cpu_add_breakpoint(uint16_t address)
-{
-	if (cpu.breakpoint_count >= MAX_BREAKPOINTS) {
-		return false; // No space for more breakpoints
-	}
-
-	// Check if breakpoint already exists
-	for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
-		if (cpu.breakpoints[i] == address) {
-			return false; // Already exists
-		}
-	}
-
-	// Add new breakpoint
-	cpu.breakpoints[cpu.breakpoint_count++] = address;
-	return true;
-}
-
-bool cpu_remove_breakpoint(uint16_t address)
-{
-	for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
-		if (cpu.breakpoints[i] == address) {
-			// Shift remaining breakpoints down
-			for (uint8_t j = i; j < cpu.breakpoint_count - 1; j++) {
-				cpu.breakpoints[j] = cpu.breakpoints[j + 1];
-			}
-			cpu.breakpoint_count--;
-			cpu.breakpoints[cpu.breakpoint_count] = 0xFFFF; // Clear last slot
-			return true;
-		}
-	}
-	return false; // Not found
-}
-
-void cpu_clear_breakpoints(void)
-{
-	cpu.breakpoint_count = 0;
-	for (int i = 0; i < MAX_BREAKPOINTS; i++) {
-		cpu.breakpoints[i] = 0xFFFF;
-	}
-}
-
-uint8_t cpu_get_breakpoint_count(void)
-{
-	return cpu.breakpoint_count;
-}
-
-const uint16_t *cpu_get_breakpoints(void)
-{
-	return cpu.breakpoints;
 }
 
 // Mnemonic of the opcode at addr if it is in ROM or RAM (no bus cycle).

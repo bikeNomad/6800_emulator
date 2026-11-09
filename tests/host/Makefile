@@ -11,8 +11,8 @@ BUILD := build
 
 # Real sources under test. They are copied next to the fakes so that their
 # quoted #includes pick up the fake hardware headers instead of the real ones.
-REAL := emulator.c emu_api.c simple_fsm.c cpu_state.c \
-	emulator.h emu_api.h emu_ring.h simple_fsm.h cpu_state.h
+REAL := emulator.c emu_api.c simple_fsm.c cpu_state.c pc_actions.c \
+	emulator.h emu_api.h emu_ring.h simple_fsm.h cpu_state.h pc_actions.h
 
 CFLAGS := -std=gnu11 -O1 -g -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare \
 	-fsanitize=address,undefined -I$(BUILD)

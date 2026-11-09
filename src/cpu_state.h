@@ -62,9 +62,6 @@ typedef struct {
 	uint8_t stop_reason; // emu_halt_reason_t
 	uint8_t stop_opcode; // opcode that caused the stop
 
-	// Breakpoint system
-	uint16_t breakpoints[MAX_BREAKPOINTS];
-	uint8_t breakpoint_count;
 } cpu_state_t;
 
 // Global CPU state (defined in cpu_state.c)
@@ -75,24 +72,6 @@ void cpu_init(void);
 
 // Check if CPU is running
 bool cpu_is_running(void);
-
-// Breakpoint functions. Only call these while the emulator core is parked
-// (see emu_lock() in emu_api.h) or from the emulator core itself.
-bool cpu_add_breakpoint(uint16_t address);
-bool cpu_remove_breakpoint(uint16_t address);
-void cpu_clear_breakpoints(void);
-uint8_t cpu_get_breakpoint_count(void);
-const uint16_t *cpu_get_breakpoints(void);
-
-static __force_inline bool cpu_check_breakpoint(uint16_t address)
-{
-	for (uint8_t i = 0; i < cpu.breakpoint_count; i++) {
-		if (cpu.breakpoints[i] == address) {
-			return true;
-		}
-	}
-	return false;
-}
 
 // Get CCR flag (inline for performance)
 static __force_inline bool cpu_get_flag(uint8_t flag)

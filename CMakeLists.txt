@@ -75,6 +75,7 @@ add_executable(mc6800_emulator
     src/debug_spi.c
     src/emulator.c
     src/emu_api.c
+    src/pc_actions.c
     src/simple_fsm.c
 )
 

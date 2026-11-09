@@ -9,6 +9,7 @@
 #include "instructions.h"
 #include "interrupts.h"
 #include "memory.h"
+#include "pc_gpio.h"
 #include <time.h>
 #include <unistd.h>
 
@@ -18,6 +19,53 @@ uint32_t cycle_count, pending_cycles, last_pio_cycles;
 int32_t cycle_overage, cycle_underage;
 bool fake_eclock_running;
 volatile bool fake_reset_pin;
+bool fake_debug_spi_on;
+
+// ---------------------------------------------------------------------------
+// GPIO (PC trigger outputs)
+
+fake_gpio_write_t fake_gpio_log[FAKE_GPIO_LOG_SIZE];
+volatile uint32_t fake_gpio_log_count;
+volatile uint32_t fake_gpio_hi_out;
+uint64_t fake_gpio_outputs;
+
+void fake_gpio_hi_write(uint8_t op, uint32_t mask)
+{
+	switch (op) {
+	case FAKE_GPIO_SET:
+		fake_gpio_hi_out |= mask;
+		break;
+	case FAKE_GPIO_CLR:
+		fake_gpio_hi_out &= ~mask;
+		break;
+	default:
+		fake_gpio_hi_out ^= mask;
+		break;
+	}
+	uint32_t n = fake_gpio_log_count;
+	if (n < FAKE_GPIO_LOG_SIZE) {
+		fake_gpio_log[n] = (fake_gpio_write_t){.op = op, .mask = mask, .cycle = cycle_count};
+		__sync_synchronize();
+		fake_gpio_log_count = n + 1;
+	}
+}
+
+void fake_gpio_reset_log(void)
+{
+	fake_gpio_log_count = 0;
+	__sync_synchronize();
+}
+
+void pc_gpio_config_output(uint8_t pin)
+{
+	fake_gpio_outputs |= 1ull << pin;
+	fake_gpio_hi_out &= ~(1u << (pin - 32));
+}
+
+void pc_gpio_release(uint8_t pin)
+{
+	fake_gpio_hi_out &= ~(1u << (pin - 32));
+}
 
 // ---------------------------------------------------------------------------
 // Time
@@ -132,6 +180,8 @@ interrupt_t interrupt_check(void)
 // ---------------------------------------------------------------------------
 // A toy instruction set, just enough to exercise the state machine:
 //   $01 NOP     $4C INCA      $20 rr BRA rel
+//   $8E hhll LDS #imm         $BD hhll JSR ext    $8D rr BSR rel
+//   $39 RTS     $3F SWI       $3B RTI
 //   $DD HCF     anything else: unimplemented
 
 void instruction_execute(void)
@@ -150,6 +200,40 @@ void instruction_execute(void)
 		cpu.pc = (uint16_t)(cpu.pc + rel);
 		break;
 	}
+	case 0x8E: {
+		uint8_t hi = memory_read_fast(cpu.pc++);
+		uint8_t lo = memory_read_fast(cpu.pc++);
+		cpu.sp = (uint16_t)((hi << 8) | lo);
+		break;
+	}
+	case 0xBD: {
+		uint8_t hi = memory_read_fast(cpu.pc++);
+		uint8_t lo = memory_read_fast(cpu.pc++);
+		cpu_push16(cpu.pc);
+		cpu.pc = (uint16_t)((hi << 8) | lo);
+		break;
+	}
+	case 0x8D: {
+		int8_t rel = (int8_t)memory_read_fast(cpu.pc++);
+		cpu_push16(cpu.pc);
+		cpu.pc = (uint16_t)(cpu.pc + rel);
+		break;
+	}
+	case 0x39:
+		cpu.pc = cpu_pull16();
+		break;
+	case 0x3F:
+		cpu_stack_registers();
+		cpu.ccr |= CCR_I;
+		cpu_load_pc_from_vector(VECTOR_SWI);
+		break;
+	case 0x3B:
+		cpu.ccr = cpu_pull() | CCR_FIXED;
+		cpu.b = cpu_pull();
+		cpu.a = cpu_pull();
+		cpu.x = cpu_pull16();
+		cpu.pc = cpu_pull16();
+		break;
 	case 0xDD:
 		cpu.stop_requested = true;
 		cpu.stop_reason = EMU_HALT_HCF;

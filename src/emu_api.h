@@ -69,6 +69,7 @@ typedef enum emu_result_t {
 	EMU_ERR_EXISTS,    // already present
 	EMU_ERR_NOT_FOUND, // not present
 	EMU_ERR_ARG,       // invalid argument
+	EMU_ERR_BUSY,      // resource in use (e.g. pin owned by the SPI debug output)
 } emu_result_t;
 
 const char *emu_result_str(emu_result_t r);
@@ -97,6 +98,7 @@ const char *emu_state_name(emu_state_t s);
 typedef enum emu_event_type_t {
 	EMU_EV_HALTED = 1, // CPU stopped; see reason
 	EMU_EV_RESET,      // entered reset (pin or command)
+	EMU_EV_PC_HIT,     // NOTIFY action at pc fired (emulator keeps running)
 } emu_event_type_t;
 
 typedef enum emu_halt_reason_t {
@@ -105,6 +107,7 @@ typedef enum emu_halt_reason_t {
 	EMU_HALT_ILLEGAL,    // unimplemented opcode at prev_pc
 	EMU_HALT_HCF,        // HCF ($DD) executed at prev_pc
 	EMU_HALT_STEP_DONE,  // requested number of steps completed
+	EMU_HALT_UNTIL,      // step-over / run-until reached its address (not yet executed)
 } emu_halt_reason_t;
 
 typedef struct emu_event_t {
@@ -114,6 +117,7 @@ typedef struct emu_event_t {
 	uint8_t _pad;
 	uint16_t pc;      // PC of the next instruction to execute
 	uint16_t prev_pc; // address of the last instruction executed
+	uint32_t hits;    // EMU_EV_PC_HIT: hit count of pc when the event was posted
 } emu_event_t;
 
 // Returns false if no event is pending.
@@ -197,7 +201,88 @@ emu_result_t emu_bus_read(uint16_t addr, uint8_t *buf, size_t len);
 emu_result_t emu_bus_write(uint16_t addr, const uint8_t *buf, size_t len);
 
 // ---------------------------------------------------------------------------
-// Breakpoints (PC = address of an instruction's opcode)
+// PC actions: things to do when the PC reaches an address, checked before the
+// instruction there executes. Several actions may share an address.
+//
+//   BREAK   halt (EMU_EV_HALTED / EMU_HALT_BREAKPOINT)
+//   SET     drive pin high
+//   CLR     drive pin low
+//   TOGGLE  invert pin
+//   PULSE   drive pin high for `width` E cycles (1-65535, 0 means 1), then low.
+//           The pin goes low at the first instruction boundary at or after
+//           the end, so a pulse can be up to one instruction (<= 12 E cycles)
+//           longer. Firing again before the end restarts it. Any halt, reset
+//           or load ends all pulses (the E clock stops), and so does
+//           removing the action. Pulses can't end while emu_lock() is held.
+//   COUNT   nothing but the hit counter (every address with an action counts)
+//   NOTIFY  post EMU_EV_PC_HIT without halting. At most one is outstanding
+//           per address: the next is posted only after the host has popped
+//           the previous one with emu_poll_event(). Hits in between show in
+//           the hit count. NOTIFY never uses the last few free event slots,
+//           so HALTED and RESET events are not lost to a hot address.
+//
+// At one address there can be one GPIO action (SET/CLR/TOGGLE/PULSE) per
+// pin, and one each of BREAK, COUNT and NOTIFY. Limits: 64 addresses, 128
+// actions. Trigger pins: see emu_trigger_pins(). The pin is made a SIO
+// output (driving low) when first used; when its last action is removed it
+// is driven low and left an output.
+//
+// When the emulator halts at a BREAK, the other actions at that address have
+// already fired; resuming (run or step) does not fire them again, and does
+// not stop on that breakpoint again until the next time it is reached.
+
+typedef enum emu_action_type_t {
+	EMU_ACT_BREAK = 0,
+	EMU_ACT_SET,
+	EMU_ACT_CLR,
+	EMU_ACT_TOGGLE,
+	EMU_ACT_PULSE,
+	EMU_ACT_COUNT,
+	EMU_ACT_NOTIFY,
+} emu_action_type_t;
+
+typedef struct emu_action_t {
+	uint16_t addr;  // PC (address of an instruction's opcode)
+	uint8_t type;   // emu_action_type_t
+	uint8_t pin;    // GPIO actions only
+	uint16_t width; // PULSE only, E cycles
+} emu_action_t;
+
+// EMU_ERR_RANGE: pin not a trigger pin. EMU_ERR_BUSY: pin is one of the SPI
+// debug pins and the SPI debug output is on. EMU_ERR_EXISTS, EMU_ERR_FULL.
+emu_result_t emu_action_add(const emu_action_t *a);
+// Matches addr and type, and pin for GPIO actions.
+emu_result_t emu_action_remove(const emu_action_t *a);
+// Remove all actions except breakpoints, at addr or (addr < 0) everywhere.
+// EMU_ERR_NOT_FOUND if there were none.
+emu_result_t emu_action_clear(int32_t addr);
+// Copies up to `max` actions, sorted by address, into out[]; returns how many exist.
+size_t emu_action_list(emu_action_t *out, size_t max);
+size_t emu_action_max(void);
+
+// Name of an action type ("break", "set", ...), and the reverse.
+const char *emu_action_name(emu_action_type_t type);
+bool emu_action_from_name(const char *name, emu_action_type_t *type);
+
+// Hit counters (32 bits, wrap). Only addresses with an action have one.
+emu_result_t emu_hits_get(uint16_t addr, uint32_t *hits); // EMU_ERR_NOT_FOUND
+emu_result_t emu_hits_reset(int32_t addr);                // addr < 0: all
+
+// Pins usable for GPIO actions. Copies up to `max` into out[]; returns how many.
+size_t emu_trigger_pins(uint8_t *out, size_t max);
+// True if pin is shared with the SPI debug output (usable only while it is off).
+bool emu_trigger_pin_is_spi_debug(uint8_t pin);
+
+// SPI debug output on GPIO 33-36 and trigger actions on those pins exclude
+// each other: enabling fails with EMU_ERR_BUSY while an action uses one of
+// them, and emu_action_add() fails with EMU_ERR_BUSY on those pins while the
+// output is on.
+emu_result_t emu_debug_spi_enable(bool on);
+bool emu_debug_spi_is_enabled(void);
+
+// ---------------------------------------------------------------------------
+// Breakpoints (PC = address of an instruction's opcode). These are BREAK
+// actions in the PC action table above.
 
 emu_result_t emu_bp_add(uint16_t addr);
 emu_result_t emu_bp_remove(uint16_t addr);
@@ -205,6 +290,22 @@ emu_result_t emu_bp_clear(void);
 // Copies up to `max` breakpoint addresses into out[]; returns how many are set.
 size_t emu_bp_list(uint16_t *out, size_t max);
 size_t emu_bp_max(void);
+
+// ---------------------------------------------------------------------------
+// Step over and run until. Both run at full speed and finish with
+// EMU_EV_HALTED: EMU_HALT_UNTIL when the address is reached, or another
+// reason (breakpoint, user halt, ...) if something else stops it first, which
+// also cancels the pending stop.
+
+// Only while halted. If the instruction at PC is JSR, BSR or SWI, run until
+// the instruction after it is reached with the same SP (so recursive calls
+// don't stop it early). Otherwise the same as emu_step(1).
+emu_result_t emu_step_over(void);
+
+// Run until PC reaches addr (any SP). From halted, starts running; while
+// running or waiting, sets the stop. Starting from a halt at addr does not
+// stop immediately.
+emu_result_t emu_run_until(uint16_t addr);
 
 // ---------------------------------------------------------------------------
 // Status snapshot

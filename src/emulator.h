@@ -47,9 +47,6 @@ typedef int (*printf_func_t)(const char *__restrict, ...)
 #define DEBUG_INTERRUPTS 1
 #endif
 
-// Breakpoint system
-#define MAX_BREAKPOINTS 16
-
 // System clock speed in MHz (configurable at build time)
 #ifndef SYS_CLOCK_MHZ
 #define SYS_CLOCK_MHZ 266 // Default: 266MHz (optimized for 133MHz QSPI flash)
@@ -90,7 +87,8 @@ typedef struct emu_reply_msg_t {
 
 EMU_RING_DECLARE(emu_cmd_ring, emu_cmd_msg_t, 8)
 EMU_RING_DECLARE(emu_reply_ring, emu_reply_msg_t, 8)
-EMU_RING_DECLARE(emu_event_ring, emu_event_t, 64)
+#define EMU_EVENT_RING_SIZE 64
+EMU_RING_DECLARE(emu_event_ring, emu_event_t, EMU_EVENT_RING_SIZE)
 
 // Ring instances (defined in emulator.c)
 extern emu_cmd_ring_t emu_cmd_q;     // host -> core

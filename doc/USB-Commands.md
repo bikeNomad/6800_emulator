@@ -99,6 +99,8 @@ tio /dev/tty.usbmodem14201
 | `run` | none | Start CPU execution |
 | `halt` | none | Stop CPU execution |
 | `step` | [count] | Execute instructions while halted (default 1) |
+| `next` | none | Step over JSR/BSR/SWI (otherwise `step 1`) |
+| `until` | addr | Run until PC reaches addr |
 | `regs` | none | Show CPU registers |
 | `reset` | none | Reset CPU |
 | `debug on` | none | Enable SPI debug output |
@@ -108,6 +110,13 @@ tio /dev/tty.usbmodem14201
 | `break` | addr | Set breakpoint |
 | `break clear` | [addr] | Clear breakpoint(s) |
 | `break list` | none | List breakpoints |
+| `trig` | addr action [pin [width]] | Add a PC trigger action (GPIO set/clr/tog/pulse, count, notify) |
+| `trig del` | addr action [pin] | Remove one trigger action |
+| `trig clear` | [addr] | Remove trigger actions (breakpoints are kept) |
+| `trig list` | none | List all PC actions, including breakpoints, with hit counts |
+| `trig pins` | none | List GPIO pins usable for triggers |
+| `hits` | [addr] | Show hit counts |
+| `hits reset` | [addr] | Reset hit counts |
 | `reg pc` | value | Set program counter |
 | `reg a` | value | Set accumulator A |
 | `reg b` | value | Set accumulator B |
@@ -172,6 +181,17 @@ MC6800 Emulator Commands:
   break clear               - Clear all breakpoints
   break clear <addr>        - Clear specific breakpoint
   break list                - List all breakpoints
+  trig <a> set|clr|tog <p>  - At PC=a, set/clear/toggle GPIO p (decimal)
+  trig <a> pulse <p> [w]    - At PC=a, pulse GPIO p high for w E cycles (hex, default 1)
+  trig <a> count|notify     - At PC=a, just count hits / report each hit
+  trig del <a> <act> [p]    - Remove one action
+  trig clear [<a>]          - Remove trig actions (all, or at a); keeps breakpoints
+  trig list                 - List all PC actions with hit counts
+  trig pins                 - List usable trigger pins
+  hits [<a>]                - Show hit counts
+  hits reset [<a>]          - Reset hit counts
+  next                      - Step over JSR/BSR/SWI (else step 1)
+  until <a>                 - Run until PC=a
   reg pc <val>              - Set program counter
   reg a <val>               - Set accumulator A
   reg b <val>               - Set accumulator B
@@ -847,6 +867,10 @@ OK: Debug SPI enabled
 - Enables detailed SPI output showing bus transactions
 - Useful for debugging hardware interface issues
 - May impact performance when enabled
+- The SPI debug pins (GPIO 33-36, on J3) can instead be used as `trig`
+  outputs, but not both at once: `debug on` fails while a `trig` action uses
+  one of them (`ERROR: trig actions use GPIO 33-36; ...`). Remove those
+  actions first. `debug on` gives GPIO 33-35 back to the SPI block.
 
 ### debug off
 
@@ -869,6 +893,7 @@ OK: Debug SPI disabled
 
 - Disables SPI debug output to improve performance
 - Debug output is disabled by default
+- While it is off, GPIO 33-36 can be used by `trig`
 
 ### clock internal
 
@@ -969,7 +994,7 @@ break <addr_hex>
 OK: Breakpoint set at $5000
 
 > break F000
-ERROR: Failed to set breakpoint at $F000 (max 16 breakpoints)
+ERROR: Failed to set breakpoint at $F000 (max 64 breakpoints)
 ```
 
 When the CPU reaches it:
@@ -981,7 +1006,8 @@ CPU halted at breakpoint at PC=$5000 Prior PC=$4FFD
 
 **Notes**:
 
-- Maximum of 16 breakpoints supported
+- Breakpoints are `break` actions in the PC action table shared with `trig`:
+  at most 64 addresses (with any actions) and 128 actions in total
 - The CPU halts *before* executing the instruction at the breakpoint address
 - `run` or `step` from a breakpoint executes that instruction; the
   breakpoint triggers again the next time execution reaches it
@@ -1036,6 +1062,197 @@ Breakpoints:
 
 - Shows all active breakpoints
 - Displays "No breakpoints set" if none are active
+
+### next
+
+Step over a subroutine call. Only valid while halted.
+
+**Syntax**:
+
+```
+next
+```
+
+**Example**:
+
+```
+> next
+CPU stopped at PC=$F00B
+  PC=$F00B (LDAA (DIR)) A=$12 B=$00 X=$0123 SP=$01FF CCR=$D0
+```
+
+**Notes**:
+
+- If the instruction at PC is `JSR`, `BSR` or `SWI`, the CPU runs at full
+  speed until it reaches the following instruction with the same SP (so a
+  recursive call reaching that address deeper on the stack does not stop it)
+- Any other instruction: same as `step`
+- A breakpoint, `halt`, an illegal opcode or `/RESET` stops it first and
+  cancels the pending stop
+
+### until
+
+Run until the PC reaches an address.
+
+**Syntax**:
+
+```
+until <addr_hex>
+```
+
+**Example**:
+
+```
+> until F123
+OK: Running until $F123
+CPU stopped at PC=$F123
+  PC=$F123 (STAA (EXT)) A=$01 B=$00 X=$0123 SP=$01FF CCR=$D0
+```
+
+**Notes**:
+
+- From halted, starts running; while running, just sets the stop
+- Halted at `addr` already: runs until it is reached again
+- Any SP matches. One `until`/`next` stop at a time; a new one replaces it
+- A breakpoint, `halt`, an illegal opcode or `/RESET` stops it first and
+  cancels the pending stop
+
+### trig
+
+Add an action that fires every time the PC reaches an address, before the
+instruction there executes. The emulator keeps running (unlike `break`).
+
+**Syntax**:
+
+```
+trig <addr_hex> set <pin>            drive GPIO pin high
+trig <addr_hex> clr <pin>            drive GPIO pin low
+trig <addr_hex> tog <pin>            invert GPIO pin
+trig <addr_hex> pulse <pin> [width]  GPIO pin high for width E cycles, then low
+trig <addr_hex> count                only count hits (see hits)
+trig <addr_hex> notify               report each hit (HIT: message)
+```
+
+`addr` and `width` are hex like everywhere else; `pin` is a decimal GPIO
+number. `width` is 1-FFFF E cycles (default 1; about 1.1 us each at the
+standard 894.886 kHz E clock).
+
+**Example**:
+
+```
+> trig F123 pulse 42 10
+OK: $F123 pulse GPIO 42 for $10 E cycles
+> trig F123 count
+OK: $F123 count
+> trig E000 notify
+OK: $E000 notify
+> trig F123 set 34
+ERROR: GPIO 34 belongs to the SPI debug output; 'debug off' first
+```
+
+**Trigger pins**: GPIO 32 and 42-46 are always usable. GPIO 33-36 (the SPI
+debug pins on J3) are usable while `debug off` (the default). On the REV2
+board, GPIO 32 and 42-46 are not routed anywhere: they are RP2350B pads 40
+and 53-57, so they need a wire soldered to the chip. GPIO 33-36 are on J3
+(SPI_CS, SPI_SCK, SPI_MOSI, SPI_MISO). `trig pins` lists them. A pin becomes
+an output driving low when an action first uses it; when its last action is
+removed it is driven low and left an output.
+
+**Notes**:
+
+- Several actions can share an address: one GPIO action per pin, plus
+  `count`, `notify` and a `break`. GPIO writes at one address happen in the
+  order clr, set, tog, pulse
+- Timing: the pin changes when the emulator reaches the instruction, within
+  about one E cycle of its opcode fetch on the bus
+- `pulse` ends at the first instruction boundary at or after `width` E cycles,
+  so it can be up to one instruction (at most 12 E cycles) longer. Reaching the
+  address again before the end restarts the pulse. A halt, reset or load ends
+  it at once (the E clock stops), so single-stepping cuts pulses short.
+  Pulses can't end while a command is accessing the emulator (it is parked
+  for a few microseconds), so they may come out slightly longer then
+- With `break` at the same address, the other actions fire once before the
+  halt, and not again on `run`/`step` from there
+- `notify` prints `HIT: PC=$xxxx hits=n Prior PC=$yyyy`. Only one report per
+  address is outstanding at a time; hits in between show up in the count, so
+  a hot address does not flood the console or crowd out halt messages
+- Limits: 64 addresses, 128 actions (shared with breakpoints)
+- Can be used while running
+
+### trig del
+
+Remove one action.
+
+**Syntax**:
+
+```
+trig del <addr_hex> set|clr|tog|pulse <pin>
+trig del <addr_hex> count|notify
+```
+
+Use `break clear <addr>` for a breakpoint.
+
+### trig clear
+
+Remove all trigger actions, or those at one address. Breakpoints are kept
+(use `break clear`).
+
+**Syntax**:
+
+```
+trig clear [<addr_hex>]
+```
+
+### trig list
+
+List all PC actions, including breakpoints, one line per address with its
+hit count.
+
+```
+> trig list
+PC actions (4 of 128):
+  $E000  hits=12         notify
+  $F123  hits=3051       break pulse:42/$10 count
+```
+
+### trig pins
+
+List the GPIO pins usable for triggers (`*` = shared with SPI debug).
+
+```
+> trig pins
+Trigger pins (GPIO, decimal): 32 33* 34* 35* 36* 42 43 44 45 46
+  * shared with the SPI debug output (J3); usable while 'debug off' (now off)
+```
+
+### hits
+
+Show hit counts. Every address with any PC action (including a breakpoint)
+counts how often the PC reached it; use `trig <addr> count` to count without
+doing anything else.
+
+**Syntax**:
+
+```
+hits [<addr_hex>]
+hits reset [<addr_hex>]
+```
+
+**Example**:
+
+```
+> hits F123
+$F123 hits=3051
+> hits reset
+OK: Hit counts reset
+```
+
+**Notes**:
+
+- Counters are 32 bits and wrap
+- Adding or removing actions at an address keeps its count; removing the
+  last one discards it
+- Not the same as `count print`/`count reset`, which profile opcodes
 
 ### reg pc
 
@@ -1537,6 +1754,8 @@ The emulator reports these on its own, between command responses:
 | `*** UNIMPLEMENTED OPCODE: $oo at PC=$xxxx *** CPU halted` | Illegal instruction |
 | `HCF ($DD) at PC=$xxxx: CPU halted` | `HCF` executed |
 | `  PC=$xxxx (...) A=... B=... X=... SP=... CCR=...` | A `step` sequence finished |
+| `CPU stopped at PC=$xxxx` | `next` or `until` reached its address (followed by a register line) |
+| `HIT: PC=$xxxx hits=n Prior PC=$yyyy` | A `trig ... notify` address was reached (emulator keeps running) |
 | `CPU reset: PC=$xxxx` | Reset (command, `/RESET` pin, or after loading) |
 | `(n emulator events dropped)` | The event queue overflowed |
 

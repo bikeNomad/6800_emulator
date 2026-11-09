@@ -75,8 +75,16 @@ void __time_critical_func(debug_spi_log_bus)(uint16_t address, bool is_read, uin
 }
 
 // Enable/disable debug output
+// The pins may have been used as PC trigger outputs while the output was off
+// (emu_debug_spi_enable() only allows enabling when none are), so give them
+// back to the SPI block.
 void debug_spi_enable(bool enable)
 {
+	if (enable) {
+		gpio_set_function(GPIO_SPI_SCK, GPIO_FUNC_SPI);
+		gpio_set_function(GPIO_SPI_MOSI, GPIO_FUNC_SPI);
+		gpio_set_function(GPIO_SPI_CS, GPIO_FUNC_SPI);
+	}
 	debug_enabled = enable;
 }
 
